@@ -1,0 +1,301 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Accent Colors - warm comfortable tones */
+  --color-venom: var(--venom);
+  --color-venom-dark: var(--venom-dark);
+  --color-venom-glow: var(--venom-glow);
+  --color-venom-border: var(--venom-border);
+  --color-venom-foreground: var(--venom-foreground);
+  --color-venom-purple: #8B5CF6;
+  --color-venom-purple-dark: #7C3AED;
+}
+
+:root {
+  --radius: 0.625rem;
+  /* Light mode - Warm comfortable palette */
+  --venom: #2a7d6e;
+  --venom-dark: #1f6357;
+  --venom-glow: rgba(42, 125, 110, 0.10);
+  --venom-border: rgba(42, 125, 110, 0.25);
+  --venom-foreground: #ffffff;
+  --background: #f7f8fa;
+  --foreground: #1e2432;
+  --card: #ffffff;
+  --card-foreground: #1e2432;
+  --popover: #ffffff;
+  --popover-foreground: #1e2432;
+  --primary: #2a7d6e;
+  --primary-foreground: #ffffff;
+  --secondary: #eef0f4;
+  --secondary-foreground: #1e2432;
+  --muted: #eef0f4;
+  --muted-foreground: #5f6b7a;
+  --accent: #eef0f4;
+  --accent-foreground: #1e2432;
+  --destructive: #dc2626;
+  --border: #dce0e6;
+  --input: #dce0e6;
+  --ring: #2a7d6e;
+  --chart-1: #2a7d6e;
+  --chart-2: #8B5CF6;
+  --chart-3: #F59E0B;
+  --chart-4: #3B82F6;
+  --chart-5: #EF4444;
+  --sidebar: #f2f4f7;
+  --sidebar-foreground: #1e2432;
+  --sidebar-primary: #2a7d6e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eef0f4;
+  --sidebar-accent-foreground: #1e2432;
+  --sidebar-border: #dce0e6;
+  --sidebar-ring: #2a7d6e;
+}
+
+.dark {
+  /* Dark mode - Soft comfortable palette */
+  --venom: #5eb8a6;
+  --venom-dark: #4a9e8d;
+  --venom-glow: rgba(94, 184, 166, 0.10);
+  --venom-border: rgba(94, 184, 166, 0.20);
+  --venom-foreground: #0c1a17;
+  --background: #131720;
+  --foreground: #e2e5ea;
+  --card: #1a1f2b;
+  --card-foreground: #e2e5ea;
+  --popover: #1a1f2b;
+  --popover-foreground: #e2e5ea;
+  --primary: #5eb8a6;
+  --primary-foreground: #0c1a17;
+  --secondary: #1f2535;
+  --secondary-foreground: #e2e5ea;
+  --muted: #1f2535;
+  --muted-foreground: #8b95a5;
+  --accent: #1f2535;
+  --accent-foreground: #e2e5ea;
+  --destructive: #ef4444;
+  --border: #2a3040;
+  --input: #2a3040;
+  --ring: #5eb8a6;
+  --chart-1: #5eb8a6;
+  --chart-2: #8B5CF6;
+  --chart-3: #F59E0B;
+  --chart-4: #3B82F6;
+  --chart-5: #EF4444;
+  --sidebar: #161b26;
+  --sidebar-foreground: #e2e5ea;
+  --sidebar-primary: #5eb8a6;
+  --sidebar-primary-foreground: #0c1a17;
+  --sidebar-accent: #1f2535;
+  --sidebar-accent-foreground: #5eb8a6;
+  --sidebar-border: #2a3040;
+  --sidebar-ring: #5eb8a6;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* ===== Soft Accent Styles ===== */
+
+/* Subtle Glow Effect */
+.venom-glow {
+  box-shadow: 0 0 20px var(--venom-glow), 0 0 40px rgba(42, 125, 110, 0.04);
+}
+
+.venom-glow-strong {
+  box-shadow: 0 0 20px var(--venom-glow), 0 0 50px rgba(42, 125, 110, 0.06);
+}
+
+.venom-text-glow {
+  text-shadow: 0 0 15px var(--venom-glow);
+}
+
+/* Gradient backgrounds */
+.venom-gradient {
+  background: linear-gradient(135deg, var(--venom-glow) 0%, transparent 50%, rgba(139, 92, 246, 0.06) 100%);
+}
+
+.venom-gradient-strong {
+  background: linear-gradient(135deg, var(--venom-glow) 0%, rgba(42, 125, 110, 0.02) 50%, rgba(139, 92, 246, 0.06) 100%);
+}
+
+/* Soft pattern background */
+.snake-pattern {
+  background-image: 
+    radial-gradient(circle at 20% 80%, var(--venom-glow) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.03) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, var(--venom-glow) 0%, transparent 70%);
+}
+
+/* Animated gradient border */
+@keyframes venom-border-flow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.venom-border-animate {
+  position: relative;
+}
+
+.venom-border-animate::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(90deg, var(--venom), #8B5CF6, var(--venom));
+  background-size: 200% 200%;
+  animation: venom-border-flow 3s ease infinite;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Pulse animation for live indicators */
+@keyframes venom-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--venom-glow); }
+  50% { opacity: 0.7; box-shadow: 0 0 12px var(--venom-glow); }
+}
+
+.venom-pulse {
+  animation: venom-pulse 2s ease-in-out infinite;
+}
+
+/* Smooth scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--venom-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--venom);
+  opacity: 0.6;
+}
+
+/* Float animation */
+@keyframes venom-float {
+  0% { transform: translateY(0) translateX(0); }
+  100% { transform: translateY(-20px) translateX(10px); }
+}
+
+/* RTL Select styling */
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%235f6b7a' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: left 8px center;
+  background-repeat: no-repeat;
+  background-size: 16px;
+  padding-left: 28px;
+}
+
+.dark select {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238b95a5' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+}
+
+select option {
+  background: var(--card);
+  color: var(--foreground);
+}
+
+/* Number counter animation */
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-count-up {
+  animation: count-up 0.5s ease-out;
+}
+
+/* Shimmer loading effect */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, transparent 0%, var(--venom-glow) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* Particle float animation for login screen */
+@keyframes venom-float {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-80px) translateX(20px);
+    opacity: 0;
+  }
+}
+
+/* Toast customization */
+[data-sonner-toaster] [data-sonner-toast] {
+  font-family: var(--font-geist-sans);
+}

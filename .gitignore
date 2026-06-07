@@ -71,3 +71,4 @@ custom-server.js
 server.mjs
 screenshot*.png
 worklog.md
+/prisma/

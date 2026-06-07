@@ -96,7 +96,6 @@ export function Sidebar() {
 
   const [expanded, setExpanded] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [hoveredItem, setHoveredItem] = useState<string | null>(null)
   const collapseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const meetingBadge = useMeetingBadgeCount()
 
@@ -112,7 +111,6 @@ export function Sidebar() {
     // Small delay before collapsing to prevent flicker
     collapseTimer.current = setTimeout(() => {
       setExpanded(false)
-      setHoveredItem(null)
     }, 150)
   }, [])
 

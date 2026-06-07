@@ -62,7 +62,7 @@ const ADMIN_TABS: { key: AdminTab; label: string; icon: React.ElementType }[] = 
    ═══════════════════════════════════════════════════════ */
 function OverviewTab() {
   const { leads, archivedLeads, team } = useCrmStore()
-  const activeLeads = leads.filter((l) => !l.isArchived)
+  const activeLeads = useMemo(() => leads.filter((l) => !l.isArchived), [leads])
 
   const teamStats = useMemo(() => {
     const stats: Record<string, { total: number; contacted: number; meetings: number; closed: number }> = {}
@@ -92,10 +92,13 @@ function OverviewTab() {
     return stats
   }, [activeLeads, team])
 
-  const totalLeads = activeLeads.length
-  const totalClosed = activeLeads.filter((l) => l.status === 'closed-won' || l.salesStatus === 'closed-won').length
-  const totalMeetings = activeLeads.filter((l) => l.meetingDate).length
-  const conversionRate = totalLeads > 0 ? Math.round((totalClosed / totalLeads) * 100) : 0
+  const { totalLeads, totalClosed, totalMeetings, conversionRate } = useMemo(() => {
+    const total = activeLeads.length
+    const closed = activeLeads.filter((l) => l.status === 'closed-won' || l.salesStatus === 'closed-won').length
+    const meetings = activeLeads.filter((l) => l.meetingDate).length
+    const rate = total > 0 ? Math.round((closed / total) * 100) : 0
+    return { totalLeads: total, totalClosed: closed, totalMeetings: meetings, conversionRate: rate }
+  }, [activeLeads])
 
   return (
     <div className="space-y-4">

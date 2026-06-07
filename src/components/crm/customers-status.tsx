@@ -240,6 +240,12 @@ export function CustomersStatus() {
     return rows
   }, [filteredLeads, team])
 
+  /* ─── KPI Values (memoized) ─── */
+  const kpiValues = useMemo(
+    () => KPI_CARDS.map((kpi) => kpi.getValue(filteredLeads)),
+    [filteredLeads]
+  )
+
   /* ─── Filtered team performance (for search in table) ─── */
   const filteredTeamPerf = useMemo(() => {
     if (!searchQuery.trim()) return teamPerformance
@@ -327,16 +333,16 @@ export function CustomersStatus() {
       {/* ══════════════════════════════════════════════════
           2. KPI CARDS ROW
           ══════════════════════════════════════════════════ */}
-      <div
+      <motion.div
+        variants={itemVariants}
         className="grid gap-3"
         style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}
       >
         {KPI_CARDS.map((kpi, i) => {
-          const value = kpi.getValue(filteredLeads)
+          const value = kpiValues[i]
           return (
-            <motion.div
+            <div
               key={kpi.key}
-              variants={itemVariants}
               className="bg-[#111520] border border-white/[0.06] rounded-2xl p-4 relative overflow-hidden hover:-translate-y-0.5 hover:border-white/[0.1] transition-all group"
             >
               {/* Decorative corner */}
@@ -363,10 +369,10 @@ export function CustomersStatus() {
 
               {/* Label */}
               <div className="text-[12px] text-[#8892b0] mt-0.5">{kpi.label}</div>
-            </motion.div>
+            </div>
           )
         })}
-      </div>
+      </motion.div>
 
       {/* ══════════════════════════════════════════════════
           3. STATUS BREAKDOWN
@@ -389,12 +395,9 @@ export function CustomersStatus() {
                 : 0
 
               return (
-                <motion.div
+                <div
                   key={status.key}
                   className="group"
-                  initial={{ opacity: 0, x: -12 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: i * 0.04 }}
                 >
                   <div className="flex items-center gap-3">
                     {/* Label */}
@@ -430,7 +433,7 @@ export function CustomersStatus() {
                       {pct}%
                     </div>
                   </div>
-                </motion.div>
+                </div>
               )
             })}
 
@@ -484,12 +487,9 @@ export function CustomersStatus() {
                 <TableBody>
                   {filteredTeamPerf.length > 0 ? (
                     filteredTeamPerf.map((member, i) => (
-                      <motion.tr
+                      <tr
                         key={`${member.name}-${member.role}`}
                         className="border-white/[0.04] hover:bg-white/[0.02] transition-colors"
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.25, delay: i * 0.03 }}
                       >
                         <TableCell className="text-right">
                           <div className="flex items-center gap-2">
@@ -542,7 +542,7 @@ export function CustomersStatus() {
                             {member.closedWon}
                           </span>
                         </TableCell>
-                      </motion.tr>
+                      </tr>
                     ))
                   ) : (
                     <TableRow>

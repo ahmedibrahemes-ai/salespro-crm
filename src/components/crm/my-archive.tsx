@@ -242,11 +242,8 @@ export function MyArchive() {
                   filteredLeads.map((lead) => {
                     const isSelected = selectedIds.has(lead.id)
                     return (
-                      <motion.tr
+                      <tr
                         key={lead.id}
-                        variants={itemVariants}
-                        initial="hidden"
-                        animate="visible"
                         className={`border-b border-white/[0.04] transition-colors ${
                           isSelected ? 'bg-[#6c63ff]/5' : 'hover:bg-[#1c2234]/50'
                         }`}
@@ -295,7 +292,7 @@ export function MyArchive() {
                             استرجاع
                           </Button>
                         </TableCell>
-                      </motion.tr>
+                      </tr>
                     )
                   })
                 )}

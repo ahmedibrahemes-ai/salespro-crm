@@ -368,12 +368,8 @@ export function SalesSheet() {
                   filteredLeads.map((lead) => {
                     const isSelected = selected.includes(lead.id)
                     return (
-                      <motion.tr
+                      <tr
                         key={lead.id}
-                        variants={rowVariants}
-                        initial="hidden"
-                        animate="visible"
-                        exit="exit"
                         className={`border-b border-white/[0.04] transition-colors ${
                           isSelected ? 'bg-[#6c63ff]/5' : 'hover:bg-[#1c2234]/50'
                         }`}
@@ -530,7 +526,7 @@ export function SalesSheet() {
                             <Trash2 size={12} />
                           </button>
                         </TableCell>
-                      </motion.tr>
+                      </tr>
                     )
                   })
                 )}

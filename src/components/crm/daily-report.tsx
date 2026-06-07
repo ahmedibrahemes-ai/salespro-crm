@@ -127,13 +127,11 @@ interface KpiCardProps {
   color: string
   value: number | string
   label: string
-  index: number
 }
 
-function KpiCard({ icon, color, value, label, index }: KpiCardProps) {
+function KpiCard({ icon, color, value, label }: KpiCardProps) {
   return (
-    <motion.div
-      variants={itemVariants}
+    <div
       className="bg-[#111520] border border-white/[0.06] rounded-2xl p-4 relative overflow-hidden hover:-translate-y-0.5 hover:border-white/[0.12] transition-all group"
     >
       {/* Decorative corner */}
@@ -165,7 +163,7 @@ function KpiCard({ icon, color, value, label, index }: KpiCardProps) {
       >
         {label}
       </div>
-    </motion.div>
+    </div>
   )
 }
 
@@ -427,8 +425,16 @@ export function DailyReport() {
     // Sort by timestamp descending (most recent first)
     activities.sort((a, b) => b.timestamp - a.timestamp)
 
-    return activities
+    return activities.slice(0, 50)
   }, [allLeads, selectedDate])
+
+  /* ─── Categorized Activities ─── */
+  const categorizedActivities = useMemo(() => {
+    const newLeads = recentActivities.filter((a) => a.type === 'new-lead')
+    const statusChanges = recentActivities.filter((a) => a.type === 'status-change' || a.type === 'attendance' || a.type === 'closed-won')
+    const meetings = recentActivities.filter((a) => a.type === 'meeting-booked')
+    return { newLeads, statusChanges, meetings }
+  }, [recentActivities])
 
   /* ─── Performance Rating ─── */
   const performanceRating = useMemo(() => {
@@ -540,6 +546,7 @@ export function DailyReport() {
       {/* ══════════════════════════════════════════════════
           2. KPI CARDS ROW
           ══════════════════════════════════════════════════ */}
+      <motion.div variants={itemVariants}>
       <div
         className="grid gap-3"
         style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}
@@ -551,10 +558,10 @@ export function DailyReport() {
             color={kpi.color}
             value={kpi.value}
             label={kpi.label}
-            index={i}
           />
         ))}
       </div>
+      </motion.div>
 
       {/* ══════════════════════════════════════════════════
           3. TEAM ACTIVITY BREAKDOWN TABLE
@@ -691,9 +698,10 @@ export function DailyReport() {
       {/* ══════════════════════════════════════════════════
           4. RECENT ACTIVITIES
           ══════════════════════════════════════════════════ */}
+      <motion.div variants={itemVariants}>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* ─── New Leads ─── */}
-        <motion.div variants={itemVariants}>
+        <div>
           <Card className="bg-[#111520] border-white/[0.06] rounded-2xl shadow-none h-full">
             <CardHeader className="pb-2">
               <CardTitle
@@ -713,9 +721,8 @@ export function DailyReport() {
             </CardHeader>
             <CardContent>
               <div className="space-y-1.5 max-h-72 overflow-y-auto custom-scrollbar">
-                {recentActivities.filter((a) => a.type === 'new-lead').length > 0 ? (
-                  recentActivities
-                    .filter((a) => a.type === 'new-lead')
+                {categorizedActivities.newLeads.length > 0 ? (
+                  categorizedActivities.newLeads
                     .map((activity) => (
                       <ActivityItem
                         key={activity.id}
@@ -734,10 +741,10 @@ export function DailyReport() {
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
 
         {/* ─── Status Changes / Calls ─── */}
-        <motion.div variants={itemVariants}>
+        <div>
           <Card className="bg-[#111520] border-white/[0.06] rounded-2xl shadow-none h-full">
             <CardHeader className="pb-2">
               <CardTitle
@@ -751,15 +758,14 @@ export function DailyReport() {
                   className="text-[10px] border-[#00d4aa]/30 text-[#00d4aa] bg-[#00d4aa]/10 mr-auto"
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 >
-                  {recentActivities.filter((a) => a.type === 'status-change' || a.type === 'attendance' || a.type === 'closed-won').length}
+                  {categorizedActivities.statusChanges.length}
                 </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-1.5 max-h-72 overflow-y-auto custom-scrollbar">
-                {recentActivities.filter((a) => a.type === 'status-change' || a.type === 'attendance' || a.type === 'closed-won').length > 0 ? (
-                  recentActivities
-                    .filter((a) => a.type === 'status-change' || a.type === 'attendance' || a.type === 'closed-won')
+                {categorizedActivities.statusChanges.length > 0 ? (
+                  categorizedActivities.statusChanges
                     .map((activity) => (
                       <ActivityItem
                         key={activity.id}
@@ -778,10 +784,10 @@ export function DailyReport() {
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
 
         {/* ─── Meetings ─── */}
-        <motion.div variants={itemVariants}>
+        <div>
           <Card className="bg-[#111520] border-white/[0.06] rounded-2xl shadow-none h-full">
             <CardHeader className="pb-2">
               <CardTitle
@@ -801,9 +807,8 @@ export function DailyReport() {
             </CardHeader>
             <CardContent>
               <div className="space-y-1.5 max-h-72 overflow-y-auto custom-scrollbar">
-                {recentActivities.filter((a) => a.type === 'meeting-booked').length > 0 ? (
-                  recentActivities
-                    .filter((a) => a.type === 'meeting-booked')
+                {categorizedActivities.meetings.length > 0 ? (
+                  categorizedActivities.meetings
                     .map((activity) => (
                       <ActivityItem
                         key={activity.id}
@@ -822,8 +827,9 @@ export function DailyReport() {
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
       </div>
+      </motion.div>
 
       {/* ══════════════════════════════════════════════════
           5. SUMMARY / PERFORMANCE RATING

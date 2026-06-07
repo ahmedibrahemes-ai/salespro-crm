@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SalesPro Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;900&family=Tajawal:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+:root {
+  --bg-main: #0a0d14;
+  --bg-card: #111520;
+  --bg-card2: #161b28;
+  --bg-hover: #1c2234;
+  --accent: #6c63ff;
+  --accent2: #00d4aa;
+  --accent3: #ff6b6b;
+  --accent4: #ffd166;
+  --text-1: #f0f2ff;
+  --text-2: #8892b0;
+  --text-3: #4a5280;
+  --border: rgba(108,99,255,0.15);
+  --border2: rgba(255,255,255,0.06);
+  --hot: #ff6b6b;
+  --warm: #ffd166;
+  --cold: #6c9fff;
+  --won: #00d4aa;
+  --lost: #ff4d4d;
+  --radius: 14px;
+  --radius-sm: 8px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Cairo', sans-serif;
+  background: var(--bg-main);
+  color: var(--text-1);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── SIDEBAR ── */
+.sidebar {
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: 72px;
+  height: 100vh;
+  background: var(--bg-card);
+  border-left: 1px solid var(--border2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 0;
+  gap: 4px;
+  z-index: 100;
+  transition: width .3s cubic-bezier(.4,0,.2,1);
+}
+.sidebar:hover { width: 220px; }
+.sidebar-logo {
+  width: 40px; height: 40px;
+  background: linear-gradient(135deg,var(--accent),var(--accent2));
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; color: #fff; font-weight: 900;
+  margin-bottom: 24px; flex-shrink: 0;
+  font-family: 'Tajawal', sans-serif;
+}
+.nav-item {
+  width: calc(100% - 16px);
+  display: flex; align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+  transition: all .2s;
+  white-space: nowrap;
+  overflow: hidden;
+  position: relative;
+}
+.nav-item:hover { background: var(--bg-hover); color: var(--text-1); }
+.nav-item.active { background: rgba(108,99,255,.15); color: var(--accent); }
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 50%;
+  transform: translateY(-50%);
+  width: 3px; height: 60%;
+  background: var(--accent);
+  border-radius: 0 3px 3px 0;
+}
+.nav-item i { font-size: 16px; flex-shrink: 0; width: 20px; text-align: center; }
+.nav-label { opacity: 0; transition: opacity .2s; font-size: 13px; }
+.sidebar:hover .nav-label { opacity: 1; }
+.nav-badge {
+  margin-right: auto; background: var(--accent3);
+  color: #fff; font-size: 10px; padding: 1px 6px;
+  border-radius: 10px; font-weight: 700;
+  opacity: 0; transition: opacity .2s;
+}
+.sidebar:hover .nav-badge { opacity: 1; }
+.sidebar-bottom { margin-top: auto; width: calc(100% - 16px); }
+.user-pill {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: var(--radius-sm);
+  cursor: pointer; overflow: hidden;
+}
+.user-av {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: linear-gradient(135deg,var(--accent),var(--accent2));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; flex-shrink: 0;
+}
+.user-info { opacity: 0; transition: opacity .2s; }
+.sidebar:hover .user-info { opacity: 1; }
+.user-name { font-size: 12px; font-weight: 600; color: var(--text-1); }
+.user-role { font-size: 11px; color: var(--text-2); }
+
+/* ── MAIN ── */
+.main {
+  margin-right: 72px;
+  min-height: 100vh;
+  padding: 24px;
+  transition: margin-right .3s;
+}
+
+/* ── TOPBAR ── */
+.topbar {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.page-title { font-size: 22px; font-weight: 700; color: var(--text-1); }
+.page-sub { font-size: 13px; color: var(--text-2); margin-top: 2px; }
+.topbar-actions { display: flex; gap: 10px; align-items: center; }
+.btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 9px 16px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  cursor: pointer; font-family: 'Cairo', sans-serif;
+  font-size: 13px; font-weight: 500; transition: all .2s;
+  color: var(--text-1); background: var(--bg-card2);
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn-primary {
+  background: linear-gradient(135deg,var(--accent),#8b84ff);
+  border-color: transparent; color: #fff;
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(108,99,255,.4); color: #fff; }
+.date-chip {
+  padding: 8px 14px;
+  background: var(--bg-card2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  font-size: 12px; color: var(--text-2);
+}
+
+/* ── SECTION TABS ── */
+.sec-tabs {
+  display: flex; gap: 6px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.sec-tab {
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border2);
+  font-size: 12px; font-weight: 500;
+  cursor: pointer; color: var(--text-2);
+  background: transparent;
+  font-family: 'Cairo', sans-serif;
+  transition: all .2s;
+  display: flex; align-items: center; gap: 6px;
+}
+.sec-tab:hover { border-color: var(--accent); color: var(--accent); }
+.sec-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.section { display: none; }
+.section.active { display: block; animation: fadeIn .3s ease; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+
+/* ── KPI CARDS ── */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.kpi-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 18px 16px;
+  position: relative;
+  overflow: hidden;
+  transition: transform .2s, border-color .2s;
+}
+.kpi-card:hover { transform: translateY(-2px); border-color: var(--border); }
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 60px; height: 60px;
+  border-radius: 0 var(--radius) 0 60px;
+  opacity: .07;
+}
+.kpi-card.purple::before { background: var(--accent); }
+.kpi-card.teal::before { background: var(--accent2); }
+.kpi-card.red::before { background: var(--accent3); }
+.kpi-card.yellow::before { background: var(--accent4); }
+.kpi-card.blue::before { background: var(--cold); }
+
+.kpi-icon {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; margin-bottom: 12px;
+}
+.kpi-icon.purple { background: rgba(108,99,255,.15); color: var(--accent); }
+.kpi-icon.teal { background: rgba(0,212,170,.15); color: var(--accent2); }
+.kpi-icon.red { background: rgba(255,107,107,.15); color: var(--accent3); }
+.kpi-icon.yellow { background: rgba(255,209,102,.15); color: var(--accent4); }
+.kpi-icon.blue { background: rgba(108,159,255,.15); color: var(--cold); }
+
+.kpi-val { font-size: 26px; font-weight: 800; font-family: 'Tajawal', sans-serif; }
+.kpi-lbl { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+.kpi-delta { font-size: 11px; margin-top: 6px; display: flex; align-items: center; gap: 4px; }
+.up { color: var(--accent2); }
+.down { color: var(--accent3); }
+
+/* ── TARGET BAR ── */
+.target-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.target-head {
+  display: flex; justify-content: space-between;
+  align-items: center; margin-bottom: 14px;
+}
+.target-title { font-size: 14px; font-weight: 600; }
+.target-pct { font-size: 24px; font-weight: 800; color: var(--accent); font-family: 'Tajawal'; }
+.bar-track {
+  height: 10px;
+  background: var(--bg-main);
+  border-radius: 5px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 5px;
+  width: 0;
+  transition: width 1.2s cubic-bezier(.4,0,.2,1);
+}
+.target-sub { font-size: 12px; color: var(--text-2); }
+
+/* ── 2-COL GRID ── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+.card-head {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 600;
+  margin-bottom: 14px;
+  color: var(--text-1);
+}
+.card-head i { color: var(--accent); font-size: 15px; }
+
+/* ── LEAD ROWS ── */
+.lead-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border2);
+  transition: background .15s;
+}
+.lead-row:last-child { border-bottom: none; }
+.lead-row:hover { background: rgba(255,255,255,.02); border-radius: var(--radius-sm); padding-right: 8px; }
+
+.av {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; flex-shrink: 0;
+}
+.av-hot { background: rgba(255,107,107,.15); color: var(--hot); border: 1px solid rgba(255,107,107,.25); }
+.av-warm { background: rgba(255,209,102,.15); color: var(--warm); border: 1px solid rgba(255,209,102,.25); }
+.av-cold { background: rgba(108,159,255,.15); color: var(--cold); border: 1px solid rgba(108,159,255,.25); }
+.av-won { background: rgba(0,212,170,.15); color: var(--accent2); border: 1px solid rgba(0,212,170,.25); }
+
+.lead-info { flex: 1; min-width: 0; }
+.lead-name { font-size: 13px; font-weight: 600; color: var(--text-1); }
+.lead-sub { font-size: 11px; color: var(--text-2); margin-top: 1px; }
+
+.badge {
+  font-size: 10px; font-weight: 700;
+  padding: 3px 8px; border-radius: 10px;
+  flex-shrink: 0; letter-spacing: .3px;
+}
+.b-hot { background: rgba(255,107,107,.15); color: var(--hot); }
+.b-warm { background: rgba(255,209,102,.15); color: var(--warm); }
+.b-cold { background: rgba(108,159,255,.15); color: var(--cold); }
+.b-ov { background: rgba(255,77,77,.15); color: #ff4d4d; }
+.b-today { background: rgba(0,212,170,.15); color: var(--accent2); }
+.b-new { background: rgba(108,99,255,.15); color: var(--accent); }
+
+.icon-btns { display: flex; gap: 6px; }
+.icon-btn {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; border: 1px solid var(--border2);
+  cursor: pointer; color: var(--text-2);
+  background: transparent; transition: all .2s;
+}
+.icon-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(108,99,255,.1); }
+
+/* ── MINI BARS ── */
+.mini-bars { display: flex; flex-direction: column; gap: 8px; }
+.mbar-row { display: flex; align-items: center; gap: 8px; }
+.mbar-lbl { font-size: 11px; color: var(--text-2); width: 50px; text-align: right; flex-shrink: 0; }
+.mbar-track { flex: 1; height: 6px; background: var(--bg-main); border-radius: 3px; overflow: hidden; }
+.mbar-fill { height: 100%; border-radius: 3px; background: var(--accent); }
+.mbar-fill.teal { background: var(--accent2); }
+.mbar-fill.red { background: var(--accent3); }
+.mbar-val { font-size: 11px; color: var(--text-2); width: 22px; flex-shrink: 0; }
+
+/* ── PIPELINE ── */
+.pipeline-wrap { overflow-x: auto; padding-bottom: 12px; }
+.pipeline {
+  display: flex; gap: 12px;
+  min-width: 860px;
+}
+.stage { flex: 1; min-width: 120px; }
+.stage-head {
+  font-size: 11px; font-weight: 700;
+  padding: 7px 10px;
+  border-radius: 8px;
+  text-align: center;
+  margin-bottom: 10px;
+  letter-spacing: .5px;
+}
+.sh-1 { background: rgba(108,159,255,.12); color: var(--cold); }
+.sh-2 { background: rgba(108,99,255,.12); color: var(--accent); }
+.sh-3 { background: rgba(255,209,102,.12); color: var(--warm); }
+.sh-4 { background: rgba(0,212,170,.1); color: var(--accent2); }
+.sh-5 { background: rgba(255,107,107,.12); color: var(--hot); }
+.sh-6 { background: rgba(0,212,170,.15); color: var(--accent2); border: 1px solid rgba(0,212,170,.2); }
+.sh-7 { background: rgba(255,77,77,.12); color: #ff4d4d; }
+
+.deal {
+  background: var(--bg-card2);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 8px;
+  cursor: grab;
+  transition: transform .2s, border-color .2s, box-shadow .2s;
+}
+.deal:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: var(--shadow); }
+.deal.hot { border-right: 3px solid var(--accent); }
+.deal-name { font-size: 12px; font-weight: 600; color: var(--text-1); }
+.deal-val { font-size: 11px; color: var(--accent2); margin-top: 3px; font-weight: 700; }
+.deal-time { font-size: 10px; color: var(--text-3); margin-top: 3px; }
+.deal-prob {
+  display: flex; align-items: center; gap: 5px; margin-top: 5px;
+}
+.prob-bar { flex: 1; height: 3px; background: var(--bg-main); border-radius: 2px; overflow: hidden; }
+.prob-fill { height: 100%; border-radius: 2px; }
+.prob-txt { font-size: 10px; color: var(--text-2); flex-shrink: 0; }
+
+/* ── AI CARDS ── */
+.ai-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+.ai-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 18px;
+  position: relative;
+  overflow: hidden;
+  transition: transform .2s, border-color .2s;
+}
+.ai-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+.ai-card::after {
+  content: '';
+  position: absolute;
+  bottom: -20px; left: -20px;
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(108,99,255,.1), transparent);
+}
+.ai-badge-top {
+  position: absolute; top: 12px; left: 12px;
+  font-size: 9px; font-weight: 700;
+  padding: 2px 7px; border-radius: 8px;
+  background: rgba(0,212,170,.15); color: var(--accent2);
+  letter-spacing: .5px;
+}
+.ai-icon-big { font-size: 28px; color: var(--accent); margin-bottom: 10px; }
+.ai-title { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+.ai-desc { font-size: 12px; color: var(--text-2); line-height: 1.6; }
+.ai-stat { font-size: 20px; font-weight: 800; color: var(--accent2); margin-top: 8px; font-family: 'Tajawal'; }
+
+/* ── TEAM ── */
+.lb-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border2);
+}
+.lb-row:last-child { border-bottom: none; }
+.rank { font-size: 15px; width: 24px; text-align: center; flex-shrink: 0; }
+.lb-av {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; flex-shrink: 0;
+}
+.lb-info { flex: 1; }
+.lb-name { font-size: 13px; font-weight: 600; }
+.lb-num { font-size: 11px; color: var(--text-2); }
+.lb-bar-w { width: 70px; height: 5px; background: var(--bg-main); border-radius: 3px; overflow: hidden; }
+.lb-bar-f { height: 100%; border-radius: 3px; background: var(--accent); }
+.lb-val { font-size: 13px; font-weight: 700; color: var(--accent2); min-width: 50px; text-align: left; }
+
+.badge-grid { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 14px; }
+.g-badge {
+  background: var(--bg-card2);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  padding: 12px 16px;
+  text-align: center;
+  font-size: 11px; color: var(--text-2);
+  transition: border-color .2s;
+}
+.g-badge:hover { border-color: var(--accent4); }
+.g-badge i { font-size: 22px; display: block; margin-bottom: 6px; color: var(--accent4); }
+
+/* ── CLIENT 360 ── */
+.c360-header {
+  display: flex; align-items: center; gap: 16px;
+  padding: 20px;
+  background: linear-gradient(135deg, rgba(108,99,255,.1), rgba(0,212,170,.05));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+}
+.c360-av {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; font-weight: 700;
+}
+.c360-name { font-size: 18px; font-weight: 700; }
+.c360-sub { font-size: 13px; color: var(--text-2); margin-top: 2px; }
+.c360-val { font-size: 22px; font-weight: 800; color: var(--accent2); margin-right: auto; font-family: 'Tajawal'; }
+
+.info-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px; margin-bottom: 16px;
+}
+.info-item {
+  background: var(--bg-card2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+.info-lbl { font-size: 11px; color: var(--text-2); margin-bottom: 4px; }
+.info-val { font-size: 13px; font-weight: 500; }
+
+.timeline-list { }
+.tl-item {
+  display: flex; gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border2);
+}
+.tl-item:last-child { border-bottom: none; }
+.tl-dot {
+  width: 32px; height: 32px;
+  border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+}
+.tl-call { background: rgba(108,99,255,.15); color: var(--accent); }
+.tl-wa { background: rgba(0,212,170,.15); color: var(--accent2); }
+.tl-mail { background: rgba(108,159,255,.15); color: var(--cold); }
+.tl-note { background: rgba(255,209,102,.15); color: var(--warm); }
+.tl-body { flex: 1; }
+.tl-text { font-size: 12px; color: var(--text-1); }
+.tl-time { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+/* ── REPORTS ── */
+.report-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border2);
+  font-size: 13px;
+}
+.report-row:last-child { border-bottom: none; }
+.report-lbl { color: var(--text-2); }
+.report-val { font-weight: 700; color: var(--text-1); }
+
+/* ── URGENT STRIP ── */
+.urgent-strip {
+  display: flex; align-items: center; gap: 12px;
+  background: linear-gradient(135deg, rgba(255,107,107,.08), rgba(255,107,107,.03));
+  border: 1px solid rgba(255,107,107,.2);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{border-color:rgba(255,107,107,.2)} 50%{border-color:rgba(255,107,107,.5)} }
+.urgent-icon { font-size: 22px; color: var(--accent3); }
+.urgent-text { font-size: 13px; font-weight: 600; }
+.urgent-sub { font-size: 12px; color: var(--text-2); }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg-main); }
+::-webkit-scrollbar-thumb { background: var(--text-3); border-radius: 5px; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 900px) {
+  .grid-2, .grid-3, .ai-grid { grid-template-columns: 1fr; }
+  .sidebar { width: 60px; }
+  .main { margin-right: 60px; padding: 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-logo">SP</div>
+  <div class="nav-item active" onclick="showTab('overview',this)">
+    <i class="fas fa-chart-pie"></i>
+    <span class="nav-label">Overview</span>
+  </div>
+  <div class="nav-item" onclick="showTab('leads',this)">
+    <i class="fas fa-users"></i>
+    <span class="nav-label">Leads</span>
+    <span class="nav-badge">5</span>
+  </div>
+  <div class="nav-item" onclick="showTab('pipeline',this)">
+    <i class="fas fa-columns"></i>
+    <span class="nav-label">Pipeline</span>
+  </div>
+  <div class="nav-item" onclick="showTab('followup',this)">
+    <i class="fas fa-bell"></i>
+    <span class="nav-label">Follow-up Center</span>
+    <span class="nav-badge">3</span>
+  </div>
+  <div class="nav-item" onclick="showTab('whatsapp',this)">
+    <i class="fab fa-whatsapp"></i>
+    <span class="nav-label">WhatsApp</span>
+    <span class="nav-badge">7</span>
+  </div>
+  <div class="nav-item" onclick="showTab('ai',this)">
+    <i class="fas fa-robot"></i>
+    <span class="nav-label">AI Features</span>
+  </div>
+  <div class="nav-item" onclick="showTab('team',this)">
+    <i class="fas fa-trophy"></i>
+    <span class="nav-label">Team</span>
+  </div>
+  <div class="nav-item" onclick="showTab('client360',this)">
+    <i class="fas fa-user-circle"></i>
+    <span class="nav-label">Client 360°</span>
+  </div>
+  <div class="nav-item" onclick="showTab('reports',this)">
+    <i class="fas fa-chart-line"></i>
+    <span class="nav-label">Reports</span>
+  </div>
+  <div class="sidebar-bottom">
+    <div class="user-pill">
+      <div class="user-av">أح</div>
+      <div class="user-info">
+        <div class="user-name">أحمد سالم</div>
+        <div class="user-role">Senior Sales</div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div>
+      <div class="page-title" id="page-title">Dashboard Overview</div>
+      <div class="page-sub" id="page-sub">الأحد، 7 يونيو 2025 — أهلاً بك يا أحمد 👋</div>
+    </div>
+    <div class="topbar-actions">
+      <div class="date-chip"><i class="fas fa-calendar-alt" style="margin-left:6px;color:var(--accent)"></i>يونيو 2025</div>
+      <button class="btn btn-primary"><i class="fas fa-plus"></i> Lead جديد</button>
+    </div>
+  </div>
+
+  <!-- ══ OVERVIEW ══ -->
+  <div id="sec-overview" class="section active">
+    <div class="urgent-strip">
+      <i class="fas fa-fire urgent-icon"></i>
+      <div>
+        <div class="urgent-text">3 عملاء يحتاجون اهتمامك الآن!</div>
+        <div class="urgent-sub">محمد السيد متأخر 3 أيام · نهى إبراهيم فتحت الـ Proposal مرتين · علي مستعد للشراء</div>
+      </div>
+      <button class="btn" style="margin-right:auto;border-color:var(--accent3);color:var(--accent3)" onclick="showTabById('leads')">عرض الكل</button>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi-card purple">
+        <div class="kpi-icon purple"><i class="fas fa-user-plus"></i></div>
+        <div class="kpi-val" style="color:var(--accent)">47</div>
+        <div class="kpi-lbl">ليدز جديدة اليوم</div>
+        <div class="kpi-delta up"><i class="fas fa-arrow-up"></i> +12% عن أمس</div>
+      </div>
+      <div class="kpi-card teal">
+        <div class="kpi-icon teal"><i class="fas fa-phone"></i></div>
+        <div class="kpi-val" style="color:var(--accent2)">83</div>
+        <div class="kpi-lbl">مكالمات منفذة</div>
+        <div class="kpi-delta up"><i class="fas fa-arrow-up"></i> +8%</div>
+      </div>
+      <div class="kpi-card yellow">
+        <div class="kpi-icon yellow"><i class="fas fa-handshake"></i></div>
+        <div class="kpi-val" style="color:var(--accent4)">11</div>
+        <div class="kpi-lbl">صفقات مقفولة</div>
+        <div class="kpi-delta up"><i class="fas fa-arrow-up"></i> +22%</div>
+      </div>
+      <div class="kpi-card teal">
+        <div class="kpi-icon teal"><i class="fas fa-dollar-sign"></i></div>
+        <div class="kpi-val" style="color:var(--accent2)">84K</div>
+        <div class="kpi-lbl">قيمة المبيعات (EGP)</div>
+        <div class="kpi-delta up"><i class="fas fa-arrow-up"></i> +18%</div>
+      </div>
+      <div class="kpi-card red">
+        <div class="kpi-icon red"><i class="fas fa-percent"></i></div>
+        <div class="kpi-val" style="color:var(--accent3)">13%</div>
+        <div class="kpi-lbl">Conversion Rate</div>
+        <div class="kpi-delta down"><i class="fas fa-arrow-down"></i> -2%</div>
+      </div>
+    </div>
+
+    <div class="target-card">
+      <div class="target-head">
+        <div>
+          <div class="target-title">Target vs Achievement — يونيو 2025</div>
+          <div style="font-size:12px;color:var(--text-2);margin-top:3px">84,000 من أصل 115,000 EGP</div>
+        </div>
+        <div class="target-pct" id="tpct">0%</div>
+      </div>
+      <div class="bar-track">
+        <div class="bar-fill" id="tbar"></div>
+      </div>
+      <div class="target-sub">تبقى 31,000 EGP للوصول للـ Target — 23 يوم متبقي</div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head"><i class="fas fa-fire"></i> يحتاجون اهتمامك الآن</div>
+        <div class="lead-row">
+          <div class="av av-hot">مح</div>
+          <div class="lead-info"><div class="lead-name">محمد السيد</div><div class="lead-sub">متأخر 3 أيام — Qualified</div></div>
+          <span class="badge b-ov">Overdue</span>
+          <div class="icon-btns">
+            <button class="icon-btn" title="اتصال"><i class="fas fa-phone"></i></button>
+            <button class="icon-btn" title="واتساب" style="color:#25d366"><i class="fab fa-whatsapp"></i></button>
+          </div>
+        </div>
+        <div class="lead-row">
+          <div class="av av-warm">نه</div>
+          <div class="lead-info"><div class="lead-name">نهى إبراهيم</div><div class="lead-sub">فتحت الـ Proposal مرتين 👀</div></div>
+          <span class="badge b-hot">Hot 🔥</span>
+          <div class="icon-btns">
+            <button class="icon-btn"><i class="fas fa-phone"></i></button>
+            <button class="icon-btn" style="color:#25d366"><i class="fab fa-whatsapp"></i></button>
+          </div>
+        </div>
+        <div class="lead-row">
+          <div class="av av-cold">عم</div>
+          <div class="lead-info"><div class="lead-name">عمرو خالد</div><div class="lead-sub">Follow-up اليوم</div></div>
+          <span class="badge b-today">Today</span>
+          <div class="icon-btns">
+            <button class="icon-btn"><i class="fas fa-phone"></i></button>
+            <button class="icon-btn" style="color:#25d366"><i class="fab fa-whatsapp"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><i class="fas fa-chart-bar"></i> أداء الأسبوع (مكالمات)</div>
+        <div class="mini-bars">
+          <div class="mbar-row"><span class="mbar-lbl">الأحد</span><div class="mbar-track"><div class="mbar-fill" style="width:84%"></div></div><span class="mbar-val">16</span></div>
+          <div class="mbar-row"><span class="mbar-lbl">السبت</span><div class="mbar-track"><div class="mbar-fill" style="width:63%"></div></div><span class="mbar-val">12</span></div>
+          <div class="mbar-row"><span class="mbar-lbl">الجمعة</span><div class="mbar-track"><div class="mbar-fill teal" style="width:47%"></div></div><span class="mbar-val">9</span></div>
+          <div class="mbar-row"><span class="mbar-lbl">الخميس</span><div class="mbar-track"><div class="mbar-fill" style="width:100%"></div></div><span class="mbar-val">19</span></div>
+          <div class="mbar-row"><span class="mbar-lbl">الأربعاء</span><div class="mbar-track"><div class="mbar-fill teal" style="width:57%"></div></div><span class="mbar-val">11</span></div>
+          <div class="mbar-row"><span class="mbar-lbl">الثلاثاء</span><div class="mbar-track"><div class="mbar-fill" style="width:73%"></div></div><span class="mbar-val">14</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div class="card" style="text-align:center">
+        <div class="card-head" style="justify-content:center"><i class="fas fa-phone-alt"></i> Call Analytics</div>
+        <div style="font-size:28px;font-weight:800;color:var(--accent2);font-family:'Tajawal'">4.2 ساعة</div>
+        <div style="font-size:12px;color:var(--text-2);margin-top:4px">إجمالي وقت المكالمات</div>
+        <div style="display:flex;justify-content:center;gap:16px;margin-top:12px">
+          <div><div style="font-size:16px;font-weight:700;color:var(--accent2)">61</div><div style="font-size:11px;color:var(--text-2)">ناجحة</div></div>
+          <div><div style="font-size:16px;font-weight:700;color:var(--accent3)">22</div><div style="font-size:11px;color:var(--text-2)">فاشلة</div></div>
+          <div><div style="font-size:16px;font-weight:700;color:var(--accent)">3:02</div><div style="font-size:11px;color:var(--text-2)">متوسط</div></div>
+        </div>
+      </div>
+      <div class="card" style="text-align:center">
+        <div class="card-head" style="justify-content:center"><i class="fas fa-robot"></i> AI Score اليوم</div>
+        <div style="font-size:40px;font-weight:900;color:var(--accent);font-family:'Tajawal'">8.4<span style="font-size:18px;color:var(--text-2)">/10</span></div>
+        <div style="font-size:12px;color:var(--text-2);margin-top:4px">متوسط جودة المكالمات</div>
+        <div style="font-size:12px;color:var(--accent2);margin-top:8px">ممتاز! أعلى من المتوسط بـ 15%</div>
+      </div>
+      <div class="card" style="text-align:center">
+        <div class="card-head" style="justify-content:center"><i class="fas fa-trophy"></i> مركزك</div>
+        <div style="font-size:48px">🥇</div>
+        <div style="font-size:18px;font-weight:700;color:var(--accent4);font-family:'Tajawal'">المركز الأول</div>
+        <div style="font-size:12px;color:var(--text-2);margin-top:4px">1,240 نقطة — يونيو 2025</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ LEADS ══ -->
+  <div id="sec-leads" class="section">
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn btn-primary"><i class="fas fa-plus"></i> إضافة Lead</button>
+      <button class="btn"><i class="fas fa-filter"></i> تصفية</button>
+      <div style="margin-right:auto;display:flex;gap:8px">
+        <span class="badge b-hot" style="padding:6px 12px;font-size:12px">Hot: 5</span>
+        <span class="badge b-warm" style="padding:6px 12px;font-size:12px">Warm: 12</span>
+        <span class="badge b-cold" style="padding:6px 12px;font-size:12px">Cold: 30</span>
+        <span class="badge b-ov" style="padding:6px 12px;font-size:12px">Overdue: 3</span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-head"><i class="fas fa-fire" style="color:var(--accent3)"></i> عملاء متأخر عليهم متابعة</div>
+      <div class="lead-row">
+        <div class="av av-hot">مح</div>
+        <div class="lead-info"><div class="lead-name">محمد السيد</div><div class="lead-sub">Meta Ads · آخر تواصل: 3 أيام · Qualified</div></div>
+        <span class="badge b-ov">Overdue 3d</span>
+        <div class="icon-btns">
+          <button class="icon-btn"><i class="fas fa-phone"></i></button>
+          <button class="icon-btn" style="color:#25d366"><i class="fab fa-whatsapp"></i></button>
+          <button class="icon-btn"><i class="fas fa-envelope"></i></button>
+          <button class="icon-btn" onclick="showTabById('client360')" title="360°"><i class="fas fa-user-circle"></i></button>
+        </div>
+      </div>
+      <div class="lead-row">
+        <div class="av av-warm">أس</div>
+        <div class="lead-info"><div class="lead-name">أسامة فريد</div><div class="lead-sub">Google Ads · آخر تواصل: 4 أيام · Contacted</div></div>
+        <span class="badge b-ov">Overdue 4d</span>
+        <div class="icon-btns">
+          <button class="icon-btn"><i class="fas fa-phone"></i></button>
+          <button class="icon-btn" style="color:#25d366"><i class="fab fa-whatsapp"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-head"><i class="fas fa-clock" style="color:var(--accent4)"></i> Follow-up اليوم</div>
+      <div class="lead-row">
+        <div class="av av-hot">نه</div>
+        <div class="lead-info"><div class="lead-name">نهى إبراهيم</div><div class="lead-sub">Proposal Sent · مجدول 2:00 م</div></div>
+        <span class="badge b-today">Today</span>
+        <div class="icon-btns">
+          <button class="icon-btn"><i class="fas fa-phone"></i></button>
+          <button class="icon-btn" style="color:#25d366"><i class="fab fa-whatsapp"></i></button>
+          <button class="icon-btn"><i class="fas fa-calendar"></i></button>
+        </div>
+      </div>
+      <div class="lead-row">
+        <div class="av av-warm">عل</div>
+        <div class="lead-info"><div class="lead-name">علي منصور</div><div class="lead-sub">Negotiation · مجدول 4:00 م</div></div>
+        <span class="badge b-today">Today</span>
+        <div class="icon-btns">
+          <button class="icon-btn"><i class="fas fa-phone"></i></button>
+          <button class="icon-btn" style="color:#25d366"><i class="fab fa-whatsapp"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><i class="fas fa-users"></i> كل العملاء</div>
+      <div class="lead-row"><div class="av av-hot">سا</div><div class="lead-info"><div class="lead-name">سارة أحمد</div><div class="lead-sub">Meta Ads · اليوم 10:30 ص</div></div><span class="badge b-hot">Hot 🔥</span><div class="icon-btns"><button class="icon-btn"><i class="fas fa-phone"></i></button><button class="icon-btn" style="color:#25d366"><i class="fab fa-whatsapp"></i></button></div></div>
+      <div class="lead-row"><div class="av av-warm">كا</div><div class="lead-info"><div class="lead-name">كريم عادل</div><div class="lead-sub">Google Ads · أمس</div></div><span class="badge b-warm">Warm</span><div class="icon-btns"><button class="icon-btn"><i class="fas fa-phone"></i></button><button class="icon-btn" style="color:#25d366"><i class="fab fa-whatsapp"></i></button></div></div>
+      <div class="lead-row"><div class="av av-cold">رن</div><div class="lead-info"><div class="lead-name">رنا محمود</div><div class="lead-sub">Website · 5 أيام</div></div><span class="badge b-cold">Cold</span><div class="icon-btns"><button class="icon-btn"><i class="fas fa-phone"></i></button><button class="icon-btn" style="color:#25d366"><i class="fab fa-whatsapp"></i></button></div></div>
+      <div class="lead-row"><div class="av av-won">طا</div><div class="lead-info"><div class="lead-name">طارق محمود</div><div class="lead-sub">Referral · اليوم</div></div><span class="badge b-new">New</span><div class="icon-btns"><button class="icon-btn"><i class="fas fa-phone"></i></button><button class="icon-btn" style="color:#25d366"><i class="fab fa-whatsapp"></i></button></div></div>
+    </div>
+  </div>
+
+  <!-- ══ PIPELINE ══ -->
+  <div id="sec-pipeline" class="section">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+      <div style="font-size:13px;color:var(--text-2)">إجمالي قيمة الفرص: <strong style="color:var(--accent2)">347,500 EGP</strong></div>
+      <div style="font-size:13px;color:var(--text-2);margin-right:16px">اسحب الكارت بين المراحل</div>
+    </div>
+    <div class="pipeline-wrap">
+      <div class="pipeline" id="pipeline">
+        <div class="stage" data-stage="new">
+          <div class="stage-head sh-1">New Lead (8)</div>
+          <div class="deal" draggable="true"><div class="deal-name">ياسمين حسن</div><div class="deal-val">5,000 EGP</div><div class="deal-time"><i class="fas fa-clock"></i> منذ ساعتين</div><div class="deal-prob"><div class="prob-bar"><div class="prob-fill" style="width:20%;background:var(--cold)"></div></div><span class="prob-txt">20%</span></div></div>
+          <div class="deal" draggable="true"><div class="deal-name">طارق عمر</div><div class="deal-val">3,500 EGP</div><div class="deal-time"><i class="fas fa-clock"></i> منذ 4 ساعات</div></div>
+          <div class="deal" draggable="true"><div class="deal-name">منى فاروق</div><div class="deal-val">2,800 EGP</div><div class="deal-time"><i class="fas fa-clock"></i> منذ 6 ساعات</div></div>
+        </div>
+        <div class="stage" data-stage="contacted">
+          <div class="stage-head sh-2">Contacted (5)</div>
+          <div class="deal" draggable="true"><div class="deal-name">سارة أحمد</div><div class="deal-val">12,000 EGP</div><div class="deal-time"><i class="fas fa-clock"></i> أمس</div><div class="deal-prob"><div class="prob-bar"><div class="prob-fill" style="width:35%;background:var(--accent)"></div></div><span class="prob-txt">35%</span></div></div>
+          <div class="deal" draggable="true"><div class="deal-name">كريم عادل</div><div class="deal-val">8,000 EGP</div><div class="deal-time"><i class="fas fa-clock"></i> أمس</div></div>
+        </div>
+        <div class="stage" data-stage="qualified">
+          <div class="stage-head sh-3">Qualified (6)</div>
+          <div class="deal hot" draggable="true"><div class="deal-name">نهى إبراهيم 🔥</div><div class="deal-val">20,000 EGP</div><div class="deal-time"><i class="fas fa-clock"></i> 3 أيام</div><div class="deal-prob"><div class="prob-bar"><div class="prob-fill" style="width:87%;background:var(--accent2)"></div></div><span class="prob-txt">87%</span></div></div>
+          <div class="deal" draggable="true"><div class="deal-name">محمود رضا</div><div class="deal-val">15,000 EGP</div><div class="deal-time"><i class="fas fa-clock"></i> 4 أيام</div></div>
+        </div>
+        <div class="stage" data-stage="proposal">
+          <div class="stage-head sh-4">Proposal (4)</div>
+          <div class="deal" draggable="true"><div class="deal-name">علي منصور</div><div class="deal-val">15,000 EGP</div><div class="deal-time"><i class="fas fa-clock"></i> 5 أيام</div><div class="deal-prob"><div class="prob-bar"><div class="prob-fill" style="width:60%;background:var(--accent4)"></div></div><span class="prob-txt">60%</span></div></div>
+        </div>
+        <div class="stage" data-stage="negotiation">
+          <div class="stage-head sh-5">Negotiation (2)</div>
+          <div class="deal hot" draggable="true"><div class="deal-name">هبة مصطفى</div><div class="deal-val">30,000 EGP</div><div class="deal-time"><i class="fas fa-clock"></i> 7 أيام</div><div class="deal-prob"><div class="prob-bar"><div class="prob-fill" style="width:75%;background:var(--accent2)"></div></div><span class="prob-txt">75%</span></div></div>
+        </div>
+        <div class="stage" data-stage="won">
+          <div class="stage-head sh-6">Won ✓ (11)</div>
+          <div class="deal" draggable="true" style="border-right:3px solid var(--accent2)"><div class="deal-name">رنا طه</div><div class="deal-val">18,000 EGP</div><div class="deal-time"><i class="fas fa-check" style="color:var(--accent2)"></i> اليوم</div></div>
+          <div class="deal" draggable="true" style="border-right:3px solid var(--accent2)"><div class="deal-name">سامي إبراهيم</div><div class="deal-val">22,000 EGP</div><div class="deal-time"><i class="fas fa-check" style="color:var(--accent2)"></i> أمس</div></div>
+        </div>
+        <div class="stage" data-stage="lost">
+          <div class="stage-head sh-7">Lost (3)</div>
+          <div class="deal" draggable="true"><div class="deal-name">أسامة فؤاد</div><div class="deal-val">6,000 EGP</div><div class="deal-time"><i class="fas fa-times" style="color:var(--accent3)"></i> السعر</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ FOLLOW-UP CENTER ══ -->
+  <div id="sec-followup" class="section">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head"><i class="fas fa-bell" style="color:var(--accent4)"></i> Reminders اليوم</div>
+        <div class="lead-row">
+          <div class="av av-hot">نه</div>
+          <div class="lead-info"><div class="lead-name">نهى إبراهيم — 2:00 م</div><div class="lead-sub">متابعة Proposal · Negotiation</div></div>
+          <button class="btn" style="padding:6px 12px;font-size:12px"><i class="fas fa-phone"></i> اتصل</button>
+        </div>
+        <div class="lead-row">
+          <div class="av av-warm">عل</div>
+          <div class="lead-info"><div class="lead-name">علي منصور — 4:00 م</div><div class="lead-sub">مراجعة العرض السعري</div></div>
+          <button class="btn" style="padding:6px 12px;font-size:12px"><i class="fas fa-phone"></i> اتصل</button>
+        </div>
+        <div class="lead-row">
+          <div class="av av-cold">رن</div>
+          <div class="lead-info"><div class="lead-name">رنا محمود — 5:30 م</div><div class="lead-sub">إرسال معلومات إضافية</div></div>
+          <button class="btn" style="padding:6px 12px;font-size:12px"><i class="fab fa-whatsapp"></i> واتساب</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><i class="fas fa-calendar-plus" style="color:var(--accent2)"></i> جدولة سريعة</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <input type="text" placeholder="اسم العميل..." style="padding:10px 14px;background:var(--bg-card2);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text-1);font-family:'Cairo';font-size:13px;outline:none;direction:rtl">
+          <input type="datetime-local" style="padding:10px 14px;background:var(--bg-card2);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text-1);font-family:'Cairo';font-size:13px;outline:none">
+          <select style="padding:10px 14px;background:var(--bg-card2);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text-1);font-family:'Cairo';font-size:13px;outline:none;direction:rtl">
+            <option>مكالمة هاتفية</option>
+            <option>اجتماع أونلاين</option>
+            <option>اجتماع وجاهي</option>
+            <option>واتساب</option>
+          </select>
+          <button class="btn btn-primary"><i class="fas fa-check"></i> جدول الآن</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><i class="fas fa-paper-plane" style="color:var(--accent)"></i> إرسال سريع</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn" style="flex:1"><i class="fab fa-whatsapp" style="color:#25d366"></i> إرسال واتساب</button>
+        <button class="btn" style="flex:1"><i class="fas fa-envelope" style="color:var(--cold)"></i> إرسال إيميل</button>
+        <button class="btn" style="flex:1"><i class="fas fa-sms" style="color:var(--accent4)"></i> إرسال SMS</button>
+      </div>
+      <textarea placeholder="اكتب رسالتك هنا..." rows="4" style="margin-top:12px;width:100%;padding:12px;background:var(--bg-card2);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text-1);font-family:'Cairo';font-size:13px;outline:none;resize:vertical;direction:rtl"></textarea>
+    </div>
+  </div>
+
+  <!-- ══ WHATSAPP ══ -->
+  <div id="sec-whatsapp" class="section">
+    <div class="grid-2" style="grid-template-columns:300px 1fr">
+      <div class="card" style="max-height:600px;overflow-y:auto">
+        <div class="card-head"><i class="fab fa-whatsapp" style="color:#25d366"></i> المحادثات</div>
+        <div class="lead-row" style="cursor:pointer;background:rgba(108,99,255,.08);border-radius:var(--radius-sm);padding:10px 8px">
+          <div class="av av-hot">نه</div>
+          <div class="lead-info"><div class="lead-name">نهى إبراهيم</div><div class="lead-sub">شكراً للـ Proposal 🙏</div></div>
+          <div style="text-align:left"><div style="font-size:10px;color:var(--text-2)">10:32</div><div class="badge b-hot" style="margin-top:4px">2</div></div>
+        </div>
+        <div class="lead-row" style="cursor:pointer">
+          <div class="av av-warm">كا</div>
+          <div class="lead-info"><div class="lead-name">كريم عادل</div><div class="lead-sub">موعد الاجتماع؟</div></div>
+          <div style="font-size:10px;color:var(--text-2)">أمس</div>
+        </div>
+        <div class="lead-row" style="cursor:pointer">
+          <div class="av av-cold">سا</div>
+          <div class="lead-info"><div class="lead-name">سارة أحمد</div><div class="lead-sub">تم الاستلام ✓✓</div></div>
+          <div style="font-size:10px;color:var(--text-2)">أمس</div>
+        </div>
+        <div class="lead-row" style="cursor:pointer">
+          <div class="av av-cold">عم</div>
+          <div class="lead-info"><div class="lead-name">عمرو خالد</div><div class="lead-sub">هرد عليك بكرة</div></div>
+          <div style="font-size:10px;color:var(--text-2)">3 أيام</div>
+        </div>
+      </div>
+      <div class="card" style="display:flex;flex-direction:column;min-height:600px">
+        <div class="card-head"><i class="fas fa-circle" style="color:#25d366;font-size:8px"></i> نهى إبراهيم — Online</div>
+        <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:10px 0">
+          <div style="align-self:flex-end;background:rgba(108,99,255,.15);border:1px solid rgba(108,99,255,.2);border-radius:12px 12px 0 12px;padding:10px 14px;max-width:70%;font-size:13px">
+            أهلاً نهى، بعتلك الـ Proposal على الإيميل. ممكن تراجعيه وتعطيني رأيك؟
+            <div style="font-size:10px;color:var(--text-2);margin-top:4px;text-align:left">أمس 3:00 م ✓✓</div>
+          </div>
+          <div style="align-self:flex-start;background:var(--bg-card2);border:1px solid var(--border2);border-radius:12px 12px 12px 0;padding:10px 14px;max-width:70%;font-size:13px">
+            شكراً كتير! فتحته وهو تمام. عندي سؤال واحد بس..
+            <div style="font-size:10px;color:var(--text-2);margin-top:4px">اليوم 10:32 ص</div>
+          </div>
+          <div style="align-self:flex-start;background:var(--bg-card2);border:1px solid var(--border2);border-radius:12px 12px 12px 0;padding:10px 14px;max-width:70%;font-size:13px">
+            هل ممكن دفع على مرحلتين؟ 🙏
+            <div style="font-size:10px;color:var(--text-2);margin-top:4px">اليوم 10:33 ص</div>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+            <button class="btn" style="font-size:11px;padding:5px 10px">أهلاً بك!</button>
+            <button class="btn" style="font-size:11px;padding:5px 10px">شكراً لتواصلك</button>
+            <button class="btn" style="font-size:11px;padding:5px 10px">سأرسل التفاصيل</button>
+            <button class="btn" style="font-size:11px;padding:5px 10px;color:var(--accent2);border-color:var(--accent2)"><i class="fas fa-arrow-right"></i> حول لـ Opportunity</button>
+          </div>
+          <div style="display:flex;gap:8px">
+            <input type="text" placeholder="اكتب رسالة..." style="flex:1;padding:10px 14px;background:var(--bg-card2);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text-1);font-family:'Cairo';font-size:13px;outline:none;direction:rtl">
+            <button class="btn btn-primary"><i class="fas fa-paper-plane"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ AI FEATURES ══ -->
+  <div id="sec-ai" class="section">
+    <div class="ai-grid">
+      <div class="ai-card">
+        <div class="ai-badge-top">LIVE</div>
+        <div class="ai-icon-big"><i class="fas fa-microphone-alt"></i></div>
+        <div class="ai-title">تحليل المكالمة</div>
+        <div class="ai-desc">بيسمع المكالمة تلقائياً ويستخرج النقاط المهمة ويلخصها فور الانتهاء مع score للمحادثة.</div>
+      </div>
+      <div class="ai-card">
+        <div class="ai-badge-top">BETA</div>
+        <div class="ai-icon-big" style="color:var(--accent2)"><i class="fas fa-brain"></i></div>
+        <div class="ai-title">توقع الإغلاق</div>
+        <div class="ai-desc">نهى إبراهيم مستعدة للشراء!</div>
+        <div class="ai-stat">87% <span style="font-size:14px;color:var(--text-2)">احتمال إغلاق</span></div>
+      </div>
+      <div class="ai-card">
+        <div class="ai-icon-big" style="color:var(--accent4)"><i class="fas fa-chalkboard-teacher"></i></div>
+        <div class="ai-title">AI Coach</div>
+        <div class="ai-desc">بعد كل مكالمة يقيّمها ويعطيك أفضل رد للمرحلة الجاية مع نصائح تحسين الأداء.</div>
+      </div>
+      <div class="ai-card">
+        <div class="ai-icon-big" style="color:var(--accent3)"><i class="fas fa-bolt"></i></div>
+        <div class="ai-title">Auto Follow-up</div>
+        <div class="ai-desc">بيبعت واتساب وإيميل تلقائي للعميل بعد كل مرحلة بناءً على سلوكه وآخر تفاعل.</div>
+      </div>
+      <div class="ai-card">
+        <div class="ai-icon-big" style="color:var(--accent4)"><i class="fas fa-bell"></i></div>
+        <div class="ai-title">تنبيه الفرصة</div>
+        <div class="ai-desc">لو العميل فتح الـ Proposal 3 مرات بيبعتلك تنبيه فوري: "الوقت المناسب للاتصال الآن!"</div>
+      </div>
+      <div class="ai-card">
+        <div class="ai-icon-big" style="color:var(--accent2)"><i class="fas fa-star"></i></div>
+        <div class="ai-title">جودة المكالمة</div>
+        <div class="ai-desc">تقييم من 10 بناءً على الـ tone، objection handling، وكفاءة الإغلاق لكل مكالمة.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><i class="fas fa-history"></i> آخر تحليلات AI</div>
+      <div class="lead-row">
+        <div class="av av-hot" style="background:rgba(108,99,255,.15);color:var(--accent)"><i class="fas fa-phone"></i></div>
+        <div class="lead-info"><div class="lead-name">مكالمة — نهى إبراهيم (12:04 دقيقة)</div><div class="lead-sub">الملخص: مهتمة جداً بالباقة المتوسطة، سألت عن الدفع على مراحل</div></div>
+        <div style="text-align:center;padding:0 12px"><div style="font-size:20px;font-weight:800;color:var(--accent2);font-family:'Tajawal'">9.1</div><div style="font-size:10px;color:var(--text-2)">Score</div></div>
+      </div>
+      <div class="lead-row">
+        <div class="av av-warm" style="background:rgba(108,99,255,.15);color:var(--accent)"><i class="fas fa-phone"></i></div>
+        <div class="lead-info"><div class="lead-name">مكالمة — كريم عادل (5:30 دقيقة)</div><div class="lead-sub">الملخص: يقارن بين أسعار الشركات، يحتاج مقارنة تنافسية</div></div>
+        <div style="text-align:center;padding:0 12px"><div style="font-size:20px;font-weight:800;color:var(--accent4);font-family:'Tajawal'">7.4</div><div style="font-size:10px;color:var(--text-2)">Score</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TEAM ══ -->
+  <div id="sec-team" class="section">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head"><i class="fas fa-trophy" style="color:var(--accent4)"></i> Leaderboard — يونيو 2025</div>
+        <div class="lb-row">
+          <span class="rank">🥇</span>
+          <div class="lb-av" style="background:linear-gradient(135deg,var(--accent),var(--accent2))">أح</div>
+          <div class="lb-info"><div class="lb-name">أحمد سالم <span style="font-size:10px;color:var(--accent);background:rgba(108,99,255,.15);padding:2px 6px;border-radius:6px;margin-right:4px">أنت</span></div><div class="lb-num">11 صفقة · 13% conv</div></div>
+          <div class="lb-bar-w"><div class="lb-bar-f" style="width:100%"></div></div>
+          <span class="lb-val">84K</span>
+        </div>
+        <div class="lb-row">
+          <span class="rank">🥈</span>
+          <div class="lb-av" style="background:linear-gradient(135deg,#888,#aaa);color:#fff">ري</div>
+          <div class="lb-info"><div class="lb-name">ريم خالد</div><div class="lb-num">9 صفقات · 11% conv</div></div>
+          <div class="lb-bar-w"><div class="lb-bar-f" style="width:75%"></div></div>
+          <span class="lb-val">63K</span>
+        </div>
+        <div class="lb-row">
+          <span class="rank">🥉</span>
+          <div class="lb-av" style="background:linear-gradient(135deg,#8b5a2b,#c4934e);color:#fff">ول</div>
+          <div class="lb-info"><div class="lb-name">وليد نصر</div><div class="lb-num">7 صفقات · 10% conv</div></div>
+          <div class="lb-bar-w"><div class="lb-bar-f" style="width:60%"></div></div>
+          <span class="lb-val">51K</span>
+        </div>
+        <div class="lb-row">
+          <span class="rank" style="color:var(--text-2)">4</span>
+          <div class="lb-av" style="background:var(--bg-hover);color:var(--text-2)">مر</div>
+          <div class="lb-info"><div class="lb-name">مروة حسين</div><div class="lb-num">5 صفقات · 9% conv</div></div>
+          <div class="lb-bar-w"><div class="lb-bar-f" style="width:45%"></div></div>
+          <span class="lb-val">38K</span>
+        </div>
+      </div>
+
+      <div class="card" style="text-align:center">
+        <div class="card-head" style="justify-content:center"><i class="fas fa-medal" style="color:var(--accent)"></i> نقاطك وشاراتك</div>
+        <div style="font-size:48px;font-weight:900;color:var(--accent);font-family:'Tajawal'">1,240</div>
+        <div style="font-size:13px;color:var(--text-2);margin-bottom:4px">نقطة</div>
+        <div style="font-size:14px;color:var(--accent2);font-weight:600;margin-bottom:4px">🏆 المركز الأول هذا الشهر!</div>
+        <div style="font-size:12px;color:var(--text-2)">+240 نقطة عن الشهر الماضي</div>
+        <div class="badge-grid">
+          <div class="g-badge"><i class="fas fa-fire"></i>Closer</div>
+          <div class="g-badge"><i class="fas fa-rocket"></i>Speed</div>
+          <div class="g-badge"><i class="fas fa-star"></i>Top 10%</div>
+          <div class="g-badge"><i class="fas fa-phone"></i>100 Calls</div>
+          <div class="g-badge"><i class="fas fa-crown"></i>Champion</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ CLIENT 360 ══ -->
+  <div id="sec-client360" class="section">
+    <div class="c360-header">
+      <div class="c360-av">نه</div>
+      <div>
+        <div class="c360-name">نهى إبراهيم</div>
+        <div class="c360-sub">CEO — شركة رؤية للتسويق · <span class="badge b-hot">Hot 🔥</span></div>
+      </div>
+      <div class="c360-val" style="text-align:left">
+        <div>20,000 EGP</div>
+        <div style="font-size:12px;color:var(--text-2);font-family:'Cairo';font-weight:400">قيمة الفرصة</div>
+      </div>
+      <div style="display:flex;gap:8px;margin-right:0">
+        <button class="btn"><i class="fas fa-phone"></i> اتصل</button>
+        <button class="btn" style="color:#25d366;border-color:#25d366"><i class="fab fa-whatsapp"></i></button>
+        <button class="btn"><i class="fas fa-envelope"></i></button>
+      </div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-item"><div class="info-lbl"><i class="fas fa-tag"></i> مصدر الـ Lead</div><div class="info-val">Meta Ads — حملة مايو 2025</div></div>
+      <div class="info-item"><div class="info-lbl"><i class="fas fa-phone"></i> موبايل</div><div class="info-val" style="color:var(--accent)">01012345678</div></div>
+      <div class="info-item"><div class="info-lbl"><i class="fas fa-envelope"></i> إيميل</div><div class="info-val" style="color:var(--cold)">noha@rouya.com</div></div>
+      <div class="info-item"><div class="info-lbl"><i class="fas fa-map-marker-alt"></i> موقع</div><div class="info-val">القاهرة — مصر</div></div>
+      <div class="info-item"><div class="info-lbl"><i class="fas fa-funnel-dollar"></i> المرحلة</div><div class="info-val"><span class="badge b-warm" style="font-size:12px">Qualified → Proposal</span></div></div>
+      <div class="info-item"><div class="info-lbl"><i class="fas fa-robot"></i> AI Score إغلاق</div><div class="info-val" style="color:var(--accent2);font-size:18px;font-weight:700;font-family:'Tajawal'">87%</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><i class="fas fa-stream"></i> Timeline كامل</div>
+      <div class="timeline-list">
+        <div class="tl-item"><div class="tl-dot tl-call"><i class="fas fa-phone"></i></div><div class="tl-body"><div class="tl-text">مكالمة 12:04 دقيقة — مهتمة جداً بالباقة المتوسطة، سألت عن الدفع على مراحل | Score: 9.1/10</div><div class="tl-time">اليوم 10:30 ص</div></div></div>
+        <div class="tl-item"><div class="tl-dot tl-wa"><i class="fab fa-whatsapp"></i></div><div class="tl-body"><div class="tl-text">واتساب: "شكراً للتواصل، هبعتلك الـ Proposal النهارده" — قرأته ✓✓</div><div class="tl-time">أمس 3:00 م</div></div></div>
+        <div class="tl-item"><div class="tl-dot tl-mail"><i class="fas fa-envelope"></i></div><div class="tl-body"><div class="tl-text">إيميل: Proposal مرسل — فتحته مرتين 👀 — لم يرد بعد</div><div class="tl-time">أمس 4:15 م</div></div></div>
+        <div class="tl-item"><div class="tl-dot tl-call"><i class="fas fa-phone"></i></div><div class="tl-body"><div class="tl-text">مكالمة 8:30 دقيقة — مهتمة بخدمة SEO بشكل خاص، طلبت أمثلة نتائج</div><div class="tl-time">3 أيام</div></div></div>
+        <div class="tl-item"><div class="tl-dot tl-note"><i class="fas fa-sticky-note"></i></div><div class="tl-body"><div class="tl-text">ملاحظة: تسأل بشكل خاص عن SEO وإدارة الإعلانات — لديها ميزانية جيدة</div><div class="tl-time">3 أيام</div></div></div>
+        <div class="tl-item"><div class="tl-dot tl-wa"><i class="fab fa-whatsapp"></i></div><div class="tl-body"><div class="tl-text">أول تواصل عبر واتساب بعد Meta Ad — ردت في أقل من دقيقة</div><div class="tl-time">5 أيام</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ REPORTS ══ -->
+  <div id="sec-reports" class="section">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head"><i class="fas fa-funnel-dollar"></i> أفضل مصادر الليدز</div>
+        <div class="mini-bars" style="gap:10px">
+          <div class="mbar-row"><span class="mbar-lbl" style="width:70px">Meta Ads</span><div class="mbar-track"><div class="mbar-fill" style="width:72%"></div></div><span class="mbar-val">72%</span></div>
+          <div class="mbar-row"><span class="mbar-lbl" style="width:70px">Google</span><div class="mbar-track"><div class="mbar-fill teal" style="width:18%"></div></div><span class="mbar-val">18%</span></div>
+          <div class="mbar-row"><span class="mbar-lbl" style="width:70px">Website</span><div class="mbar-track"><div class="mbar-fill" style="width:7%;background:var(--cold)"></div></div><span class="mbar-val">7%</span></div>
+          <div class="mbar-row"><span class="mbar-lbl" style="width:70px">Referral</span><div class="mbar-track"><div class="mbar-fill" style="width:3%;background:var(--accent4)"></div></div><span class="mbar-val">3%</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><i class="fas fa-times-circle" style="color:var(--accent3)"></i> أسباب خسارة الصفقات</div>
+        <div class="mini-bars" style="gap:10px">
+          <div class="mbar-row"><span class="mbar-lbl" style="width:70px">السعر</span><div class="mbar-track"><div class="mbar-fill red" style="width:55%"></div></div><span class="mbar-val">55%</span></div>
+          <div class="mbar-row"><span class="mbar-lbl" style="width:70px">بطء الرد</span><div class="mbar-track"><div class="mbar-fill red" style="width:30%;background:#ff8c42"></div></div><span class="mbar-val">30%</span></div>
+          <div class="mbar-row"><span class="mbar-lbl" style="width:70px">منافس</span><div class="mbar-track"><div class="mbar-fill" style="width:15%;background:var(--text-3)"></div></div><span class="mbar-val">15%</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head"><i class="fas fa-chart-line" style="color:var(--accent2)"></i> KPIs الإدارة</div>
+        <div class="report-row"><span class="report-lbl">تكلفة اكتساب العميل (CAC)</span><span class="report-val">320 EGP</span></div>
+        <div class="report-row"><span class="report-lbl">ROI حملة Meta — مايو</span><span class="report-val" style="color:var(--accent2)">340%</span></div>
+        <div class="report-row"><span class="report-lbl">متوسط دورة البيع</span><span class="report-val">8.3 يوم</span></div>
+        <div class="report-row"><span class="report-lbl">أعلى Conversion Rate</span><span class="report-val">أحمد سالم — 13%</span></div>
+        <div class="report-row"><span class="report-lbl">إجمالي ليدز الشهر</span><span class="report-val">347 lead</span></div>
+        <div class="report-row"><span class="report-lbl">متوسط قيمة الصفقة</span><span class="report-val">7,636 EGP</span></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><i class="fas fa-users-cog"></i> أداء الفريق</div>
+        <div class="report-row"><span class="report-lbl">أفضل موظف (مبيعات)</span><span class="report-val" style="color:var(--accent4)">أحمد سالم 84K</span></div>
+        <div class="report-row"><span class="report-lbl">أفضل Conversion Rate</span><span class="report-val" style="color:var(--accent2)">أحمد سالم 13%</span></div>
+        <div class="report-row"><span class="report-lbl">أكثر مكالمات</span><span class="report-val">ريم خالد 95 مكالمة</span></div>
+        <div class="report-row"><span class="report-lbl">أسرع follow-up</span><span class="report-val">وليد نصر 8 دقائق</span></div>
+        <div class="report-row"><span class="report-lbl">متوسط AI Score للفريق</span><span class="report-val" style="color:var(--accent)">7.9 / 10</span></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const titles = {
+  overview: ['Dashboard Overview', 'الأحد، 7 يونيو 2025 — أهلاً بك يا أحمد 👋'],
+  leads: ['Lead Management', 'إدارة وتتبع العملاء'],
+  pipeline: ['Sales Pipeline', 'سحب وإفلات بين مراحل البيع'],
+  followup: ['Smart Follow-up Center', 'جدولة وإرسال رسائل مباشرة'],
+  whatsapp: ['WhatsApp Integration', 'كل محادثاتك في مكان واحد'],
+  ai: ['AI Features', 'مدعوم بالذكاء الاصطناعي'],
+  team: ['Team Competition', 'Leaderboard والمنافسة بين الفريق'],
+  client360: ['Client 360°', 'ملف شامل لكل عميل'],
+  reports: ['Reports & Analytics', 'تقارير المبيعات والأداء']
+};
+
+function showTab(id, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('sec-' + id).classList.add('active');
+  el.classList.add('active');
+  document.getElementById('page-title').textContent = titles[id][0];
+  document.getElementById('page-sub').textContent = titles[id][1];
+}
+
+function showTabById(id) {
+  const navItems = document.querySelectorAll('.nav-item');
+  const idx = ['overview','leads','pipeline','followup','whatsapp','ai','team','client360','reports'].indexOf(id);
+  if (idx >= 0) showTab(id, navItems[idx]);
+}
+
+// animate target bar on load
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    document.getElementById('tbar').style.width = '73%';
+    let n = 0;
+    const target = 73;
+    const interval = setInterval(() => {
+      n = Math.min(n + 2, target);
+      document.getElementById('tpct').textContent = n + '%';
+      if (n >= target) clearInterval(interval);
+    }, 16);
+  }, 400);
+});
+
+// drag & drop pipeline
+const pipeline = document.getElementById('pipeline');
+let dragged = null;
+
+pipeline.addEventListener('dragstart', e => {
+  if (e.target.classList.contains('deal')) {
+    dragged = e.target;
+    setTimeout(() => e.target.style.opacity = '0.4', 0);
+  }
+});
+pipeline.addEventListener('dragend', e => {
+  if (e.target.classList.contains('deal')) e.target.style.opacity = '1';
+  dragged = null;
+});
+pipeline.addEventListener('dragover', e => e.preventDefault());
+pipeline.addEventListener('drop', e => {
+  e.preventDefault();
+  const stage = e.target.closest('.stage');
+  if (stage && dragged) stage.appendChild(dragged);
+});
+</script>
+</body>
+</html>

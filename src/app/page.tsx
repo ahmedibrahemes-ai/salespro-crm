@@ -1,22 +1,26 @@
 'use client'
 
-import { useEffect, Component } from 'react'
+import { useEffect, Component, lazy, Suspense, useMemo } from 'react'
 import { useCrmStore, hydrateAuth, type ViewName } from '@/lib/store'
 import { apiGetLeads, apiGetArchivedLeads, apiGetTeam, apiSubscribeToLeads, apiUnsubscribe } from '@/lib/supabase'
 import { LoginScreen } from '@/components/crm/login-screen'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Topbar } from '@/components/layout/topbar'
-import { Dashboard } from '@/components/crm/dashboard'
-import { TeleSheet } from '@/components/crm/tele-sheet'
-import { SalesSheet } from '@/components/crm/sales-sheet'
-import { AdminPanel } from '@/components/crm/admin-panel'
-import { MyMeetings } from '@/components/crm/my-meetings'
-import { BulkAdd } from '@/components/crm/bulk-add'
-import { MyArchive } from '@/components/crm/my-archive'
-import { DailyReport } from '@/components/crm/daily-report'
-import { MeetingsPage } from '@/components/crm/meetings-page'
-import { CustomersStatus } from '@/components/crm/customers-status'
-import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react'
+import { Loader2, RefreshCw } from 'lucide-react'
+
+/* ------------------------------------------------------------------ */
+/*  Lazy-loaded view components — only load when the view is active     */
+/* ------------------------------------------------------------------ */
+const Dashboard = lazy(() => import('@/components/crm/dashboard').then(m => ({ default: m.Dashboard })))
+const TeleSheet = lazy(() => import('@/components/crm/tele-sheet').then(m => ({ default: m.TeleSheet })))
+const SalesSheet = lazy(() => import('@/components/crm/sales-sheet').then(m => ({ default: m.SalesSheet })))
+const AdminPanel = lazy(() => import('@/components/crm/admin-panel').then(m => ({ default: m.AdminPanel })))
+const MyMeetings = lazy(() => import('@/components/crm/my-meetings').then(m => ({ default: m.MyMeetings })))
+const BulkAdd = lazy(() => import('@/components/crm/bulk-add').then(m => ({ default: m.BulkAdd })))
+const MyArchive = lazy(() => import('@/components/crm/my-archive').then(m => ({ default: m.MyArchive })))
+const DailyReport = lazy(() => import('@/components/crm/daily-report').then(m => ({ default: m.DailyReport })))
+const MeetingsPage = lazy(() => import('@/components/crm/meetings-page').then(m => ({ default: m.MeetingsPage })))
+const CustomersStatus = lazy(() => import('@/components/crm/customers-status').then(m => ({ default: m.CustomersStatus })))
 
 /* ------------------------------------------------------------------ */
 /*  Error Boundary to prevent component crashes from hanging the app   */
@@ -104,10 +108,25 @@ function FallbackView({ view }: { view: string }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  View Router (wrapped with Error Boundary)                          */
+/*  Suspense fallback while lazy component loads                       */
+/* ------------------------------------------------------------------ */
+function ViewLoadingFallback() {
+  return (
+    <div className="flex-1 flex items-center justify-center min-h-[40vh]">
+      <div className="text-center">
+        <Loader2 size={28} className="animate-spin text-[#6c63ff] mx-auto mb-3" />
+        <p className="text-[13px] text-[#8892b0]" style={{ fontFamily: 'Cairo, sans-serif' }}>جاري تحميل الصفحة...</p>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  View Router (wrapped with Error Boundary + Suspense)               */
+/*  KEY FIX: Only render the ACTIVE view — don't mount others          */
 /* ------------------------------------------------------------------ */
 function ViewRouter({ currentView }: { currentView: ViewName }) {
-  function renderView() {
+  const viewComponent = useMemo(() => {
     switch (currentView) {
       case 'dashboard':
         return <Dashboard />
@@ -132,11 +151,13 @@ function ViewRouter({ currentView }: { currentView: ViewName }) {
       default:
         return <FallbackView view={currentView} />
     }
-  }
+  }, [currentView])
 
   return (
     <ViewErrorBoundary viewName={currentView}>
-      {renderView()}
+      <Suspense fallback={<ViewLoadingFallback />}>
+        {viewComponent}
+      </Suspense>
     </ViewErrorBoundary>
   )
 }
@@ -166,7 +187,8 @@ function LoadingScreen() {
 /*  Toast Container                                                    */
 /* ------------------------------------------------------------------ */
 function ToastContainer() {
-  const { toasts, removeToast } = useCrmStore()
+  const toasts = useCrmStore((s) => s.toasts)
+  const removeToast = useCrmStore((s) => s.removeToast)
 
   return (
     <div className="fixed bottom-5 left-5 z-[1000] flex flex-col gap-2">
@@ -198,17 +220,15 @@ function ToastContainer() {
 /*  Main Page                                                          */
 /* ------------------------------------------------------------------ */
 export default function Home() {
-  const {
-    isAuthenticated,
-    currentView,
-    loading,
-    dataLoaded,
-    setLeads,
-    setArchivedLeads,
-    setTeam,
-    setDataLoaded,
-    setLoading,
-  } = useCrmStore()
+  const isAuthenticated = useCrmStore((s) => s.isAuthenticated)
+  const currentView = useCrmStore((s) => s.currentView)
+  const loading = useCrmStore((s) => s.loading)
+  const dataLoaded = useCrmStore((s) => s.dataLoaded)
+  const setLeads = useCrmStore((s) => s.setLeads)
+  const setArchivedLeads = useCrmStore((s) => s.setArchivedLeads)
+  const setTeam = useCrmStore((s) => s.setTeam)
+  const setDataLoaded = useCrmStore((s) => s.setDataLoaded)
+  const setLoading = useCrmStore((s) => s.setLoading)
 
   // Hydrate auth from localStorage on first mount
   useEffect(() => {

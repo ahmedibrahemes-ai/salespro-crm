@@ -10,7 +10,7 @@ import {
   apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk, apiUnarchiveLeads,
   apiAddTeamMember, apiRemoveTeamMember, apiRenameTeamMember,
 } from '@/lib/supabase'
-import { motion, AnimatePresence } from 'framer-motion'
+// Framer Motion removed for performance
 import {
   BarChart3, Phone, Users, Archive, Settings, UserCog, ChevronLeft,
   Search, Trash2, PhoneCall, Trophy, UserPlus, UserMinus, Pencil,
@@ -31,18 +31,7 @@ import {
   Tabs, TabsContent, TabsList, TabsTrigger,
 } from '@/components/ui/tabs'
 
-/* ═══════════════════════════════════════════════════════
-   Animation variants
-   ═══════════════════════════════════════════════════════ */
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.04 } },
-}
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 10 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.3 } },
-}
+// Animation variants removed - using CSS transitions for better performance
 
 /* ═══════════════════════════════════════════════════════
    Tab Config
@@ -110,12 +99,12 @@ function OverviewTab() {
           { label: 'تم التقفيل', value: totalClosed, color: '#00d4aa' },
           { label: 'نسبة التحويل', value: `${conversionRate}%`, color: '#ff6b6b' },
         ].map((k, i) => (
-          <motion.div key={i} variants={itemVariants} className="bg-[#111520] border border-white/[0.06] rounded-xl p-4">
+          <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-4 animate-in fade-in duration-300">
             <div className="text-[11px] text-[#8892b0]">{k.label}</div>
             <div className="text-[24px] font-bold mt-1" style={{ color: k.color, fontFamily: 'Cairo, sans-serif' }}>
               {k.value}
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
 
@@ -691,7 +680,7 @@ export function AdminPanel() {
   const { adminTab, setAdminTab } = useCrmStore()
 
   return (
-    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-4">
+    <div className="space-y-4 animate-in fade-in duration-300">
       {/* Header */}
       <div>
         <h2 className="text-[18px] font-bold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
@@ -748,6 +737,6 @@ export function AdminPanel() {
           <SettingsTab />
         </TabsContent>
       </Tabs>
-    </motion.div>
+    </div>
   )
 }

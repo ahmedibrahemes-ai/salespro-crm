@@ -3,11 +3,5 @@
   "framework": "nextjs",
   "buildCommand": "next build",
   "installCommand": "bun install",
-  "devCommand": "next dev -p 3000",
-  "regions": ["iad1"],
-  "env": {
-    "NEXT_PUBLIC_SUPABASE_URL": "@supabase-url",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@supabase-anon-key",
-    "SUPABASE_SERVICE_ROLE_KEY": "@supabase-service-role-key"
-  }
+  "regions": ["iad1"]
 }

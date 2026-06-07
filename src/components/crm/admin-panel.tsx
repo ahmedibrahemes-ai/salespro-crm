@@ -50,7 +50,9 @@ const ADMIN_TABS: { key: AdminTab; label: string; icon: React.ElementType }[] = 
    Overview Tab
    ═══════════════════════════════════════════════════════ */
 function OverviewTab() {
-  const { leads, archivedLeads, team } = useCrmStore()
+  const leads = useCrmStore((s) => s.leads)
+  const archivedLeads = useCrmStore((s) => s.archivedLeads)
+  const team = useCrmStore((s) => s.team)
   const activeLeads = useMemo(() => leads.filter((l) => !l.isArchived), [leads])
 
   const teamStats = useMemo(() => {
@@ -171,12 +173,20 @@ function OverviewTab() {
    All Leads Tab
    ═══════════════════════════════════════════════════════ */
 function AllLeadsTab() {
-  const {
-    leads, team, currentUser, addToast,
-    selectedLeadIds, toggleLeadSelection, clearSelectedLeadIds, selectAllLeads,
-    searchQueries, setSearchQuery,
-    updateLeadInCache, removeLeadFromCache, batchRemoveLeadsFromCache, archiveLeadsInCache,
-  } = useCrmStore()
+  const leads = useCrmStore((s) => s.leads)
+  const team = useCrmStore((s) => s.team)
+  const currentUser = useCrmStore((s) => s.currentUser)
+  const addToast = useCrmStore((s) => s.addToast)
+  const selectedLeadIds = useCrmStore((s) => s.selectedLeadIds)
+  const toggleLeadSelection = useCrmStore((s) => s.toggleLeadSelection)
+  const clearSelectedLeadIds = useCrmStore((s) => s.clearSelectedLeadIds)
+  const selectAllLeads = useCrmStore((s) => s.selectAllLeads)
+  const searchQueries = useCrmStore((s) => s.searchQueries)
+  const setSearchQuery = useCrmStore((s) => s.setSearchQuery)
+  const updateLeadInCache = useCrmStore((s) => s.updateLeadInCache)
+  const removeLeadFromCache = useCrmStore((s) => s.removeLeadFromCache)
+  const batchRemoveLeadsFromCache = useCrmStore((s) => s.batchRemoveLeadsFromCache)
+  const archiveLeadsInCache = useCrmStore((s) => s.archiveLeadsInCache)
 
   const viewKey = 'admin-all-leads'
   const selected = selectedLeadIds[viewKey] || []
@@ -345,7 +355,9 @@ function AllLeadsTab() {
    Archive Tab
    ═══════════════════════════════════════════════════════ */
 function ArchiveTab() {
-  const { archivedLeads, addToast, unarchiveLeadsInCache } = useCrmStore()
+  const archivedLeads = useCrmStore((s) => s.archivedLeads)
+  const addToast = useCrmStore((s) => s.addToast)
+  const unarchiveLeadsInCache = useCrmStore((s) => s.unarchiveLeadsInCache)
   const [searchQuery, setSearchQuery] = useState('')
 
   const filtered = useMemo(() => {
@@ -436,7 +448,9 @@ function ArchiveTab() {
    Team Tab
    ═══════════════════════════════════════════════════════ */
 function TeamTab() {
-  const { team, addToast, setTeam } = useCrmStore()
+  const team = useCrmStore((s) => s.team)
+  const addToast = useCrmStore((s) => s.addToast)
+  const setTeam = useCrmStore((s) => s.setTeam)
   const [newName, setNewName] = useState('')
   const [newRole, setNewRole] = useState<'tele' | 'sales'>('tele')
   const [editingName, setEditingName] = useState<string | null>(null)
@@ -638,7 +652,8 @@ function TeamTab() {
    Settings Tab (Placeholder)
    ═══════════════════════════════════════════════════════ */
 function SettingsTab() {
-  const { theme, toggleTheme } = useCrmStore()
+  const theme = useCrmStore((s) => s.theme)
+  const toggleTheme = useCrmStore((s) => s.toggleTheme)
 
   return (
     <div className="space-y-4">
@@ -677,7 +692,8 @@ function SettingsTab() {
    Admin Panel Component
    ═══════════════════════════════════════════════════════ */
 export function AdminPanel() {
-  const { adminTab, setAdminTab } = useCrmStore()
+  const adminTab = useCrmStore((s) => s.adminTab)
+  const setAdminTab = useCrmStore((s) => s.setAdminTab)
 
   return (
     <div className="space-y-4 animate-in fade-in duration-300">

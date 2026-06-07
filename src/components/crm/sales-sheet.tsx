@@ -137,12 +137,23 @@ function LazySelectCell({
    - Lazy Select cells (only mount portal when editing)
    ═══════════════════════════════════════════════════════ */
 export function SalesSheet() {
-  const {
-    leads, team, currentUser, currentRole, addToast,
-    selectedLeadIds, toggleLeadSelection, clearSelectedLeadIds, selectAllLeads,
-    searchQueries, setSearchQuery, dateRangeFilters, setDateRangeFilter,
-    updateLeadInCache, removeLeadFromCache, batchRemoveLeadsFromCache, archiveLeadsInCache,
-  } = useCrmStore()
+  const leads = useCrmStore((s) => s.leads)
+  const team = useCrmStore((s) => s.team)
+  const currentUser = useCrmStore((s) => s.currentUser)
+  const currentRole = useCrmStore((s) => s.currentRole)
+  const addToast = useCrmStore((s) => s.addToast)
+  const selectedLeadIds = useCrmStore((s) => s.selectedLeadIds)
+  const toggleLeadSelection = useCrmStore((s) => s.toggleLeadSelection)
+  const clearSelectedLeadIds = useCrmStore((s) => s.clearSelectedLeadIds)
+  const selectAllLeads = useCrmStore((s) => s.selectAllLeads)
+  const searchQueries = useCrmStore((s) => s.searchQueries)
+  const setSearchQuery = useCrmStore((s) => s.setSearchQuery)
+  const dateRangeFilters = useCrmStore((s) => s.dateRangeFilters)
+  const setDateRangeFilter = useCrmStore((s) => s.setDateRangeFilter)
+  const updateLeadInCache = useCrmStore((s) => s.updateLeadInCache)
+  const removeLeadFromCache = useCrmStore((s) => s.removeLeadFromCache)
+  const batchRemoveLeadsFromCache = useCrmStore((s) => s.batchRemoveLeadsFromCache)
+  const archiveLeadsInCache = useCrmStore((s) => s.archiveLeadsInCache)
 
   const viewKey = 'sales-sheet'
   const selected = selectedLeadIds[viewKey] || []

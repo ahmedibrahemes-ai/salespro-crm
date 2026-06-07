@@ -121,7 +121,11 @@ function formatCurrency(val: number): string {
    ═══════════════════════════════════════════════════════ */
 
 export function Dashboard() {
-  const { leads, currentUser, currentRole, team, setCurrentView } = useCrmStore()
+  const leads = useCrmStore((s) => s.leads)
+  const currentUser = useCrmStore((s) => s.currentUser)
+  const currentRole = useCrmStore((s) => s.currentRole)
+  const team = useCrmStore((s) => s.team)
+  const setCurrentView = useCrmStore((s) => s.setCurrentView)
 
   /* ─── Fetch API stats ─── */
   const [apiStats, setApiStats] = useState<ApiStats | null>(null)

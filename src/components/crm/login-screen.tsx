@@ -64,7 +64,19 @@ export function LoginScreen() {
       }
     } catch (err) {
       console.error('[login] Error:', err)
-      setError('فشل الاتصال بالخادم')
+      // Demo mode fallback: if API is unreachable, allow demo login
+      // This enables testing when Supabase is not configured
+      const DEMO_USERS: Record<string, { displayName: string; role: 'tele' | 'sales' | 'admin' }> = {
+        admin: { displayName: 'أحمد سالم', role: 'admin' },
+        tele: { displayName: 'Amira', role: 'tele' },
+        sales: { displayName: 'Rania', role: 'sales' },
+      }
+      const demoUser = DEMO_USERS[username.trim().toLowerCase()]
+      if (demoUser) {
+        login(demoUser.displayName, demoUser.role)
+        return
+      }
+      setError('فشل الاتصال بالخادم — جرب admin / tele / sales كوضع تجريبي')
     } finally {
       setLoading(false)
     }

@@ -12,7 +12,7 @@ export async function POST() {
 
     // Create team members
     const ahmed = await db.teamMember.create({
-      data: { name: 'Ahmed Salem', nameAr: 'أحمد سالم', role: 'senior-sales', initials: 'أح', points: 1240, deals: 11, revenue: 84000, calls: 83, convRate: 13, badges: '["Closer","Speed","Top 10%","100 Calls","Champion"]' },
+      data: { name: 'Ahmed Salem', nameAr: 'أحمد سالم', role: 'sales', initials: 'أح', points: 1240, deals: 11, revenue: 84000, calls: 83, convRate: 13, badges: '["Closer","Speed","Top 10%","100 Calls","Champion"]' },
     })
     const reem = await db.teamMember.create({
       data: { name: 'Reem Khaled', nameAr: 'ريم خالد', role: 'sales', initials: 'ري', points: 890, deals: 9, revenue: 63000, calls: 95, convRate: 11, badges: '["100 Calls","Steady"]' },
@@ -22,6 +22,14 @@ export async function POST() {
     })
     const marwa = await db.teamMember.create({
       data: { name: 'Marwa Hussein', nameAr: 'مروة حسين', role: 'sales', initials: 'مر', points: 540, deals: 5, revenue: 38000, calls: 52, convRate: 9, badges: '[]' },
+    })
+
+    // Tele team members
+    const amira = await db.teamMember.create({
+      data: { name: 'Amira', nameAr: 'أميرة', role: 'tele', initials: 'أم', points: 950, deals: 0, revenue: 0, calls: 120, convRate: 15, badges: '["100 Calls"]' },
+    })
+    const neveen = await db.teamMember.create({
+      data: { name: 'Neveen', nameAr: 'نيفين', role: 'tele', initials: 'ني', points: 820, deals: 0, revenue: 0, calls: 105, convRate: 12, badges: '[]' },
     })
 
     // Create target
@@ -42,39 +50,43 @@ export async function POST() {
       return d
     }
 
-    // Create leads
-    const leads = await Promise.all([
-      // Hot leads
-      db.lead.create({ data: { name: 'نهى إبراهيم', phone: '01012345678', email: 'noha@rouya.com', source: 'meta-ads', status: 'qualified', value: 20000, probability: 87, hot: true, company: 'شركة رؤية للتسويق', location: 'القاهرة', assignedTo: ahmed.id, lastContactAt: daysAgo(1), nextFollowUp: new Date(new Date().setHours(14, 0, 0, 0)), followUpType: 'call', notes: '[]' } }),
-      db.lead.create({ data: { name: 'سارة أحمد', phone: '01098765432', email: 'sara@example.com', source: 'meta-ads', status: 'contacted', value: 12000, probability: 65, hot: true, company: '', location: 'الإسكندرية', assignedTo: ahmed.id, lastContactAt: hoursAgo(2), notes: '[]' } }),
-      db.lead.create({ data: { name: 'هبة مصطفى', phone: '01155544433', email: 'heba@tech.com', source: 'google-ads', status: 'negotiation', value: 30000, probability: 75, hot: true, company: 'Tech Solutions', location: 'الجيزة', assignedTo: ahmed.id, lastContactAt: daysAgo(2), notes: '[]' } }),
+    // Today's date string for meetingDate
+    const todayStr = now.toISOString().split('T')[0]
+    const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().split('T')[0]
 
-      // Overdue leads
-      db.lead.create({ data: { name: 'محمد السيد', phone: '01234567890', email: 'mohamed@example.com', source: 'meta-ads', status: 'qualified', value: 18000, probability: 55, hot: false, company: '', location: 'القاهرة', assignedTo: ahmed.id, lastContactAt: daysAgo(5), nextFollowUp: daysAgo(3), followUpType: 'call', notes: '[]' } }),
-      db.lead.create({ data: { name: 'أسامة فريد', phone: '01099988877', email: 'osama@example.com', source: 'google-ads', status: 'contacted', value: 8000, probability: 35, hot: false, company: '', location: 'المنصورة', assignedTo: reem.id, lastContactAt: daysAgo(6), nextFollowUp: daysAgo(4), followUpType: 'whatsapp', notes: '[]' } }),
-      db.lead.create({ data: { name: 'عمر حسام', phone: '01177766655', email: 'omar@biz.com', source: 'website', status: 'contacted', value: 5000, probability: 30, hot: false, company: 'Biz Corp', location: 'طنطا', assignedTo: waleed.id, lastContactAt: daysAgo(7), nextFollowUp: daysAgo(2), followUpType: 'call', notes: '[]' } }),
+    // Create leads with CRM-specific fields
+    const leads = await Promise.all([
+      // Hot leads - need attention
+      db.lead.create({ data: { name: 'نهى إبراهيم', phone: '01012345678', email: 'noha@rouya.com', source: 'meta-ads', status: 'followup', value: 20000, probability: 87, hot: true, company: 'شركة رؤية للتسويق', location: 'القاهرة', assignedTo: ahmed.name, teleName: amira.name, salesName: ahmed.name, meetingDate: tomorrowStr, meetingTime: '14:00', meetingType: 'online', contactResult: 'replied', contactResultAt: hoursAgo(2), lastContactAt: hoursAgo(2), nextFollowUp: new Date(new Date().setHours(14, 0, 0, 0)), followUpType: 'call', notes: '[]' } }),
+      db.lead.create({ data: { name: 'سارة أحمد', phone: '01098765432', email: 'sara@example.com', source: 'meta-ads', status: 'followup', value: 12000, probability: 65, hot: true, company: '', location: 'الإسكندرية', assignedTo: ahmed.name, teleName: neveen.name, salesName: ahmed.name, contactResult: 'callback', contactResultAt: hoursAgo(4), lastContactAt: hoursAgo(4), notes: '[]' } }),
+      db.lead.create({ data: { name: 'هبة مصطفى', phone: '01155544433', email: 'heba@tech.com', source: 'google-ads', status: 'negotiation', value: 30000, probability: 75, hot: true, company: 'Tech Solutions', location: 'الجيزة', assignedTo: reem.name, teleName: amira.name, salesName: reem.name, meetingDate: todayStr, meetingTime: '16:00', meetingType: 'online', attended: 'attended', attendanceMarkedAt: hoursAgo(1), contactResult: 'replied', contactResultAt: daysAgo(2), lastContactAt: daysAgo(2), notes: '[]' } }),
+
+      // Overdue leads - need attention
+      db.lead.create({ data: { name: 'محمد السيد', phone: '01234567890', email: 'mohamed@example.com', source: 'meta-ads', status: 'followup', value: 18000, probability: 55, hot: false, company: '', location: 'القاهرة', assignedTo: ahmed.name, teleName: amira.name, salesName: ahmed.name, contactResult: 'no-reply', contactResultAt: daysAgo(5), lastContactAt: daysAgo(5), nextFollowUp: daysAgo(3), followUpType: 'call', notes: '[]' } }),
+      db.lead.create({ data: { name: 'أسامة فريد', phone: '01099988877', email: 'osama@example.com', source: 'google-ads', status: 'no-reply', value: 8000, probability: 35, hot: false, company: '', location: 'المنصورة', assignedTo: reem.name, teleName: neveen.name, salesName: reem.name, contactResult: 'no-reply', contactResultAt: daysAgo(6), lastContactAt: daysAgo(6), nextFollowUp: daysAgo(4), followUpType: 'whatsapp', notes: '[]' } }),
+      db.lead.create({ data: { name: 'عمر حسام', phone: '01177766655', email: 'omar@biz.com', source: 'website', status: 'callback', value: 5000, probability: 30, hot: false, company: 'Biz Corp', location: 'طنطا', assignedTo: waleed.name, teleName: amira.name, salesName: waleed.name, contactResult: 'callback', contactResultAt: daysAgo(7), lastContactAt: daysAgo(7), nextFollowUp: daysAgo(2), followUpType: 'call', notes: '[]' } }),
 
       // Today follow-ups
-      db.lead.create({ data: { name: 'علي منصور', phone: '01288877766', email: 'ali@mansour.com', source: 'referral', status: 'proposal', value: 15000, probability: 60, hot: false, company: 'منصور جروب', location: 'القاهرة', assignedTo: ahmed.id, lastContactAt: daysAgo(1), nextFollowUp: new Date(new Date().setHours(16, 0, 0, 0)), followUpType: 'call', notes: '[]' } }),
-      db.lead.create({ data: { name: 'رنا محمود', phone: '01066655544', email: 'rana@example.com', source: 'website', status: 'contacted', value: 3500, probability: 40, hot: false, company: '', location: 'الإسماعيلية', assignedTo: marwa.id, lastContactAt: daysAgo(3), nextFollowUp: new Date(new Date().setHours(17, 30, 0, 0)), followUpType: 'whatsapp', notes: '[]' } }),
-      db.lead.create({ data: { name: 'عمرو خالد', phone: '01144433322', email: 'amr@khaled.com', source: 'linkedin', status: 'qualified', value: 9000, probability: 50, hot: false, company: '', location: 'القاهرة', assignedTo: ahmed.id, lastContactAt: daysAgo(1), nextFollowUp: new Date(), followUpType: 'call', notes: '[]' } }),
+      db.lead.create({ data: { name: 'علي منصور', phone: '01288877766', email: 'ali@mansour.com', source: 'referral', status: 'proposal-sent', value: 15000, probability: 60, hot: false, company: 'منصور جروب', location: 'القاهرة', assignedTo: ahmed.name, teleName: neveen.name, salesName: ahmed.name, contactResult: 'replied', contactResultAt: daysAgo(1), lastContactAt: daysAgo(1), nextFollowUp: new Date(new Date().setHours(16, 0, 0, 0)), followUpType: 'call', notes: '[]' } }),
+      db.lead.create({ data: { name: 'رنا محمود', phone: '01066655544', email: 'rana@example.com', source: 'website', status: 'whatsapp', value: 3500, probability: 40, hot: false, company: '', location: 'الإسماعيلية', assignedTo: marwa.name, teleName: amira.name, salesName: marwa.name, contactResult: 'whatsapp', contactResultAt: daysAgo(3), lastContactAt: daysAgo(3), nextFollowUp: new Date(new Date().setHours(17, 30, 0, 0)), followUpType: 'whatsapp', notes: '[]' } }),
+      db.lead.create({ data: { name: 'عمرو خالد', phone: '01144433322', email: 'amr@khaled.com', source: 'linkedin', status: 'followup', value: 9000, probability: 50, hot: false, company: '', location: 'القاهرة', assignedTo: ahmed.name, teleName: neveen.name, salesName: ahmed.name, contactResult: 'replied', contactResultAt: daysAgo(1), lastContactAt: daysAgo(1), nextFollowUp: new Date(), followUpType: 'call', notes: '[]' } }),
 
       // Pipeline leads
-      db.lead.create({ data: { name: 'ياسمين حسن', phone: '01222211100', email: 'yasmin@example.com', source: 'meta-ads', status: 'new', value: 5000, probability: 20, hot: false, company: '', location: 'القاهرة', assignedTo: reem.id, lastContactAt: hoursAgo(2), notes: '[]' } }),
-      db.lead.create({ data: { name: 'طارق عمر', phone: '01033322211', email: 'tarek@example.com', source: 'google-ads', status: 'new', value: 3500, probability: 20, hot: false, company: '', location: 'الإسكندرية', assignedTo: waleed.id, lastContactAt: hoursAgo(4), notes: '[]' } }),
-      db.lead.create({ data: { name: 'منى فاروق', phone: '01188877766', email: 'mona@farouk.com', source: 'website', status: 'new', value: 2800, probability: 20, hot: false, company: '', location: 'المنصورة', assignedTo: marwa.id, lastContactAt: hoursAgo(6), notes: '[]' } }),
-      db.lead.create({ data: { name: 'كريم عادل', phone: '01255544433', email: 'karim@adil.com', source: 'google-ads', status: 'contacted', value: 8000, probability: 35, hot: false, company: '', location: 'الجيزة', assignedTo: reem.id, lastContactAt: daysAgo(1), notes: '[]' } }),
-      db.lead.create({ data: { name: 'محمود رضا', phone: '01077766655', email: 'mahmoud@reda.com', source: 'referral', status: 'qualified', value: 15000, probability: 55, hot: false, company: 'محمود رضا وأولاده', location: 'القاهرة', assignedTo: waleed.id, lastContactAt: daysAgo(3), notes: '[]' } }),
+      db.lead.create({ data: { name: 'ياسمين حسن', phone: '01222211100', email: 'yasmin@example.com', source: 'meta-ads', status: 'new', value: 5000, probability: 20, hot: false, company: '', location: 'القاهرة', assignedTo: reem.name, teleName: amira.name, salesName: reem.name, lastContactAt: hoursAgo(2), notes: '[]' } }),
+      db.lead.create({ data: { name: 'طارق عمر', phone: '01033322211', email: 'tarek@example.com', source: 'google-ads', status: 'new', value: 3500, probability: 20, hot: false, company: '', location: 'الإسكندرية', assignedTo: waleed.name, teleName: neveen.name, salesName: waleed.name, lastContactAt: hoursAgo(4), notes: '[]' } }),
+      db.lead.create({ data: { name: 'منى فاروق', phone: '01188877766', email: 'mona@farouk.com', source: 'website', status: 'new', value: 2800, probability: 20, hot: false, company: '', location: 'المنصورة', assignedTo: marwa.name, teleName: amira.name, salesName: marwa.name, lastContactAt: hoursAgo(6), notes: '[]' } }),
+      db.lead.create({ data: { name: 'كريم عادل', phone: '01255544433', email: 'karim@adil.com', source: 'google-ads', status: 'meeting-done', value: 8000, probability: 35, hot: false, company: '', location: 'الجيزة', assignedTo: reem.name, teleName: neveen.name, salesName: reem.name, meetingDate: daysAgo(2).toISOString().split('T')[0], attended: 'attended', contactResult: 'replied', contactResultAt: daysAgo(1), lastContactAt: daysAgo(1), notes: '[]' } }),
+      db.lead.create({ data: { name: 'محمود رضا', phone: '01077766655', email: 'mahmoud@reda.com', source: 'referral', status: 'meeting-done', value: 15000, probability: 55, hot: false, company: 'محمود رضا وأولاده', location: 'القاهرة', assignedTo: waleed.name, teleName: amira.name, salesName: waleed.name, meetingDate: daysAgo(3).toISOString().split('T')[0], attended: 'attended', contactResult: 'replied', contactResultAt: daysAgo(3), lastContactAt: daysAgo(3), notes: '[]' } }),
 
-      // Won deals
-      db.lead.create({ data: { name: 'رنا طه', phone: '01122211100', email: 'rana@taha.com', source: 'meta-ads', status: 'won', value: 18000, probability: 100, hot: false, company: '', location: 'القاهرة', assignedTo: ahmed.id, lastContactAt: daysAgo(0), notes: '[]' } }),
-      db.lead.create({ data: { name: 'سامي إبراهيم', phone: '01244433322', email: 'sami@ibrahim.com', source: 'referral', status: 'won', value: 22000, probability: 100, hot: false, company: 'إبراهيم للأعمال', location: 'الإسكندرية', assignedTo: ahmed.id, lastContactAt: daysAgo(1), notes: '[]' } }),
-      db.lead.create({ data: { name: 'ليلى محمد', phone: '01088877766', email: 'layla@example.com', source: 'google-ads', status: 'won', value: 11000, probability: 100, hot: false, company: '', location: 'طنطا', assignedTo: reem.id, lastContactAt: daysAgo(2), notes: '[]' } }),
+      // Won deals (closed-won)
+      db.lead.create({ data: { name: 'رنا طه', phone: '01122211100', email: 'rana@taha.com', source: 'meta-ads', status: 'closed-won', value: 18000, probability: 100, hot: false, company: '', location: 'القاهرة', assignedTo: ahmed.name, teleName: amira.name, salesName: ahmed.name, attended: 'attended', meetingDate: daysAgo(5).toISOString().split('T')[0], contactResult: 'replied', contactResultAt: daysAgo(0), lastContactAt: daysAgo(0), notes: '[]' } }),
+      db.lead.create({ data: { name: 'سامي إبراهيم', phone: '01244433322', email: 'sami@ibrahim.com', source: 'referral', status: 'closed-won', value: 22000, probability: 100, hot: false, company: 'إبراهيم للأعمال', location: 'الإسكندرية', assignedTo: ahmed.name, teleName: neveen.name, salesName: ahmed.name, attended: 'attended', meetingDate: daysAgo(7).toISOString().split('T')[0], contactResult: 'replied', contactResultAt: daysAgo(1), lastContactAt: daysAgo(1), notes: '[]' } }),
+      db.lead.create({ data: { name: 'ليلى محمد', phone: '01088877766', email: 'layla@example.com', source: 'google-ads', status: 'closed-won', value: 11000, probability: 100, hot: false, company: '', location: 'طنطا', assignedTo: reem.name, teleName: amira.name, salesName: reem.name, attended: 'attended', meetingDate: daysAgo(4).toISOString().split('T')[0], contactResult: 'replied', contactResultAt: daysAgo(2), lastContactAt: daysAgo(2), notes: '[]' } }),
 
-      // Lost deals
-      db.lead.create({ data: { name: 'أسامة فؤاد', phone: '01199988877', email: 'osama@fouad.com', source: 'cold-call', status: 'lost', value: 6000, probability: 0, hot: false, company: '', location: 'القاهرة', assignedTo: waleed.id, lastContactAt: daysAgo(5), lostReason: 'price', notes: '[]' } }),
-      db.lead.create({ data: { name: 'حنان سعيد', phone: '01266655544', email: 'hanan@example.com', source: 'website', status: 'lost', value: 4000, probability: 0, hot: false, company: '', location: 'المنصورة', assignedTo: marwa.id, lastContactAt: daysAgo(8), lostReason: 'slow-response', notes: '[]' } }),
-      db.lead.create({ data: { name: 'طارق محمود', phone: '01044433322', email: 'tariq@mahmoud.com', source: 'referral', status: 'new', value: 7500, probability: 25, hot: false, company: '', location: 'القاهرة', assignedTo: ahmed.id, lastContactAt: daysAgo(0), notes: '[]' } }),
+      // Lost deals (closed-lost)
+      db.lead.create({ data: { name: 'أسامة فؤاد', phone: '01199988877', email: 'osama@fouad.com', source: 'cold-call', status: 'closed-lost', value: 6000, probability: 0, hot: false, company: '', location: 'القاهرة', assignedTo: waleed.name, teleName: neveen.name, salesName: waleed.name, contactResult: 'not-interested', contactResultAt: daysAgo(5), lastContactAt: daysAgo(5), lostReason: 'price', notes: '[]' } }),
+      db.lead.create({ data: { name: 'حنان سعيد', phone: '01266655544', email: 'hanan@example.com', source: 'website', status: 'closed-lost', value: 4000, probability: 0, hot: false, company: '', location: 'المنصورة', assignedTo: marwa.name, teleName: amira.name, salesName: marwa.name, contactResult: 'wrong-number', contactResultAt: daysAgo(8), lastContactAt: daysAgo(8), lostReason: 'slow-response', notes: '[]' } }),
+      db.lead.create({ data: { name: 'طارق محمود', phone: '01044433322', email: 'tariq@mahmoud.com', source: 'referral', status: 'new', value: 7500, probability: 25, hot: false, company: '', location: 'القاهرة', assignedTo: ahmed.name, teleName: neveen.name, salesName: ahmed.name, lastContactAt: daysAgo(0), notes: '[]' } }),
     ])
 
     // Create activities for hot leads
@@ -105,8 +117,8 @@ export async function POST() {
       ],
     })
 
-    return NextResponse.json({ 
-      message: 'Demo data seeded successfully', 
+    return NextResponse.json({
+      message: 'Demo data seeded successfully',
       leads: leads.length,
     })
   } catch (error) {

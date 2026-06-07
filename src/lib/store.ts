@@ -1,271 +1,697 @@
 import { create } from 'zustand'
+import type { Lead } from './supabase'
 
-// ===== Pipeline Stages =====
-export const PIPELINE_STAGES = [
-  { key: 'new', label: 'ليد جديد', labelEn: 'New Lead', color: '#6c9fff', bg: 'rgba(108,159,255,.12)' },
-  { key: 'contacted', label: 'تم التواصل', labelEn: 'Contacted', color: '#6c63ff', bg: 'rgba(108,99,255,.12)' },
-  { key: 'qualified', label: 'مؤهل', labelEn: 'Qualified', color: '#ffd166', bg: 'rgba(255,209,102,.12)' },
-  { key: 'proposal', label: 'عرض سعر', labelEn: 'Proposal', color: '#00d4aa', bg: 'rgba(0,212,170,.1)' },
-  { key: 'negotiation', label: 'تفاوض', labelEn: 'Negotiation', color: '#ff6b6b', bg: 'rgba(255,107,107,.12)' },
-  { key: 'won', label: 'تم الإغلاق ✓', labelEn: 'Won', color: '#00d4aa', bg: 'rgba(0,212,170,.15)' },
-  { key: 'lost', label: 'خسارة', labelEn: 'Lost', color: '#ff4d4d', bg: 'rgba(255,77,77,.12)' },
+// ===== Contact Results =====
+export const CONTACT_RESULTS = [
+  { key: 'none', label: '—', color: 'text-muted-foreground' },
+  { key: 'replied', label: '✅ رد', color: 'text-emerald-400' },
+  { key: 'no-reply', label: '📵 مردش', color: 'text-amber-400' },
+  { key: 'whatsapp', label: '💬 واتس', color: 'text-green-400' },
+  { key: 'busy', label: '🔴 مشغول', color: 'text-muted-foreground' },
+  { key: 'wrong-number', label: '❌ رقم غلط', color: 'text-red-400' },
+  { key: 'callback', label: '🔄 اعادة اتصال', color: 'text-amber-400' },
+  { key: 'not-interested', label: '🚫 غير مهتم', color: 'text-red-400' },
 ]
 
-export const LEAD_SOURCES = [
-  { key: 'meta-ads', label: 'Meta Ads' },
-  { key: 'google-ads', label: 'Google Ads' },
-  { key: 'website', label: 'Website' },
-  { key: 'referral', label: 'Referral' },
-  { key: 'linkedin', label: 'LinkedIn' },
-  { key: 'cold-call', label: 'Cold Call' },
+// ===== Tele Sheet Statuses =====
+export const STATUSES = [
+  { key: 'new', label: '🆕 جديد', cls: 'status-new' },
+  { key: 'no-reply', label: '📵 لم يرد', cls: 'status-noreply' },
+  { key: 'whatsapp', label: '💬 واتس', cls: 'status-followup' },
+  { key: 'followup', label: '🔄 متابعة', cls: 'status-followup' },
+  { key: 'meeting-done', label: '✅ اجتماع تم', cls: 'status-done' },
+  { key: 'objection-price', label: '💰 غالي', cls: 'status-objection' },
+  { key: 'objection-other', label: '⚠️ اعتراض', cls: 'status-objection' },
+  { key: 'proposal-sent', label: '📤 عرض سعر', cls: 'status-followup' },
+  { key: 'negotiation', label: '🤝 تفاوض', cls: 'status-followup' },
+  { key: 'closed-won', label: '🏆 تقفيل', cls: 'status-closed-win' },
+  { key: 'closed-lost', label: '❌ خسارة', cls: 'status-closed-lost' },
 ]
 
-export const LOST_REASONS = [
-  { key: 'price', label: 'السعر' },
-  { key: 'slow-response', label: 'بطء الرد' },
-  { key: 'competitor', label: 'منافس' },
-  { key: 'no-budget', label: 'ميزانية غير كافية' },
-  { key: 'no-response', label: 'عدم رد' },
+// ===== Sales Statuses =====
+export const SALES_STATUSES = [
+  { key: 'new', label: '🆕 جديد', cls: 'bg-green-500/20 text-green-400' },
+  { key: 'contacted', label: '📞 تم التواصل', cls: 'bg-green-500/20 text-green-400' },
+  { key: 'followup', label: '🔄 متابعة', cls: 'bg-amber-500/20 text-amber-400' },
+  { key: 'meeting-done', label: '✅ اجتماع تم', cls: 'bg-emerald-500/20 text-emerald-400' },
+  { key: 'objection-price', label: '💰 اعتراض سعر', cls: 'bg-red-500/20 text-red-400' },
+  { key: 'objection-other', label: '⚠️ اعتراض آخر', cls: 'bg-red-500/20 text-red-400' },
+  { key: 'proposal-sent', label: '📤 عرض سعر', cls: 'bg-green-500/20 text-green-400' },
+  { key: 'negotiation', label: '🤝 تفاوض', cls: 'bg-amber-500/20 text-amber-400' },
+  { key: 'thinking', label: '🤔 يفكر', cls: 'bg-amber-500/20 text-amber-400' },
+  { key: 'closed-won', label: '🏆 تم التقفيل', cls: 'bg-emerald-500/20 text-emerald-400' },
+  { key: 'closed-lost', label: '❌ خسارة', cls: 'bg-red-500/20 text-red-400' },
 ]
 
-// ===== View Types =====
+// ===== Attendance Statuses =====
+export const ATTENDANCE_STATUSES = [
+  { key: 'pending', label: '⏳ انتظار', cls: 'bg-amber-500/20 text-amber-400' },
+  { key: 'attended', label: '✅ حضر', cls: 'bg-emerald-500/20 text-emerald-400' },
+  { key: 'no-show', label: '❌ لم يحضر', cls: 'bg-red-500/20 text-red-400' },
+]
+
+// ===== Default Team =====
+export const DEFAULT_TEAM = {
+  tele: ['Amira', 'Neveen', 'Sara', 'Esraa', 'Rahma'],
+  sales: ['Rania', 'Alaa', 'Samar'],
+  admin: ['Admin'],
+}
+
+// ===== View Name =====
 export type ViewName =
+  | 'login'
+  | 'dashboard'
+  | 'my-sheet'
+  | 'my-meetings'
+  | 'meetings'
+  | 'sales-sheet'
+  | 'customers-status'
+  | 'daily-report'
+  | 'my-archive'
+  | 'bulk-add'
+  | 'admin'
+
+// ===== Toast =====
+export interface CrmToast {
+  id: string
+  type: 'success' | 'error' | 'info' | 'warning'
+  message: string
+  duration?: number
+  createdAt: number
+}
+
+// ===== Date Range Filter =====
+export interface DateRangeFilter {
+  preset: string
+  customFrom?: string
+  customTo?: string
+}
+
+// ===== Admin Sub-tab =====
+export type AdminTab =
   | 'overview'
-  | 'leads'
-  | 'pipeline'
-  | 'followup'
-  | 'whatsapp'
-  | 'ai'
+  | 'tele'
+  | 'sales'
+  | 'all-leads'
+  | 'archive'
   | 'team'
-  | 'client360'
-  | 'reports'
+  | 'settings'
 
-// ===== Lead Interface =====
-export interface Lead {
-  id: string
-  name: string
-  phone: string
-  email: string
-  source: string
-  status: string
-  value: number
-  probability: number
-  hot: boolean
-  notes: string
-  assignedTo: string
-  company: string
-  location: string
-  isArchived: boolean
-  lastContactAt: string
-  nextFollowUp: string | null
-  followUpType: string
-  lostReason: string
-  createdAt: string
-  updatedAt: string
-  activities?: Activity[]
-  messages?: ChatMessage[]
-}
-
-export interface Activity {
-  id: string
-  leadId: string
-  type: string
-  text: string
-  score: number
-  duration: number
-  createdAt: string
-}
-
-export interface TeamMember {
-  id: string
-  name: string
-  nameAr: string
-  role: string
-  initials: string
-  points: number
-  deals: number
-  revenue: number
-  calls: number
-  convRate: number
-  avatar: string
-  badges: string
-}
-
-export interface ChatMessage {
-  id: string
-  leadId: string
-  fromMe: boolean
-  text: string
-  read: boolean
-  createdAt: string
-}
-
-export interface Stats {
-  totalLeads: number
-  totalCalls: number
-  closedDeals: number
-  salesValue: number
-  conversionRate: number
-  leadsToday: number
-  callsToday: number
-  dealsToday: number
-  pipelineValue: number
-  avgDealValue: number
-  avgCycleDays: number
-  cac: number
-  roi: number
-  targetAmount: number
-  achievedAmount: number
-  hotCount: number
-  warmCount: number
-  coldCount: number
-  overdueCount: number
-  sourceBreakdown: Record<string, number>
-  lostReasonBreakdown: Record<string, number>
-  weeklyCalls: { day: string; count: number }[]
-  callAnalytics: { totalMinutes: number; successCount: number; failCount: number; avgDuration: string }
-  aiScore: number
+// ===== Duplicate Cache Entry =====
+export interface DuplicateInfo {
+  originalId: string
+  duplicateIds: string[]
 }
 
 // ===== Store Interface =====
 interface CrmStore {
+  // Auth
+  currentUser: string | null
+  currentRole: 'tele' | 'sales' | 'admin' | null
+  isAuthenticated: boolean
+
   // Navigation
   currentView: ViewName
   setCurrentView: (view: ViewName) => void
 
   // Data
   leads: Lead[]
-  setLeads: (leads: Lead[]) => void
-  team: TeamMember[]
-  setTeam: (team: TeamMember[]) => void
-  stats: Stats | null
-  setStats: (stats: Stats) => void
-  selectedLeadId: string | null
-  setSelectedLeadId: (id: string | null) => void
-
-  // UI
-  sidebarExpanded: boolean
-  setSidebarExpanded: (expanded: boolean) => void
-  leadFilter: string
-  setLeadFilter: (filter: string) => void
-  searchQuery: string
-  setSearchQuery: (query: string) => void
-  addLeadDialogOpen: boolean
-  setAddLeadDialogOpen: (open: boolean) => void
-
-  // Loading
-  loading: boolean
-  setLoading: (loading: boolean) => void
+  archivedLeads: Lead[]
+  leadsById: Record<string, Lead>
+  leadsVersion: number
+  team: { tele: string[]; sales: string[]; admin: string[] }
   dataLoaded: boolean
+  loading: boolean
+  setLeads: (leads: Lead[]) => void
+  setArchivedLeads: (leads: Lead[]) => void
+  setTeam: (team: { tele: string[]; sales: string[]; admin: string[] }) => void
   setDataLoaded: (loaded: boolean) => void
+  setLoading: (loading: boolean) => void
 
   // Actions
-  addLead: (lead: Lead) => void
-  updateLead: (id: string, updates: Partial<Lead>) => void
-  removeLead: (id: string) => void
+  login: (user: string, role: 'tele' | 'sales' | 'admin') => void
+  logout: () => void
+  updateLeadInCache: (id: string, updates: Partial<Lead>) => void
+  addLeadToCache: (lead: Lead) => void
+  batchAddLeadsToCache: (leads: Lead[]) => void
+  removeLeadFromCache: (id: string) => void
+  batchRemoveLeadsFromCache: (ids: string[]) => void
+  archiveLeadsInCache: (ids: string[], byName: string) => void
+  unarchiveLeadsInCache: (ids: string[]) => void
+
+  // UI State
+  sidebarOpen: boolean
+  setSidebarOpen: (open: boolean) => void
+  theme: 'dark' | 'light'
+  toggleTheme: () => void
+
+  // Permissions
+  teleAccess: Record<string, string[]>
+  salesAccess: Record<string, string[]>
+  setTeleAccess: (access: Record<string, string[]>) => void
+  setSalesAccess: (access: Record<string, string[]>) => void
+  canAccessTeleSheet: (viewer: string, target: string) => boolean
+  canAccessSalesSheet: (viewer: string, target: string) => boolean
+  getAccessibleTeleSheets: (viewer: string) => string[]
+  getAccessibleSalesSheets: (viewer: string) => string[]
+
+  // Toast Notifications
+  toasts: CrmToast[]
+  addToast: (type: CrmToast['type'], message: string, duration?: number) => void
+  removeToast: (id: string) => void
+  clearToasts: () => void
+
+  // View-Specific State
+  activeFilter: Record<string, string>
+  setActiveFilter: (viewKey: string, filter: string) => void
+  selectedLeadIds: Record<string, string[]>
+  toggleLeadSelection: (viewKey: string, id: string) => void
+  setSelectedLeadIds: (viewKey: string, ids: string[]) => void
+  clearSelectedLeadIds: (viewKey: string) => void
+  selectAllLeads: (viewKey: string, ids: string[]) => void
+  searchQueries: Record<string, string>
+  setSearchQuery: (viewKey: string, query: string) => void
+  dateRangeFilters: Record<string, DateRangeFilter>
+  setDateRangeFilter: (viewKey: string, filter: DateRangeFilter) => void
+
+  // Admin Sub-tab
+  adminTab: AdminTab
+  setAdminTab: (tab: AdminTab) => void
+
+  // Duplicate Detection Cache
+  duplicatesCache: Record<string, DuplicateInfo>
+  duplicatesVersion: number
+  setDuplicatesCache: (cache: Record<string, DuplicateInfo>) => void
+  buildDuplicatesCache: (leads: Lead[]) => void
+  getDuplicateInfo: (phone: string) => DuplicateInfo | undefined
+  incrementDuplicatesVersion: () => void
+
+  // Real-time Sync Status
+  realtimeStatus: 'connecting' | 'connected' | 'disconnected' | 'error'
+  setRealtimeStatus: (status: 'connecting' | 'connected' | 'disconnected' | 'error') => void
+  lastSyncAt: number | null
+  setLastSyncAt: (ts: number) => void
+  syncChangesToCache: (freshLeads: Lead[], freshArchived: Lead[]) => number
+}
+
+// ===== Toast auto-dismiss timers =====
+const toastTimers = new Map<string, ReturnType<typeof setTimeout>>()
+let toastCounter = 0
+
+// ===== ID Comparison Helper (Bug Fix #2: proper string ID comparison) =====
+// Compares lead IDs as numbers (since Supabase auto-increment produces numeric IDs)
+// Falls back to localeCompare for non-numeric IDs
+function compareIds(a: string, b: string): number {
+  const numA = Number(a)
+  const numB = Number(b)
+  if (!isNaN(numA) && !isNaN(numB)) return numA - numB
+  return a.localeCompare(b)
 }
 
 // ===== Store Implementation =====
-export const useCrmStore = create<CrmStore>((set) => ({
+export const useCrmStore = create<CrmStore>((set, get) => ({
+  // Auth
+  currentUser: null,
+  currentRole: null,
+  isAuthenticated: false,
+
   // Navigation
-  currentView: 'overview',
+  currentView: 'login',
   setCurrentView: (view) => set({ currentView: view }),
 
   // Data
   leads: [],
-  setLeads: (leads) => set({ leads }),
-  team: [],
-  setTeam: (team) => set({ team }),
-  stats: null,
-  setStats: (stats) => set({ stats }),
-  selectedLeadId: null,
-  setSelectedLeadId: (id) => set({ selectedLeadId: id }),
-
-  // UI
-  sidebarExpanded: false,
-  setSidebarExpanded: (expanded) => set({ sidebarExpanded: expanded }),
-  leadFilter: 'all',
-  setLeadFilter: (filter) => set({ leadFilter: filter }),
-  searchQuery: '',
-  setSearchQuery: (query) => set({ searchQuery: query }),
-  addLeadDialogOpen: false,
-  setAddLeadDialogOpen: (open) => set({ addLeadDialogOpen: open }),
-
-  // Loading
-  loading: false,
-  setLoading: (loading) => set({ loading }),
+  archivedLeads: [],
+  leadsById: {},
+  leadsVersion: 0,
+  team: DEFAULT_TEAM,
   dataLoaded: false,
-  setDataLoaded: (loaded) => set({ dataLoaded: loaded }),
+  loading: false,
+  setLeads: (leads) => {
+    const seen = new Set<string>()
+    const deduped = leads.filter((l: Lead) => {
+      if (seen.has(l.id)) return false
+      seen.add(l.id)
+      return true
+    })
+    // BUG FIX: Use compareIds instead of a.id - b.id for proper sorting
+    deduped.sort((a, b) => compareIds(a.id, b.id))
+    const leadsById: Record<string, Lead> = {}
+    deduped.forEach((l: Lead) => { leadsById[l.id] = l })
+    set({ leads: deduped, leadsById })
+  },
+  setArchivedLeads: (archivedLeads) => {
+    set((state) => {
+      const newLeadsById = { ...state.leadsById }
+      archivedLeads.forEach((l: Lead) => { newLeadsById[l.id] = l })
+      return { archivedLeads, leadsById: newLeadsById }
+    })
+  },
+  setTeam: (team) => set({ team }),
+  setDataLoaded: (dataLoaded) => set({ dataLoaded }),
+  setLoading: (loading) => set({ loading }),
 
   // Actions
-  addLead: (lead) => set((s) => ({ leads: [...s.leads, lead] })),
-  updateLead: (id, updates) => set((s) => ({
-    leads: s.leads.map((l) => l.id === id ? { ...l, ...updates } : l),
-  })),
-  removeLead: (id) => set((s) => ({
-    leads: s.leads.filter((l) => l.id !== id),
-  })),
+  login: (user, role) => {
+    set({ currentUser: user, currentRole: role, isAuthenticated: true, currentView: 'dashboard' })
+  },
+  logout: () => {
+    set({
+      currentUser: null,
+      currentRole: null,
+      isAuthenticated: false,
+      currentView: 'login',
+      leads: [],
+      archivedLeads: [],
+      leadsById: {},
+      leadsVersion: 0,
+      dataLoaded: false,
+      activeFilter: {},
+      selectedLeadIds: {},
+      searchQueries: {},
+      dateRangeFilters: {},
+      adminTab: 'overview',
+      duplicatesCache: {},
+      duplicatesVersion: 0,
+      realtimeStatus: 'connecting',
+      lastSyncAt: null,
+    })
+  },
+  updateLeadInCache: (id, updates) => {
+    set((state) => {
+      const existing = state.leadsById[id]
+      if (!existing) return state
+
+      const newLeadsById = { ...state.leadsById, [id]: { ...existing, ...updates } }
+      let newLeads = state.leads
+      let newArchivedLeads = state.archivedLeads
+
+      if (!existing.isArchived) {
+        newLeads = state.leads.map((l) => (l.id === id ? { ...l, ...updates } : l))
+      } else {
+        newArchivedLeads = state.archivedLeads.map((l) => (l.id === id ? { ...l, ...updates } : l))
+      }
+
+      return { leads: newLeads, archivedLeads: newArchivedLeads, leadsById: newLeadsById }
+    })
+  },
+  addLeadToCache: (lead) => {
+    if (!lead || lead.id == null) return
+    set((state) => {
+      if (lead.id in state.leadsById) return state
+
+      // BUG FIX: Use compareIds for proper insertion sort
+      const newLeads = [...state.leads, lead].sort((a, b) => compareIds(a.id, b.id))
+      const newLeadsById = { ...state.leadsById, [lead.id]: lead }
+
+      return { leads: newLeads, leadsById: newLeadsById, leadsVersion: state.leadsVersion + 1 }
+    })
+  },
+  batchAddLeadsToCache: (newLeads) => {
+    if (!Array.isArray(newLeads) || newLeads.length === 0) return
+    set((state) => {
+      let added = 0
+      const updatedLeads = [...state.leads]
+      let newLeadsById = { ...state.leadsById }
+      for (const lead of newLeads) {
+        if (!lead || lead.id == null) continue
+        if (lead.id in state.leadsById) continue
+        updatedLeads.push(lead)
+        newLeadsById[lead.id] = lead
+        added++
+      }
+      if (added === 0) return state
+      // BUG FIX: Use compareIds for proper sorting
+      updatedLeads.sort((a, b) => compareIds(a.id, b.id))
+      return { leads: updatedLeads, leadsById: newLeadsById, leadsVersion: state.leadsVersion + 1 }
+    })
+  },
+  removeLeadFromCache: (id) => {
+    set((state) => {
+      const existing = state.leadsById[id]
+      if (!existing) return state
+
+      const { [id]: _removed, ...restLeadsById } = state.leadsById
+      let newLeads = state.leads
+      let newArchivedLeads = state.archivedLeads
+
+      if (!existing.isArchived) {
+        newLeads = state.leads.filter((l) => l.id !== id)
+      } else {
+        newArchivedLeads = state.archivedLeads.filter((l) => l.id !== id)
+      }
+
+      return { leads: newLeads, archivedLeads: newArchivedLeads, leadsById: restLeadsById, leadsVersion: state.leadsVersion + 1 }
+    })
+  },
+  batchRemoveLeadsFromCache: (ids) => {
+    if (ids.length === 0) return
+    set((state) => {
+      const idsSet = new Set(ids)
+      let newLeadsById = { ...state.leadsById }
+      for (const id of ids) delete newLeadsById[id]
+      const newLeads = state.leads.filter((l) => !idsSet.has(l.id))
+      const newArchivedLeads = state.archivedLeads.filter((l) => !idsSet.has(l.id))
+      return { leads: newLeads, archivedLeads: newArchivedLeads, leadsById: newLeadsById, leadsVersion: state.leadsVersion + 1 }
+    })
+  },
+  archiveLeadsInCache: (ids, byName) => {
+    if (ids.length === 0) return
+    set((state) => {
+      const idsSet = new Set(ids)
+      const now = Date.now()
+      const movedLeads: Lead[] = []
+      const remainingLeads: Lead[] = []
+      let newLeadsById = { ...state.leadsById }
+
+      for (const l of state.leads) {
+        if (idsSet.has(l.id)) {
+          const archived: Lead = { ...l, isArchived: true, archivedAt: now, archivedBy: byName }
+          movedLeads.push(archived)
+          newLeadsById[l.id] = archived
+        } else {
+          remainingLeads.push(l)
+        }
+      }
+
+      return {
+        leads: remainingLeads,
+        archivedLeads: [...state.archivedLeads, ...movedLeads],
+        leadsById: newLeadsById,
+        leadsVersion: state.leadsVersion + 1,
+      }
+    })
+  },
+  unarchiveLeadsInCache: (ids) => {
+    if (ids.length === 0) return
+    set((state) => {
+      const idsSet = new Set(ids)
+      const movedLeads: Lead[] = []
+      const remainingArchived: Lead[] = []
+      let newLeadsById = { ...state.leadsById }
+
+      for (const l of state.archivedLeads) {
+        if (idsSet.has(l.id)) {
+          const unarchived: Lead = { ...l, isArchived: false, archivedAt: null, archivedBy: null }
+          movedLeads.push(unarchived)
+          newLeadsById[l.id] = unarchived
+        } else {
+          remainingArchived.push(l)
+        }
+      }
+
+      // BUG FIX: Use compareIds for binary search insertion
+      const result = [...state.leads]
+      for (const lead of movedLeads) {
+        let lo = 0
+        let hi = result.length
+        while (lo < hi) {
+          const mid = (lo + hi) >>> 1
+          if (compareIds(result[mid].id, lead.id) < 0) {
+            lo = mid + 1
+          } else {
+            hi = mid
+          }
+        }
+        result.splice(lo, 0, lead)
+      }
+
+      return {
+        leads: result,
+        archivedLeads: remainingArchived,
+        leadsById: newLeadsById,
+        leadsVersion: state.leadsVersion + 1,
+      }
+    })
+  },
+
+  // UI State
+  sidebarOpen: false,
+  setSidebarOpen: (open) => set({ sidebarOpen: open }),
+  theme: 'dark',
+  toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
+
+  // Permissions
+  teleAccess: {},
+  salesAccess: {},
+  setTeleAccess: (access) => set({ teleAccess: access }),
+  setSalesAccess: (access) => set({ salesAccess: access }),
+  canAccessTeleSheet: (viewer, target) => {
+    const { teleAccess, currentRole } = get()
+    if (currentRole === 'admin') return true
+    if (viewer === target) return true
+    const allowed = teleAccess[viewer]
+    return allowed ? allowed.includes(target) : false
+  },
+  canAccessSalesSheet: (viewer, target) => {
+    const { salesAccess, currentRole } = get()
+    if (currentRole === 'admin') return true
+    if (viewer === target) return true
+    const allowed = salesAccess[viewer]
+    return allowed ? allowed.includes(target) : false
+  },
+  getAccessibleTeleSheets: (viewer) => {
+    const { teleAccess, currentRole, team } = get()
+    if (currentRole === 'admin') return team.tele
+    const own = viewer && team.tele.includes(viewer) ? [viewer] : []
+    const allowed = teleAccess[viewer] || []
+    return [...new Set([...own, ...allowed])]
+  },
+  getAccessibleSalesSheets: (viewer) => {
+    const { salesAccess, currentRole, team } = get()
+    if (currentRole === 'admin') return team.sales
+    const own = viewer && team.sales.includes(viewer) ? [viewer] : []
+    const allowed = salesAccess[viewer] || []
+    return [...new Set([...own, ...allowed])]
+  },
+
+  // Toast Notifications
+  toasts: [],
+  addToast: (type, message, duration = 4000) => {
+    const id = `toast-${++toastCounter}-${Date.now()}`
+    const toast: CrmToast = { id, type, message, duration, createdAt: Date.now() }
+    set((s) => ({ toasts: [...s.toasts, toast] }))
+    if (duration > 0) {
+      const timer = setTimeout(() => get().removeToast(id), duration)
+      toastTimers.set(id, timer)
+    }
+  },
+  removeToast: (id) => {
+    const timer = toastTimers.get(id)
+    if (timer) { clearTimeout(timer); toastTimers.delete(id) }
+    set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }))
+  },
+  clearToasts: () => {
+    toastTimers.forEach((timer) => clearTimeout(timer))
+    toastTimers.clear()
+    set({ toasts: [] })
+  },
+
+  // View-Specific State
+  activeFilter: {},
+  setActiveFilter: (viewKey, filter) =>
+    set((s) => ({ activeFilter: { ...s.activeFilter, [viewKey]: filter } })),
+  selectedLeadIds: {},
+  toggleLeadSelection: (viewKey, id) =>
+    set((s) => {
+      const current = s.selectedLeadIds[viewKey] || []
+      const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id]
+      return { selectedLeadIds: { ...s.selectedLeadIds, [viewKey]: next } }
+    }),
+  setSelectedLeadIds: (viewKey, ids) =>
+    set((s) => ({ selectedLeadIds: { ...s.selectedLeadIds, [viewKey]: ids } })),
+  clearSelectedLeadIds: (viewKey) =>
+    set((s) => ({ selectedLeadIds: { ...s.selectedLeadIds, [viewKey]: [] } })),
+  selectAllLeads: (viewKey, ids) =>
+    set((s) => ({ selectedLeadIds: { ...s.selectedLeadIds, [viewKey]: [...ids] } })),
+  searchQueries: {},
+  setSearchQuery: (viewKey, query) =>
+    set((s) => ({ searchQueries: { ...s.searchQueries, [viewKey]: query } })),
+  dateRangeFilters: {},
+  setDateRangeFilter: (viewKey, filter) =>
+    set((s) => ({ dateRangeFilters: { ...s.dateRangeFilters, [viewKey]: filter } })),
+
+  // Admin Sub-tab
+  adminTab: 'overview',
+  setAdminTab: (tab) => set({ adminTab: tab }),
+
+  // Duplicate Detection Cache
+  duplicatesCache: {},
+  duplicatesVersion: 0,
+  setDuplicatesCache: (cache) => set({ duplicatesCache: cache }),
+  incrementDuplicatesVersion: () => set((s) => ({ duplicatesVersion: s.duplicatesVersion + 1 })),
+  buildDuplicatesCache: (leads) => {
+    const cache: Record<string, DuplicateInfo> = {}
+    const phoneToLeads: Record<string, Lead[]> = {}
+
+    leads.forEach((l) => {
+      if (!l.phone) return
+      const norm = normalizePhone(l.phone)
+      if (!norm) return
+      const arr = phoneToLeads[norm] || []
+      arr.push(l)
+      phoneToLeads[norm] = arr
+    })
+
+    for (const [norm, arr] of Object.entries(phoneToLeads)) {
+      if (arr.length < 2) continue
+      arr.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
+      cache[norm] = {
+        originalId: arr[0].id,
+        duplicateIds: arr.slice(1).map((l) => l.id),
+      }
+    }
+
+    set({ duplicatesCache: cache })
+  },
+  getDuplicateInfo: (phone) => {
+    const norm = normalizePhone(phone)
+    if (!norm) return undefined
+    return get().duplicatesCache[norm]
+  },
+
+  // Real-time Sync Status
+  realtimeStatus: 'connecting',
+  setRealtimeStatus: (status) => set({ realtimeStatus: status }),
+  lastSyncAt: null,
+  setLastSyncAt: (ts) => set({ lastSyncAt: ts }),
+  syncChangesToCache: (freshLeads, freshArchived) => {
+    const state = get()
+    let changedCount = 0
+    const newLeadsById = { ...state.leadsById }
+
+    const freshMap = new Map<string, Lead>()
+    for (const l of freshLeads) freshMap.set(l.id, l)
+    for (const l of freshArchived) freshMap.set(l.id, l)
+
+    for (const [id, freshLead] of freshMap) {
+      const cached = state.leadsById[id]
+      if (!cached) {
+        newLeadsById[id] = freshLead
+        changedCount++
+        continue
+      }
+
+      const priorityFields: (keyof Lead)[] = [
+        'attended', 'attendanceMarkedAt', 'attendanceMarkedBy',
+        'sales', 'salesStatus', 'status', 'meetingDate', 'meetingTime',
+        'isArchived', 'cancelledFrom', 'cancelledAt', 'assignedAt',
+      ]
+      let hasChange = false
+      for (const field of priorityFields) {
+        if (cached[field] !== freshLead[field]) { hasChange = true; break }
+      }
+
+      if (hasChange) {
+        newLeadsById[id] = { ...cached, ...freshLead, notes: cached.notes }
+        changedCount++
+      }
+    }
+
+    if (changedCount > 0) {
+      const existingLeadIds = new Set(state.leads.map((l) => l.id))
+      const existingArchivedIds = new Set(state.archivedLeads.map((l) => l.id))
+
+      const newLeads = state.leads.map((l) => newLeadsById[l.id] || l)
+      const newArchivedLeads = state.archivedLeads.map((l) => newLeadsById[l.id] || l)
+
+      for (const [id, lead] of Object.entries(newLeadsById)) {
+        if (!existingLeadIds.has(id) && !existingArchivedIds.has(id) && !lead.isArchived) {
+          newLeads.push(lead)
+        }
+      }
+
+      // BUG FIX: Use compareIds for proper sorting
+      newLeads.sort((a, b) => compareIds(a.id, b.id))
+      newArchivedLeads.sort((a, b) => compareIds(a.id, b.id))
+
+      set({ leads: newLeads, archivedLeads: newArchivedLeads, leadsById: newLeadsById })
+    }
+
+    return changedCount
+  },
 }))
 
 // ===== Utility Functions =====
-export function formatCurrency(value: number): string {
-  if (value >= 1000) {
-    return `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}K`
-  }
-  return value.toLocaleString()
+export function normalizePhone(input: string): string {
+  if (!input) return ''
+  let p = String(input).replace(/[\s\-()]/g, '')
+  if (p.startsWith('+966')) return p
+  if (p.startsWith('00966')) return '+' + p.substring(2)
+  if (p.startsWith('966')) return '+' + p
+  if (p.startsWith('05') && p.length >= 10) return '+966' + p.substring(1)
+  if (p.startsWith('5') && p.length >= 9) return '+966' + p
+  return p
 }
 
-export function formatCurrencyFull(value: number): string {
-  return value.toLocaleString('en-US')
+export function isValidSaudiPhone(p: string): boolean {
+  return /^\+9665[0-9]{8}$/.test(p)
 }
 
-export function getInitials(name: string): string {
-  if (!name) return '؟'
-  const parts = name.trim().split(/\s+/)
-  if (parts.length >= 2) {
-    // Arabic: take first letter of each of first two words
-    return parts[0][0] + parts[1][0]
-  }
-  return name.substring(0, 2)
+export function formatDate(ts: number | null): string {
+  if (!ts) return '—'
+  const d = new Date(ts)
+  return d.toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-export function getStatusColor(status: string): { color: string; bg: string } {
-  const stage = PIPELINE_STAGES.find((s) => s.key === status)
-  return stage ? { color: stage.color, bg: stage.bg } : { color: '#8892b0', bg: 'rgba(136,146,176,.12)' }
+export function formatTime(ts: number | null): string {
+  if (!ts) return '—'
+  const d = new Date(ts)
+  return d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
 }
 
-export function getSourceLabel(source: string): string {
-  const s = LEAD_SOURCES.find((ls) => ls.key === source)
-  return s ? s.label : source
+export function formatRelativeTime(ts: number | null): string {
+  if (!ts) return ''
+  const now = Date.now()
+  const diff = now - ts
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'الآن'
+  if (mins < 60) return `منذ ${mins} دقيقة`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `منذ ${hours} ساعة`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `منذ ${days} يوم`
+  return formatDate(ts)
 }
 
-export function getLostReasonLabel(reason: string): string {
-  const r = LOST_REASONS.find((l) => l.key === reason)
-  return r ? r.label : reason
-}
-
-export function getTemperatureLabel(lead: Lead): { label: string; color: string; bg: string } {
-  if (lead.status === 'won') return { label: 'Won', color: '#00d4aa', bg: 'rgba(0,212,170,.15)' }
-  if (lead.status === 'lost') return { label: 'Lost', color: '#ff4d4d', bg: 'rgba(255,77,77,.15)' }
-  if (lead.hot) return { label: 'Hot 🔥', color: '#ff6b6b', bg: 'rgba(255,107,107,.15)' }
-  if (lead.probability >= 50) return { label: 'Warm', color: '#ffd166', bg: 'rgba(255,209,102,.15)' }
-  return { label: 'Cold', color: '#6c9fff', bg: 'rgba(108,159,255,.15)' }
-}
-
-export function isOverdue(lead: Lead): boolean {
-  if (!lead.nextFollowUp) return false
-  return new Date(lead.nextFollowUp) < new Date() && lead.status !== 'won' && lead.status !== 'lost'
-}
-
-export function isToday(date: string | null): boolean {
-  if (!date) return false
-  const d = new Date(date)
-  const today = new Date()
-  return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear()
-}
-
-export function getDaysSince(date: string): number {
-  const d = new Date(date)
+export function getDateRange(
+  preset: string,
+  customFrom?: string,
+  customTo?: string
+): { from: number; to: number } {
   const now = new Date()
-  return Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24))
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  let from: Date, to: Date
+
+  switch (preset) {
+    case 'today':
+      from = today
+      to = new Date(today.getTime() + 86400000)
+      break
+    case 'yesterday':
+      from = new Date(today.getTime() - 86400000)
+      to = today
+      break
+    case 'week': {
+      const dayOfWeek = today.getDay()
+      const daysSinceSaturday = dayOfWeek === 6 ? 0 : dayOfWeek + 1
+      from = new Date(today.getTime() - daysSinceSaturday * 86400000)
+      to = new Date(today.getTime() + 86400000)
+      break
+    }
+    case 'month': {
+      from = new Date(today.getFullYear(), today.getMonth(), 1)
+      to = new Date(today.getTime() + 86400000)
+      break
+    }
+    case 'custom':
+      from = customFrom ? new Date(customFrom) : new Date(today.getFullYear(), today.getMonth(), 1)
+      to = customTo ? new Date(new Date(customTo).getTime() + 86400000) : new Date(today.getTime() + 86400000)
+      break
+    default:
+      from = new Date(0)
+      to = new Date(now.getTime() + 86400000)
+  }
+
+  return { from: from.getTime(), to: to.getTime() }
 }

@@ -1,7 +1,25 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
 
-export async function POST(request: Request) {
+/**
+ * POST /api/ai
+ *
+ * AI analysis using z-ai-web-dev-sdk (backend only).
+ * Accepts { type, data } and returns AI-generated analysis.
+ *
+ * Supported types:
+ * - analyze-performance: Sales performance analysis
+ * - call-analysis: Call quality evaluation
+ * - predict-closure: Closure probability prediction
+ * - coaching: Sales coaching recommendations
+ * - smart-reply: Generate professional reply
+ *
+ * IMPORTANT: z-ai-web-dev-sdk MUST be used in backend only!
+ * NO Prisma/SQLite — Supabase ONLY for data retrieval (if needed).
+ * NO hardcoded credentials — environment variables only.
+ */
+
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { type, data } = body
@@ -13,57 +31,57 @@ export async function POST(request: Request) {
 
     switch (type) {
       case 'analyze-performance': {
-        systemPrompt = `أنت خبير تحليل مبيعات ومدير أداء. حلل البيانات المقدمة وأعطِ:
-1. ملخص الأداء العام
-2. أهم 3 نقاط قوة
-3. أهم 3 نقاط ضعف
-4. توصيات عملية لتحسين الأداء
-5. توقع للأداء الأسبوع القادم
-اكتب الرد بالعربية بشكل مختصر ومباشر.`
-        userPrompt = `حلل أداء المبيعات التالي:\n${JSON.stringify(data, null, 2)}`
+        systemPrompt = `You are an expert sales performance analyst and manager. Analyze the provided data and give:
+1. Overall performance summary
+2. Top 3 strengths
+3. Top 3 weaknesses
+4. Actionable recommendations to improve performance
+5. Prediction for next week's performance
+Write the response in a concise, professional manner. If the data is in Arabic, respond in Arabic.`
+        userPrompt = `Analyze the following sales performance data:\n${JSON.stringify(data, null, 2)}`
         break
       }
       case 'call-analysis': {
-        systemPrompt = `أنت خبير تحليل مكالمات مبيعات. قيّم المكالمة وأعطِ:
-1. ملخص المكالمة (سطرين)
-2. Score من 10 بناءً على: tone, objection handling, closing technique
-3. أهم نقطة إيجابية
-4. نصيحة تحسين واحدة
-5. أفضل رد مقترح للخطوة التالية
-اكتب الرد بالعربية بشكل مختصر.`
-        userPrompt = `حلل هذه المكالمة:\nالعميل: ${data.leadName}\nالمرحلة: ${data.stage}\nالمدة: ${data.duration} ثانية\nالملاحظات: ${data.notes || 'غير متوفرة'}`
+        systemPrompt = `You are an expert sales call analyst. Evaluate the call and give:
+1. Call summary (2 lines)
+2. Score out of 10 based on: tone, objection handling, closing technique
+3. Top positive point
+4. One improvement tip
+5. Best suggested next step reply
+Write the response concisely.`
+        userPrompt = `Analyze this call:\nClient: ${data.leadName}\nStage: ${data.stage}\nDuration: ${data.duration} seconds\nNotes: ${data.notes || 'Not available'}`
         break
       }
       case 'predict-closure': {
-        systemPrompt = `أنت خبير توقع مبيعات. بناءً على بيانات العميل، أعطِ:
-1. نسبة احتمال الإغلاق (رقم من 0-100)
-2. السبب الرئيسي للتوقع
-3. أفضل خطوة تالية لزيادة الاحتمال
-اكتب الرد بالعربية بشكل مختصر جداً.`
-        userPrompt = `توقع احتمال الإغلاق لهذا العميل:\nالاسم: ${data.name}\nالمرحلة: ${data.status}\nالقيمة: ${data.value} EGP\nالاحتمال الحالي: ${data.probability}%\nHot: ${data.hot}\nعدد الأنشطة: ${data.activityCount}\nآخر تواصل: ${data.lastContactAt}`
+        systemPrompt = `You are an expert sales prediction analyst. Based on client data, give:
+1. Closure probability percentage (0-100)
+2. Main reason for the prediction
+3. Best next step to increase probability
+Write the response very concisely.`
+        userPrompt = `Predict closure probability for this client:\nName: ${data.name}\nStage: ${data.status}\nMeetings: ${data.meetings || 0}\nAttended: ${data.attended || 'pending'}\nSales status: ${data.salesStatus || 'N/A'}\nContact result: ${data.contactResult || 'N/A'}`
         break
       }
       case 'coaching': {
-        systemPrompt = `أنت مدرب مبيعات محترف. بناءً على أداء الموظف، أعطِ:
-1. تقييم عام (ممتاز/جيد/مقبول/يحتاج تحسين)
-2. أهم مهارة يجب تطويرها
-3. تمرين عملي مقترح
-4. هدف أسبوعي مقترح
-اكتب الرد بالعربية بشكل محفز وعملي.`
-        userPrompt = `أعطِ coaching لهذا الموظف:\nالاسم: ${data.name}\nالصفقات: ${data.deals}\nالإيرادات: ${data.revenue} EGP\nالمكالمات: ${data.calls}\nمعدل التحويل: ${data.convRate}%\nالنقاط: ${data.points}`
+        systemPrompt = `You are a professional sales coach. Based on employee performance, give:
+1. Overall assessment (Excellent/Good/Acceptable/Needs improvement)
+2. Top skill to develop
+3. Suggested practical exercise
+4. Suggested weekly goal
+Write the response in a motivating and practical manner.`
+        userPrompt = `Provide coaching for this employee:\nName: ${data.name}\nDeals: ${data.deals}\nRevenue: ${data.revenue}\nCalls: ${data.calls}\nConversion rate: ${data.convRate}%\nPoints: ${data.points}`
         break
       }
       case 'smart-reply': {
-        systemPrompt = `أنت خبير كتابة ردود مبيعات. اكتب رد مناسب واحترافي بالعربية للرسالة المرسلة. الرد يجب أن يكون:
-1. مهذب ومحترف
-2. يدفع العميل للخطوة التالية
-3. قصير (3-4 أسطر كحد أقصى)`
-        userPrompt = `رسالة العميل: "${data.message}"\nاسم العميل: ${data.leadName}\nالمرحلة: ${data.stage}\nاكتب الرد المناسب.`
+        systemPrompt = `You are an expert sales reply writer. Write an appropriate, professional reply for the sent message. The reply should be:
+1. Polite and professional
+2. Push the client to the next step
+3. Short (3-4 lines max)`
+        userPrompt = `Client message: "${data.message}"\nClient name: ${data.leadName}\nStage: ${data.stage}\nWrite the appropriate reply.`
         break
       }
       default: {
-        systemPrompt = 'أنت مساعد ذكي لمنصة مبيعات. ساعد بالإجابة بالعربية بشكل مختصر.'
-        userPrompt = data.prompt || 'مرحباً'
+        systemPrompt = 'You are an intelligent assistant for a sales platform. Help with answering concisely.'
+        userPrompt = data?.prompt || 'Hello'
       }
     }
 
@@ -75,13 +93,14 @@ export async function POST(request: Request) {
       thinking: { type: 'disabled' },
     })
 
-    const response = completion.choices[0]?.message?.content || 'لم أتمكن من التحليل'
+    const response = completion.choices[0]?.message?.content || 'Unable to analyze'
 
     return NextResponse.json({ success: true, response, type })
   } catch (error) {
     console.error('AI API error:', error)
+    const message = error instanceof Error ? error.message : String(error)
     return NextResponse.json(
-      { success: false, error: 'AI analysis failed', response: 'حدث خطأ في التحليل. حاول مرة أخرى.' },
+      { success: false, error: 'AI analysis failed', response: `An error occurred during analysis: ${message}` },
       { status: 500 }
     )
   }

@@ -66,6 +66,7 @@ prompt
 /agent-ctx/
 /db/
 /mini-services/
+/.zscripts/
 Caddyfile
 custom-server.js
 server.mjs

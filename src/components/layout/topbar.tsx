@@ -66,13 +66,13 @@ export function Topbar() {
       {/* Right side: Page title + greeting */}
       <div className="text-right mr-10 md:mr-0">
         <h1
-          className="text-[20px] md:text-[22px] font-bold text-[#f0f2ff] leading-tight"
+          className="text-[24px] md:text-[26px] font-bold text-[#f0f2ff] leading-tight"
           style={{ fontFamily: 'Cairo, sans-serif' }}
         >
           {viewInfo.title}
         </h1>
         <p
-          className="text-[12px] md:text-[13px] text-[#8892b0] mt-0.5"
+          className="text-[13px] md:text-[14px] text-[#8892b0] mt-1"
           style={{ fontFamily: 'Cairo, sans-serif' }}
         >
           {viewInfo.subtitle

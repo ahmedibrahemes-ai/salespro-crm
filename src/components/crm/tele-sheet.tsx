@@ -357,7 +357,7 @@ export function TeleSheet() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-[18px] font-bold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
-            شيت التيز
+            شيت التيلي
           </h2>
           <p className="text-[12px] text-[#8892b0] mt-0.5">إدارة العملاء المحُوَّلين للتلي ماركتنج</p>
         </div>
@@ -398,7 +398,7 @@ export function TeleSheet() {
             <Select value={selectedTele} onValueChange={setSelectedTele}>
               <SelectTrigger className="w-[140px] h-8 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
                 <Filter size={12} className="text-[#6c63ff]" />
-                <SelectValue placeholder="فلتر التيز" />
+                <SelectValue placeholder="فلتر التيلي" />
               </SelectTrigger>
               <SelectContent className="bg-[#111520] border-white/[0.08]">
                 <SelectItem value="all" className="text-[12px] text-[#f0f2ff]">الكل</SelectItem>

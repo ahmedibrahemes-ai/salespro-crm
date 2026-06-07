@@ -38,7 +38,7 @@ import {
    ═══════════════════════════════════════════════════════ */
 const ADMIN_TABS: { key: AdminTab; label: string; icon: React.ElementType }[] = [
   { key: 'overview', label: 'نظرة عامة', icon: BarChart3 },
-  { key: 'tele', label: 'التيز', icon: Phone },
+  { key: 'tele', label: 'التيلي', icon: Phone },
   { key: 'sales', label: 'السيلز', icon: Users },
   { key: 'all-leads', label: 'كل العملاء', icon: LayoutGrid },
   { key: 'archive', label: 'الأرشيف', icon: Archive },
@@ -137,7 +137,7 @@ function OverviewTab() {
                   <TableRow key={name} className="border-b border-white/[0.04] hover:bg-[#1c2234]/50">
                     <TableCell className="text-[12px] text-[#f0f2ff] font-medium">{name}</TableCell>
                     <TableCell>
-                      <Badge className="bg-[#6c63ff]/15 text-[#a8a3ff] text-[10px] border-0">تيز</Badge>
+                      <Badge className="bg-[#6c63ff]/15 text-[#a8a3ff] text-[10px] border-0">تيلي</Badge>
                     </TableCell>
                     <TableCell className="text-[12px] text-[#8892b0]">{s.total}</TableCell>
                     <TableCell className="text-[12px] text-[#00d4aa]">{s.contacted}</TableCell>
@@ -232,7 +232,7 @@ function AllLeadsTab() {
       <div className="flex flex-wrap items-center gap-2">
         <Select value={filterTele} onValueChange={setFilterTele}>
           <SelectTrigger className="w-[120px] h-8 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
-            <SelectValue placeholder="التيز" />
+            <SelectValue placeholder="التيلي" />
           </SelectTrigger>
           <SelectContent className="bg-[#111520] border-white/[0.08]">
             <SelectItem value="all" className="text-[12px]">الكل</SelectItem>
@@ -297,7 +297,7 @@ function AllLeadsTab() {
                   </TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">العميل</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">الهاتف</TableHead>
-                  <TableHead className="text-right text-[11px] text-[#4a5280]">التيز</TableHead>
+                  <TableHead className="text-right text-[11px] text-[#4a5280]">التيلي</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">السيلز</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">الحالة</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">حالة السيلز</TableHead>
@@ -401,7 +401,7 @@ function ArchiveTab() {
                 <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
                   <TableHead className="text-right text-[11px] text-[#4a5280]">العميل</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">الهاتف</TableHead>
-                  <TableHead className="text-right text-[11px] text-[#4a5280]">التيز</TableHead>
+                  <TableHead className="text-right text-[11px] text-[#4a5280]">التيلي</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">السيلز</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">أرشفته</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">التاريخ</TableHead>
@@ -524,7 +524,7 @@ function TeamTab() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-[#111520] border-white/[0.08]">
-                <SelectItem value="tele" className="text-[12px]">تيز</SelectItem>
+                <SelectItem value="tele" className="text-[12px]">تيلي</SelectItem>
                 <SelectItem value="sales" className="text-[12px]">سيلز</SelectItem>
               </SelectContent>
             </Select>
@@ -544,7 +544,7 @@ function TeamTab() {
         <CardHeader className="pb-2">
           <CardTitle className="text-[13px] text-[#f0f2ff] flex items-center gap-2">
             <Phone size={14} className="text-[#6c63ff]" />
-            فريق التيز ({team.tele.length})
+            فريق التيلي ({team.tele.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -729,7 +729,7 @@ export function AdminPanel() {
         <TabsContent value="tele" className="mt-4">
           <Card className="bg-[#111520] border-white/[0.06] p-4">
             <p className="text-[12px] text-[#8892b0] text-center py-8">
-              شيت التيز — استخدم &quot;شيت التيز&quot; من القائمة الجانبية للعرض الكامل
+              شيت التيلي — استخدم &quot;شيت التيلي&quot; من القائمة الجانبية للعرض الكامل
             </p>
           </Card>
         </TabsContent>

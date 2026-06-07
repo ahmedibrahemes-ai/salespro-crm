@@ -250,7 +250,7 @@ export function BulkAdd() {
                   <TableHead className="text-right text-[11px] text-[#4a5280]">اسم العميل *</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">نوع العميل</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">نبذة</TableHead>
-                  <TableHead className="text-right text-[11px] text-[#4a5280]">التيز</TableHead>
+                  <TableHead className="text-right text-[11px] text-[#4a5280]">التيلي</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">السيلز</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">الحالة</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280] w-[40px]"></TableHead>

@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 const VIEW_TITLES: Record<ViewName, { title: string; subtitle: string }> = {
   login: { title: '', subtitle: '' },
   dashboard: { title: 'الرئيسية', subtitle: 'نظرة عامة على النشاط' },
-  'my-sheet': { title: 'شيت التيز', subtitle: 'إدارة العملاء والمتابعة' },
+  'my-sheet': { title: 'شيت التيلي', subtitle: 'إدارة العملاء والمتابعة' },
   'my-meetings': { title: 'اجتماعاتي', subtitle: 'متابعة الاجتماعات القادمة' },
   meetings: { title: 'الاجتماعات', subtitle: 'متابعة الاجتماعات' },
   'sales-sheet': { title: 'شيت السيلز', subtitle: 'إدارة عملاء المبيعات' },

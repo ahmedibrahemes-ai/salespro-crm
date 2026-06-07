@@ -151,7 +151,7 @@ export function MyArchive() {
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: 'إجمالي المؤرشف', value: stats.total, color: '#8892b0' },
-          { label: 'من التيز', value: stats.fromTele, color: '#6c63ff' },
+          { label: 'من التيلي', value: stats.fromTele, color: '#6c63ff' },
           { label: 'من السيلز', value: stats.fromSales, color: '#00d4aa' },
         ].map((s, i) => (
           <motion.div key={i} variants={itemVariants} className="bg-[#111520] border border-white/[0.06] rounded-xl p-3">
@@ -175,7 +175,7 @@ export function MyArchive() {
                 </SelectTrigger>
                 <SelectContent className="bg-[#111520] border-white/[0.08]">
                   <SelectItem value="all" className="text-[12px]">الكل</SelectItem>
-                  <SelectItem value="tele" className="text-[12px]">التيز</SelectItem>
+                  <SelectItem value="tele" className="text-[12px]">التيلي</SelectItem>
                   <SelectItem value="sales" className="text-[12px]">السيلز</SelectItem>
                 </SelectContent>
               </Select>
@@ -221,7 +221,7 @@ export function MyArchive() {
                   </TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">العميل</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">الهاتف</TableHead>
-                  <TableHead className="text-right text-[11px] text-[#4a5280]">التيز</TableHead>
+                  <TableHead className="text-right text-[11px] text-[#4a5280]">التيلي</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">السيلز</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">الحالة</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">أرشفته</TableHead>

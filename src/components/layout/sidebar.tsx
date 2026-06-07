@@ -31,7 +31,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { view: 'dashboard', icon: LayoutDashboard, label: 'الرئيسية', roles: ['tele', 'sales', 'admin'] },
-  { view: 'my-sheet', icon: Phone, label: 'شيت التيز', roles: ['tele', 'admin'], showBadge: true },
+  { view: 'my-sheet', icon: Phone, label: 'شيت التيلي', roles: ['tele', 'admin'], showBadge: true },
   { view: 'sales-sheet', icon: Briefcase, label: 'شيت السيلز', roles: ['sales', 'admin'], showBadge: true },
   { view: 'my-meetings', icon: Calendar, label: 'اجتماعاتي', roles: ['tele', 'sales', 'admin'], showBadge: true },
   { view: 'meetings', icon: Users, label: 'الاجتماعات', roles: ['sales', 'admin'] },
@@ -46,7 +46,7 @@ const NAV_ITEMS: NavItem[] = [
 /*  Role Label Map                                                     */
 /* ------------------------------------------------------------------ */
 const ROLE_LABELS: Record<string, string> = {
-  tele: 'تيلز',
+  tele: 'تيلي',
   sales: 'سيلز',
   admin: 'أدمن',
 }

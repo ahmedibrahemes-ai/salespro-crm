@@ -13,6 +13,7 @@ import { AIFeatures } from '@/components/crm/ai-features'
 import { TeamSection } from '@/components/crm/team-section'
 import { Client360 } from '@/components/crm/client360'
 import { ReportsSection } from '@/components/crm/reports-section'
+import { Loader2 } from 'lucide-react'
 
 function ViewRouter({ currentView }: { currentView: ViewName }) {
   switch (currentView) {
@@ -29,8 +30,26 @@ function ViewRouter({ currentView }: { currentView: ViewName }) {
   }
 }
 
+function LoadingScreen() {
+  return (
+    <div className="flex-1 flex items-center justify-center min-h-[60vh]">
+      <div className="text-center">
+        <div className="relative w-16 h-16 mx-auto mb-4">
+          <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[#6c63ff] to-[#00d4aa] animate-pulse opacity-20" />
+          <div className="absolute inset-1 rounded-[10px] bg-[#111520] flex items-center justify-center">
+            <span className="text-lg font-black bg-gradient-to-br from-[#6c63ff] to-[#00d4aa] bg-clip-text text-transparent">SP</span>
+          </div>
+        </div>
+        <Loader2 size={24} className="animate-spin text-[#6c63ff] mx-auto mb-3" />
+        <p className="text-[14px] text-[#8892b0]">جاري تحميل البيانات...</p>
+        <p className="text-[11px] text-[#4a5280] mt-1">SalesPro CRM</p>
+      </div>
+    </div>
+  )
+}
+
 export default function Home() {
-  const { currentView, dataLoaded, setDataLoaded, setLeads, setTeam, setStats, setLoading } = useCrmStore()
+  const { currentView, loading, dataLoaded, setDataLoaded, setLeads, setTeam, setStats, setLoading } = useCrmStore()
 
   useEffect(() => {
     if (dataLoaded) return
@@ -38,10 +57,8 @@ export default function Home() {
     async function loadData() {
       setLoading(true)
       try {
-        // Seed demo data first (idempotent)
         await fetch('/api/seed', { method: 'POST' }).catch(() => {})
 
-        // Load all data in parallel
         const [leadsRes, statsRes, teamRes] = await Promise.all([
           fetch('/api/leads'),
           fetch('/api/stats'),
@@ -76,26 +93,26 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen bg-[#0a0d14]">
-      {/* Sidebar */}
+      {/* Sidebar - hidden on mobile, shown as overlay */}
       <Sidebar />
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 mr-[72px] transition-all duration-300">
+      <main className="flex-1 flex flex-col min-w-0 mr-0 md:mr-[72px] transition-all duration-300">
         {/* Topbar */}
-        <div className="p-6 pb-0">
+        <div className="p-4 md:p-6 md:pb-0">
           <Topbar />
         </div>
 
         {/* Content */}
-        <div className="flex-1 px-6 pb-6">
-          <ViewRouter currentView={currentView} />
+        <div className="flex-1 px-4 md:px-6 pb-6">
+          {loading && !dataLoaded ? <LoadingScreen /> : <ViewRouter currentView={currentView} />}
         </div>
 
-        {/* Footer */}
-        <footer className="mt-auto border-t border-white/[0.06] bg-[#111520] px-6 py-3">
-          <div className="flex items-center justify-between text-[12px] text-[#4a5280]">
+        {/* Footer - sticky to bottom */}
+        <footer className="mt-auto border-t border-white/[0.06] bg-[#111520] px-4 md:px-6 py-3">
+          <div className="flex items-center justify-between text-[11px] md:text-[12px] text-[#4a5280]">
             <span>SalesPro CRM © 2025 — منصة المبيعات الذكية</span>
-            <span>مدعوم بالذكاء الاصطناعي 🤖</span>
+            <span className="hidden sm:inline">مدعوم بالذكاء الاصطناعي 🤖</span>
           </div>
         </footer>
       </main>

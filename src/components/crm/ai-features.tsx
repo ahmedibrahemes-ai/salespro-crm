@@ -271,11 +271,15 @@ export function AIFeatures() {
               </div>
             )}
 
-            {/* Clickable hint */}
-            {feature.clickable && (
+            {/* Clickable hint or Coming Soon */}
+            {feature.clickable ? (
               <div className="absolute bottom-3.5 left-3.5 text-[10px] text-[#6c63ff]/60 flex items-center gap-1">
                 <Sparkles size={10} />
                 اضغط للتحليل
+              </div>
+            ) : (
+              <div className="absolute bottom-3.5 left-3.5 text-[9px] text-[#4a5280]/60 flex items-center gap-1 border border-[#4a5280]/20 px-2 py-0.5 rounded-md">
+                قريباً
               </div>
             )}
           </motion.div>

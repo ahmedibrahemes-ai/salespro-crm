@@ -1,8 +1,9 @@
 'use client'
 
 import { useCrmStore, getInitials, formatCurrency, getStatusColor, getSourceLabel, getTemperatureLabel, PIPELINE_STAGES } from '@/lib/store'
-import { Phone, MessageCircle, Mail, MapPin, Tag, Filter, Bot, Activity } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { Phone, MessageCircle, Mail, MapPin, Tag, Filter, Bot, Activity, ChevronRight, Search } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useState } from 'react'
 
 const ACTIVITY_COLORS: Record<string, { dot: string; bg: string; icon: React.ReactNode }> = {
   call: { dot: '#6c63ff', bg: 'rgba(108,99,255,.15)', icon: <Phone size={13} /> },
@@ -26,12 +27,25 @@ function formatTimeAgo(dateStr: string): string {
 }
 
 export function Client360() {
-  const { leads, selectedLeadId } = useCrmStore()
+  const { leads, selectedLeadId, setSelectedLeadId } = useCrmStore()
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showSwitcher, setShowSwitcher] = useState(false)
 
-  // Find selected lead, or default to first hot lead (hot=true, status not won/lost)
+  const activeLeads = leads.filter(l => !l.isArchived)
+
+  // Find selected lead, or default to first hot lead
   const lead = leads.find(l => l.id === selectedLeadId)
     || leads.find(l => l.hot && l.status !== 'won' && l.status !== 'lost')
+    || leads.find(l => l.status !== 'won' && l.status !== 'lost')
     || leads[0]
+
+  const filteredLeads = searchQuery
+    ? activeLeads.filter(l =>
+        l.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        l.phone.includes(searchQuery) ||
+        (l.company && l.company.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+    : activeLeads
 
   if (!lead) {
     return (
@@ -71,13 +85,79 @@ export function Client360() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+      {/* Client Switcher Bar */}
+      <div className="bg-[#111520] border border-white/[0.06] rounded-[14px] p-3 mb-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowSwitcher(!showSwitcher)}
+            className="flex items-center gap-2 px-3 py-2 bg-[#161b28] border border-white/[0.06] rounded-lg text-[12px] text-[#8892b0] hover:border-[#6c63ff]/30 hover:text-[#f0f2ff] transition-all cursor-pointer"
+          >
+            <Search size={13} />
+            تغيير العميل
+            <ChevronRight size={12} className={`transition-transform ${showSwitcher ? 'rotate-90' : ''}`} />
+          </button>
+          <div className="text-[12px] text-[#4a5280]">
+            {activeLeads.length} عميل متاح
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {showSwitcher && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="mt-3 space-y-1">
+                {/* Search */}
+                <input
+                  type="text"
+                  placeholder="بحث بالاسم أو الهاتف..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#161b28] border border-white/[0.06] rounded-lg text-[12px] text-[#f0f2ff] outline-none focus:border-[#6c63ff]/30 transition-colors mb-2"
+                  dir="rtl"
+                />
+                {/* Client list */}
+                <div className="max-h-[200px] overflow-y-auto">
+                  {filteredLeads.slice(0, 20).map(l => (
+                    <button
+                      key={l.id}
+                      onClick={() => {
+                        setSelectedLeadId(l.id)
+                        setShowSwitcher(false)
+                        setSearchQuery('')
+                      }}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] transition-colors cursor-pointer ${
+                        l.id === lead.id
+                          ? 'bg-[#6c63ff]/15 text-[#f0f2ff] border border-[#6c63ff]/20'
+                          : 'text-[#8892b0] hover:bg-white/[0.03]'
+                      }`}
+                    >
+                      <div className="w-7 h-7 rounded-full bg-[#161b28] flex items-center justify-center text-[10px] font-bold shrink-0"
+                        style={{ background: getTemperatureLabel(l).bg, color: getTemperatureLabel(l).color }}
+                      >
+                        {getInitials(l.name)}
+                      </div>
+                      <span className="truncate font-medium">{l.name}</span>
+                      <span className="text-[10px] opacity-60">{l.company || getSourceLabel(l.source)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
       {/* Header with gradient background */}
       <div className="relative overflow-hidden rounded-[14px] mb-4">
-        {/* Gradient BG */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#6c63ff]/12 to-[#00d4aa]/6" />
         <div className="absolute inset-0 border border-[#6c63ff]/15 rounded-[14px]" />
 
-        <div className="relative flex items-center gap-4 p-5">
+        <div className="relative flex flex-wrap items-center gap-4 p-5">
           {/* Avatar */}
           <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#6c63ff] to-[#00d4aa] flex items-center justify-center text-[18px] font-bold text-white shrink-0 shadow-lg shadow-[#6c63ff]/20">
             {getInitials(lead.name)}
@@ -107,15 +187,26 @@ export function Client360() {
 
           {/* Action buttons */}
           <div className="flex gap-2 shrink-0">
-            <button className="bg-[#161b28] border border-white/[0.06] px-3 py-2 rounded-lg text-[12px] text-[#f0f2ff] flex items-center gap-1.5 hover:border-[#6c63ff]/40 hover:bg-[#6c63ff]/8 transition-all cursor-pointer">
+            <a
+              href={`tel:${lead.phone}`}
+              className="bg-[#161b28] border border-white/[0.06] px-3 py-2 rounded-lg text-[12px] text-[#f0f2ff] flex items-center gap-1.5 hover:border-[#6c63ff]/40 hover:bg-[#6c63ff]/8 transition-all cursor-pointer"
+            >
               <Phone size={13} className="text-[#6c63ff]" /> اتصل
-            </button>
-            <button className="bg-[#161b28] border border-[#25d366]/30 text-[#25d366] px-3 py-2 rounded-lg text-[12px] flex items-center gap-1.5 hover:bg-[#25d366]/10 transition-all cursor-pointer">
+            </a>
+            <a
+              href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-[#161b28] border border-[#25d366]/30 text-[#25d366] px-3 py-2 rounded-lg text-[12px] flex items-center gap-1.5 hover:bg-[#25d366]/10 transition-all cursor-pointer"
+            >
               <MessageCircle size={13} /> واتساب
-            </button>
-            <button className="bg-[#161b28] border border-white/[0.06] px-3 py-2 rounded-lg text-[12px] text-[#f0f2ff] flex items-center gap-1.5 hover:border-[#6c9fff]/40 hover:bg-[#6c9fff]/8 transition-all cursor-pointer">
+            </a>
+            <a
+              href={lead.email ? `mailto:${lead.email}` : '#'}
+              className="bg-[#161b28] border border-white/[0.06] px-3 py-2 rounded-lg text-[12px] text-[#f0f2ff] flex items-center gap-1.5 hover:border-[#6c9fff]/40 hover:bg-[#6c9fff]/8 transition-all cursor-pointer"
+            >
               <Mail size={13} className="text-[#6c9fff]" /> إيميل
-            </button>
+            </a>
           </div>
         </div>
       </div>
@@ -159,7 +250,6 @@ export function Client360() {
 
         {activities.length > 0 ? (
           <div className="relative">
-            {/* Timeline line */}
             <div className="absolute right-[15px] top-2 bottom-2 w-[1px] bg-white/[0.06]" />
 
             {activities.map((activity, i) => {
@@ -172,7 +262,6 @@ export function Client360() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.25, delay: i * 0.06 }}
                 >
-                  {/* Icon dot */}
                   <div
                     className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 border-2 border-[#111520]"
                     style={{ background: actInfo.bg, color: actInfo.dot }}
@@ -180,13 +269,11 @@ export function Client360() {
                     {actInfo.icon}
                   </div>
 
-                  {/* Content */}
                   <div className="flex-1 min-w-0 pt-0.5">
                     <div className="text-[12px] text-[#f0f2ff] leading-relaxed">{activity.text}</div>
                     <div className="text-[11px] text-[#4a5280] mt-1">{formatTimeAgo(activity.createdAt)}</div>
                   </div>
 
-                  {/* Score badge for calls */}
                   {activity.type === 'call' && activity.score > 0 && (
                     <span className="text-[10px] font-bold text-[#6c63ff] bg-[#6c63ff]/10 px-2 py-0.5 rounded-md shrink-0 self-start">
                       {activity.score}/10
@@ -197,7 +284,11 @@ export function Client360() {
             })}
           </div>
         ) : (
-          <div className="text-[12px] text-[#4a5280] py-8 text-center">لا يوجد نشاط مسجل لهذا العميل</div>
+          <div className="text-center py-8">
+            <Activity size={28} className="text-[#4a5280] mx-auto mb-2" />
+            <div className="text-[12px] text-[#8892b0]">لا يوجد نشاط مسجل لهذا العميل</div>
+            <div className="text-[11px] text-[#4a5280] mt-1">أضف نشاط من قسم المتابعة أو المكالمات</div>
+          </div>
         )}
       </div>
     </motion.div>

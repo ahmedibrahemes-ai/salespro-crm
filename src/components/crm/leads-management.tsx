@@ -130,10 +130,13 @@ export function LeadsManagement() {
     setSelectedLeadId,
     setCurrentView,
     addLead,
+    addLeadDialogOpen,
+    setAddLeadDialogOpen,
   } = useCrmStore()
 
-  /* ── Dialog state ── */
-  const [dialogOpen, setDialogOpen] = useState(false)
+  /* ── Dialog state (synced with global) ── */
+  const dialogOpen = addLeadDialogOpen
+  const setDialogOpen = setAddLeadDialogOpen
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
 

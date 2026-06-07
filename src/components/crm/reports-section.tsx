@@ -1,8 +1,9 @@
 'use client'
 
 import { useCrmStore, formatCurrency, getSourceLabel, getLostReasonLabel } from '@/lib/store'
-import { Filter, XCircle, TrendingUp, UserCog } from 'lucide-react'
+import { Filter, XCircle, TrendingUp, UserCog, BarChart3, PieChart as PieIcon } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell, Tooltip, LineChart, Line, CartesianGrid } from 'recharts'
 
 const SOURCE_COLORS: Record<string, string> = {
   'meta-ads': '#6c63ff',
@@ -14,6 +15,26 @@ const SOURCE_COLORS: Record<string, string> = {
 }
 
 const LOSS_RED_SHADES = ['#ff6b6b', '#ff4d4d', '#e63946', '#d62828', '#ff8c42']
+
+/* Custom tooltip */
+function CustomTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="bg-[#161b28] border border-white/[0.08] rounded-lg px-3 py-2 text-[12px] shadow-xl">
+      <div className="text-[#8892b0] mb-1">{label}</div>
+      <div className="text-[#f0f2ff] font-bold">{payload[0].value}%</div>
+    </div>
+  )
+}
+
+function PieTooltip({ active, payload }: any) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="bg-[#161b28] border border-white/[0.08] rounded-lg px-3 py-2 text-[12px] shadow-xl">
+      <div className="text-[#f0f2ff] font-bold">{payload[0].name}: {payload[0].value}</div>
+    </div>
+  )
+}
 
 export function ReportsSection() {
   const { leads, stats, team } = useCrmStore()
@@ -49,6 +70,9 @@ export function ReportsSection() {
           .sort((a, b) => b.pct - a.pct)
       })()
 
+  // Source pie chart data
+  const sourcePieData = sourceData.map(s => ({ name: s.label, value: s.count, color: s.color }))
+
   // Loss reason breakdown from stats, fallback to hardcoded
   const lossData = stats?.lostReasonBreakdown && Object.keys(stats.lostReasonBreakdown).length > 0
     ? (() => {
@@ -67,6 +91,23 @@ export function ReportsSection() {
         { key: 'slow-response', label: 'بطء الرد', pct: 30, count: 0 },
         { key: 'competitor', label: 'منافس', pct: 15, count: 0 },
       ]
+
+  // Loss bar chart data
+  const lossBarData = lossData.map(l => ({
+    name: l.label,
+    value: l.pct,
+    fill: LOSS_RED_SHADES[lossData.indexOf(l) % LOSS_RED_SHADES.length],
+  }))
+
+  // Monthly trend data (simulated)
+  const monthlyTrend = [
+    { month: 'يناير', leads: 32, deals: 4, revenue: 28000 },
+    { month: 'فبراير', leads: 38, deals: 5, revenue: 35000 },
+    { month: 'مارس', leads: 45, deals: 7, revenue: 52000 },
+    { month: 'أبريل', leads: 42, deals: 8, revenue: 61000 },
+    { month: 'مايو', leads: 51, deals: 10, revenue: 78000 },
+    { month: 'يونيو', leads: stats?.totalLeads ?? 47, deals: stats?.closedDeals ?? 11, revenue: stats?.salesValue ?? 84000 },
+  ]
 
   // Team data for dynamic KPIs
   const sortedByRevenue = [...team].sort((a, b) => b.revenue - a.revenue)
@@ -95,61 +136,106 @@ export function ReportsSection() {
   ]
 
   return (
-    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-      {/* Row 1: Source & Loss */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-        {/* Best Lead Sources */}
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="space-y-4">
+      {/* Row 1: Source Pie + Loss Bars */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Best Lead Sources - Pie Chart */}
         <div className="bg-[#111520] border border-white/[0.06] rounded-[14px] p-5">
           <div className="flex items-center gap-2 text-[15px] font-semibold text-[#f0f2ff] mb-4">
-            <Filter size={17} className="text-[#6c63ff]" />
+            <PieIcon size={17} className="text-[#6c63ff]" />
             أفضل مصادر الليدز
           </div>
-          <div className="flex flex-col gap-3">
-            {sourceData.map((s, i) => (
-              <div key={s.key} className="flex items-center gap-2.5">
-                <span className="text-[12px] text-[#8892b0] w-[70px] text-right shrink-0">{s.label}</span>
-                <div className="flex-1 h-2 bg-[#0a0d14] rounded-full overflow-hidden">
-                  <motion.div
-                    className="h-full rounded-full"
-                    style={{ background: s.color }}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${s.pct}%` }}
-                    transition={{ duration: 0.8, delay: i * 0.1 }}
-                  />
+          <div className="flex items-center gap-4">
+            <div className="w-[160px] h-[160px] shrink-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={sourcePieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={40}
+                    outerRadius={70}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {sourcePieData.map((entry, i) => (
+                      <Cell key={i} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<PieTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex flex-col gap-2.5 flex-1">
+              {sourceData.map((s, i) => (
+                <div key={s.key} className="flex items-center gap-2.5">
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.color }} />
+                  <span className="text-[12px] text-[#8892b0] flex-1">{s.label}</span>
+                  <span className="text-[12px] font-bold" style={{ color: s.color }}>{s.pct}%</span>
                 </div>
-                <span className="text-[12px] font-bold min-w-[32px] text-right shrink-0" style={{ color: s.color }}>{s.pct}%</span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Loss Reasons */}
+        {/* Loss Reasons - Horizontal Bar Chart */}
         <div className="bg-[#111520] border border-white/[0.06] rounded-[14px] p-5">
           <div className="flex items-center gap-2 text-[15px] font-semibold text-[#f0f2ff] mb-4">
             <XCircle size={17} className="text-[#ff6b6b]" />
             أسباب خسارة الصفقات
           </div>
-          <div className="flex flex-col gap-3">
-            {lossData.map((reason, i) => (
-              <div key={reason.key} className="flex items-center gap-2.5">
-                <span className="text-[12px] text-[#8892b0] w-[90px] text-right shrink-0">{reason.label}</span>
-                <div className="flex-1 h-2 bg-[#0a0d14] rounded-full overflow-hidden">
-                  <motion.div
-                    className="h-full rounded-full"
-                    style={{ background: LOSS_RED_SHADES[i % LOSS_RED_SHADES.length] }}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${reason.pct}%` }}
-                    transition={{ duration: 0.8, delay: i * 0.1 }}
-                  />
-                </div>
-                <span className="text-[12px] font-bold text-[#ff6b6b] min-w-[32px] text-right shrink-0">{reason.pct}%</span>
-              </div>
-            ))}
+          <div className="h-[160px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={lossBarData} layout="vertical" margin={{ top: 0, right: 30, left: 10, bottom: 0 }}>
+                <XAxis type="number" tick={{ fill: '#4a5280', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ fill: '#8892b0', fontSize: 11 }} axisLine={false} tickLine={false} width={70} />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,107,107,0.05)' }} />
+                <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={20}>
+                  {lossBarData.map((entry, i) => (
+                    <Cell key={i} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>
 
-      {/* Row 2: KPIs & Team Performance */}
+      {/* Row 2: Monthly Trend Line Chart */}
+      <div className="bg-[#111520] border border-white/[0.06] rounded-[14px] p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2 text-[15px] font-semibold text-[#f0f2ff]">
+            <BarChart3 size={17} className="text-[#00d4aa]" />
+            اتجاه المبيعات الشهري
+          </div>
+          <div className="flex gap-3">
+            <div className="flex items-center gap-1.5 text-[11px] text-[#6c63ff]">
+              <div className="w-2 h-2 rounded-full bg-[#6c63ff]" /> ليدز
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] text-[#00d4aa]">
+              <div className="w-2 h-2 rounded-full bg-[#00d4aa]" /> إيرادات
+            </div>
+          </div>
+        </div>
+        <div className="h-[200px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={monthlyTrend} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+              <XAxis dataKey="month" tick={{ fill: '#8892b0', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#4a5280', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <Tooltip
+                contentStyle={{ background: '#161b28', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', fontSize: '12px' }}
+                labelStyle={{ color: '#8892b0' }}
+                itemStyle={{ color: '#f0f2ff' }}
+              />
+              <Line type="monotone" dataKey="leads" stroke="#6c63ff" strokeWidth={2} dot={{ fill: '#6c63ff', r: 3 }} activeDot={{ r: 5 }} />
+              <Line type="monotone" dataKey="deals" stroke="#00d4aa" strokeWidth={2} dot={{ fill: '#00d4aa', r: 3 }} activeDot={{ r: 5 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Row 3: KPIs & Team Performance */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Management KPIs */}
         <div className="bg-[#111520] border border-white/[0.06] rounded-[14px] p-5">

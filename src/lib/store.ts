@@ -150,6 +150,8 @@ interface CrmStore {
   setLeadFilter: (filter: string) => void
   searchQuery: string
   setSearchQuery: (query: string) => void
+  addLeadDialogOpen: boolean
+  setAddLeadDialogOpen: (open: boolean) => void
 
   // Loading
   loading: boolean
@@ -186,6 +188,8 @@ export const useCrmStore = create<CrmStore>((set) => ({
   setLeadFilter: (filter) => set({ leadFilter: filter }),
   searchQuery: '',
   setSearchQuery: (query) => set({ searchQuery: query }),
+  addLeadDialogOpen: false,
+  setAddLeadDialogOpen: (open) => set({ addLeadDialogOpen: open }),
 
   // Loading
   loading: false,

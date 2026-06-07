@@ -1,6 +1,7 @@
 -- ╔══════════════════════════════════════════════════════════════╗
 -- ║   SalesPro CRM - Migration for EXISTING Supabase Project    ║
 -- ║   Adds missing columns WITHOUT deleting existing data        ║
+-- ║   FULLY IDEMPOTENT — Safe to run multiple times              ║
 -- ╚══════════════════════════════════════════════════════════════╝
 --
 -- HOW TO USE:
@@ -12,12 +13,12 @@
 -- This will ONLY add columns/tables that don't already exist.
 -- Your existing data will NOT be touched.
 --
+-- NOTE: You can also use supabase-schema.sql which is now fully
+-- idempotent and handles both new AND existing projects.
 
 -- ════════════════════════════════════════════════════════════════
 -- 1. ADD MISSING COLUMNS TO leads TABLE
 -- ════════════════════════════════════════════════════════════════
--- Each ALTER TABLE uses IF NOT EXISTS logic via DO blocks
-
 DO $$
 BEGIN
   -- contact_result_at
@@ -79,7 +80,6 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'leads' AND column_name = 'store_url') THEN
     ALTER TABLE leads ADD COLUMN store_url TEXT DEFAULT '';
   END IF;
-
 END $$;
 
 -- ════════════════════════════════════════════════════════════════
@@ -126,10 +126,26 @@ CREATE INDEX IF NOT EXISTS idx_lead_notes_lead_id ON lead_notes (lead_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_team_members_name ON team_members (name);
 
 -- ════════════════════════════════════════════════════════════════
--- 4. ENABLE REALTIME (for live updates)
+-- 4. ENABLE REALTIME (idempotent — checks before adding)
 -- ════════════════════════════════════════════════════════════════
-ALTER PUBLICATION supabase_realtime ADD TABLE leads;
-ALTER PUBLICATION supabase_realtime ADD TABLE lead_notes;
+DO $$
+BEGIN
+  -- Add leads to realtime publication only if not already a member
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'leads'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE leads;
+  END IF;
+
+  -- Add lead_notes to realtime publication only if not already a member
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'lead_notes'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE lead_notes;
+  END IF;
+END $$;
 
 -- ════════════════════════════════════════════════════════════════
 -- 5. FIX RLS POLICIES (ensure they're correct)
@@ -193,7 +209,7 @@ CREATE POLICY "Allow authenticated upsert on settings"
   ON settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- ════════════════════════════════════════════════════════════════
--- 6. SEED TEAM MEMBERS (if table is empty)
+-- 6. SEED TEAM MEMBERS (only if table is empty)
 -- ════════════════════════════════════════════════════════════════
 INSERT INTO team_members (name, role, is_active)
 SELECT name, role, is_active FROM (VALUES
@@ -215,4 +231,4 @@ WHERE NOT EXISTS (SELECT 1 FROM team_members LIMIT 1);
 -- All existing data is preserved.
 -- Missing columns have been added with NULL defaults.
 -- New tables, indexes, and RLS policies are in place.
--- Realtime is enabled for leads and lead_notes.
+-- Realtime is enabled for leads and lead_notes (if not already).

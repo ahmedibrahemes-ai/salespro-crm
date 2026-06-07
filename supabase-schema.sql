@@ -1,17 +1,26 @@
 -- ╔══════════════════════════════════════════════════════════════╗
 -- ║      SalesPro CRM - Supabase Database Schema Setup          ║
+-- ║      IDEMPOTENT — Safe for NEW or EXISTING projects          ║
 -- ║      Run this SQL in Supabase SQL Editor (Dashboard)        ║
 -- ╚══════════════════════════════════════════════════════════════╝
 --
 -- HOW TO USE:
 -- 1. Go to https://app.supabase.com
--- 2. Select your project
+-- 2. Select your project (new OR existing with data)
 -- 3. Click "SQL Editor" in the left sidebar
 -- 4. Paste this entire SQL and click "Run"
 --
+-- This script is IDEMPOTENT:
+-- - Tables: created only if they don't exist
+-- - Columns: added only if they don't exist
+-- - Indexes: created only if they don't exist
+-- - Realtime: tables added only if not already in the publication
+-- - RLS policies: dropped and recreated (safe)
+-- - Seed data: inserted only if table is empty
+-- - Your EXISTING DATA will NOT be touched
 
 -- ════════════════════════════════════════════════════════════════
--- 1. LEADS TABLE
+-- 1. LEADS TABLE (create if not exists, add missing columns)
 -- ════════════════════════════════════════════════════════════════
 CREATE TABLE IF NOT EXISTS leads (
   id BIGSERIAL PRIMARY KEY,
@@ -42,7 +51,48 @@ CREATE TABLE IF NOT EXISTS leads (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Indexes for common queries
+-- Add missing columns to existing leads table (idempotent)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'leads' AND column_name = 'contact_result_at') THEN
+    ALTER TABLE leads ADD COLUMN contact_result_at TIMESTAMPTZ;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'leads' AND column_name = 'cancelled_from') THEN
+    ALTER TABLE leads ADD COLUMN cancelled_from TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'leads' AND column_name = 'cancelled_at') THEN
+    ALTER TABLE leads ADD COLUMN cancelled_at TIMESTAMPTZ;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'leads' AND column_name = 'assigned_at') THEN
+    ALTER TABLE leads ADD COLUMN assigned_at TIMESTAMPTZ;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'leads' AND column_name = 'attendance_marked_at') THEN
+    ALTER TABLE leads ADD COLUMN attendance_marked_at TIMESTAMPTZ;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'leads' AND column_name = 'attendance_marked_by') THEN
+    ALTER TABLE leads ADD COLUMN attendance_marked_by TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'leads' AND column_name = 'sales_status') THEN
+    ALTER TABLE leads ADD COLUMN sales_status TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'leads' AND column_name = 'meeting_link') THEN
+    ALTER TABLE leads ADD COLUMN meeting_link TEXT DEFAULT '';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'leads' AND column_name = 'meeting_type') THEN
+    ALTER TABLE leads ADD COLUMN meeting_type TEXT DEFAULT '';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'leads' AND column_name = 'customer_type') THEN
+    ALTER TABLE leads ADD COLUMN customer_type TEXT DEFAULT '';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'leads' AND column_name = 'brief') THEN
+    ALTER TABLE leads ADD COLUMN brief TEXT DEFAULT '';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'leads' AND column_name = 'store_url') THEN
+    ALTER TABLE leads ADD COLUMN store_url TEXT DEFAULT '';
+  END IF;
+END $$;
+
+-- Indexes for common queries (idempotent)
 CREATE INDEX IF NOT EXISTS idx_leads_archived ON leads (is_archived);
 CREATE INDEX IF NOT EXISTS idx_leads_tele_name ON leads (tele_name) WHERE is_archived = false;
 CREATE INDEX IF NOT EXISTS idx_leads_sales_name ON leads (sales_name) WHERE is_archived = false;
@@ -88,106 +138,92 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 -- ════════════════════════════════════════════════════════════════
--- 5. ENABLE REALTIME (for live updates)
+-- 5. ENABLE REALTIME (idempotent — checks before adding)
 -- ════════════════════════════════════════════════════════════════
-ALTER PUBLICATION supabase_realtime ADD TABLE leads;
-ALTER PUBLICATION supabase_realtime ADD TABLE lead_notes;
+DO $$
+BEGIN
+  -- Add leads to realtime publication only if not already a member
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'leads'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE leads;
+  END IF;
+
+  -- Add lead_notes to realtime publication only if not already a member
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'lead_notes'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE lead_notes;
+  END IF;
+END $$;
 
 -- ════════════════════════════════════════════════════════════════
 -- 6. ROW LEVEL SECURITY (RLS) POLICIES
 -- ════════════════════════════════════════════════════════════════
--- Enable RLS
+-- Enable RLS (safe to re-run)
 ALTER TABLE leads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lead_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
 
--- ── Leads: Allow public reads (for the CRM dashboard) ──
+-- Drop and recreate policies (idempotent)
+DROP POLICY IF EXISTS "Allow public read access on leads" ON leads;
+DROP POLICY IF EXISTS "Allow authenticated insert on leads" ON leads;
+DROP POLICY IF EXISTS "Allow authenticated update on leads" ON leads;
+DROP POLICY IF EXISTS "Allow authenticated delete on leads" ON leads;
+
 CREATE POLICY "Allow public read access on leads"
-  ON leads FOR SELECT
-  TO anon, authenticated
-  USING (true);
-
--- ── Leads: Allow authenticated inserts ──
+  ON leads FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "Allow authenticated insert on leads"
-  ON leads FOR INSERT
-  TO authenticated
-  WITH CHECK (true);
-
--- ── Leads: Allow authenticated updates ──
+  ON leads FOR INSERT TO authenticated WITH CHECK (true);
 CREATE POLICY "Allow authenticated update on leads"
-  ON leads FOR UPDATE
-  TO authenticated
-  USING (true)
-  WITH CHECK (true);
-
--- ── Leads: Allow authenticated deletes ──
+  ON leads FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Allow authenticated delete on leads"
-  ON leads FOR DELETE
-  TO authenticated
-  USING (true);
+  ON leads FOR DELETE TO authenticated USING (true);
 
--- ── Lead Notes: Allow public reads ──
+-- lead_notes policies
+DROP POLICY IF EXISTS "Allow public read access on lead_notes" ON lead_notes;
+DROP POLICY IF EXISTS "Allow authenticated insert on lead_notes" ON lead_notes;
+DROP POLICY IF EXISTS "Allow authenticated update on lead_notes" ON lead_notes;
+DROP POLICY IF EXISTS "Allow authenticated delete on lead_notes" ON lead_notes;
+
 CREATE POLICY "Allow public read access on lead_notes"
-  ON lead_notes FOR SELECT
-  TO anon, authenticated
-  USING (true);
-
--- ── Lead Notes: Allow authenticated inserts ──
+  ON lead_notes FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "Allow authenticated insert on lead_notes"
-  ON lead_notes FOR INSERT
-  TO authenticated
-  WITH CHECK (true);
-
--- ── Lead Notes: Allow authenticated updates ──
+  ON lead_notes FOR INSERT TO authenticated WITH CHECK (true);
 CREATE POLICY "Allow authenticated update on lead_notes"
-  ON lead_notes FOR UPDATE
-  TO authenticated
-  USING (true)
-  WITH CHECK (true);
-
--- ── Lead Notes: Allow authenticated deletes ──
+  ON lead_notes FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Allow authenticated delete on lead_notes"
-  ON lead_notes FOR DELETE
-  TO authenticated
-  USING (true);
+  ON lead_notes FOR DELETE TO authenticated USING (true);
 
--- ── Team Members: Allow public reads ──
+-- team_members policies
+DROP POLICY IF EXISTS "Allow public read access on team_members" ON team_members;
+DROP POLICY IF EXISTS "Allow authenticated insert on team_members" ON team_members;
+DROP POLICY IF EXISTS "Allow authenticated update on team_members" ON team_members;
+
 CREATE POLICY "Allow public read access on team_members"
-  ON team_members FOR SELECT
-  TO anon, authenticated
-  USING (true);
-
--- ── Team Members: Allow authenticated inserts ──
+  ON team_members FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "Allow authenticated insert on team_members"
-  ON team_members FOR INSERT
-  TO authenticated
-  WITH CHECK (true);
-
--- ── Team Members: Allow authenticated updates ──
+  ON team_members FOR INSERT TO authenticated WITH CHECK (true);
 CREATE POLICY "Allow authenticated update on team_members"
-  ON team_members FOR UPDATE
-  TO authenticated
-  USING (true)
-  WITH CHECK (true);
+  ON team_members FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
 
--- ── Settings: Allow public reads ──
+-- settings policies
+DROP POLICY IF EXISTS "Allow public read access on settings" ON settings;
+DROP POLICY IF EXISTS "Allow authenticated upsert on settings" ON settings;
+
 CREATE POLICY "Allow public read access on settings"
-  ON settings FOR SELECT
-  TO anon, authenticated
-  USING (true);
-
--- ── Settings: Allow authenticated upserts ──
+  ON settings FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "Allow authenticated upsert on settings"
-  ON settings FOR ALL
-  TO authenticated
-  USING (true)
-  WITH CHECK (true);
+  ON settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- ════════════════════════════════════════════════════════════════
--- 7. SEED DEFAULT TEAM MEMBERS (Optional)
+-- 7. SEED TEAM MEMBERS (only if table is empty)
 -- ════════════════════════════════════════════════════════════════
-INSERT INTO team_members (name, role, is_active) VALUES
+INSERT INTO team_members (name, role, is_active)
+SELECT name, role, is_active FROM (VALUES
   ('Amira', 'tele', true),
   ('Neveen', 'tele', true),
   ('Sara', 'tele', true),
@@ -197,11 +233,15 @@ INSERT INTO team_members (name, role, is_active) VALUES
   ('Alaa', 'sales', true),
   ('Samar', 'sales', true),
   ('Admin', 'admin', true)
-ON CONFLICT (name) DO NOTHING;
+) AS v(name, role, is_active)
+WHERE NOT EXISTS (SELECT 1 FROM team_members LIMIT 1);
 
 -- ════════════════════════════════════════════════════════════════
 -- ✅ DONE! Your database is ready.
 -- ════════════════════════════════════════════════════════════════
+-- If this is an EXISTING project, all your customer data is preserved.
+-- If this is a NEW project, everything is created from scratch.
+--
 -- Now go to Settings → API and copy:
 --   1. Project URL → NEXT_PUBLIC_SUPABASE_URL
 --   2. anon/public key → NEXT_PUBLIC_SUPABASE_ANON_KEY

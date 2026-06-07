@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useCrmStore, type ViewName } from '@/lib/store'
+import { useCrmStore, hydrateAuth, type ViewName } from '@/lib/store'
 import { apiGetLeads, apiGetArchivedLeads, apiGetTeam, apiSubscribeToLeads, apiUnsubscribe } from '@/lib/supabase'
 import { LoginScreen } from '@/components/crm/login-screen'
 import { Sidebar } from '@/components/layout/sidebar'
@@ -83,12 +83,12 @@ function LoadingScreen() {
         <div className="relative w-16 h-16 mx-auto mb-4">
           <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[#6c63ff] to-[#00d4aa] animate-pulse opacity-20" />
           <div className="absolute inset-1 rounded-[10px] bg-[#111520] flex items-center justify-center">
-            <span className="text-lg font-black bg-gradient-to-br from-[#6c63ff] to-[#00d4aa] bg-clip-text text-transparent">SP</span>
+            <span className="text-lg font-black bg-gradient-to-br from-[#6c63ff] to-[#00d4aa] bg-clip-text text-transparent">VN</span>
           </div>
         </div>
         <Loader2 size={24} className="animate-spin text-[#6c63ff] mx-auto mb-3" />
         <p className="text-[14px] text-[#8892b0]" style={{ fontFamily: 'Cairo, sans-serif' }}>جاري تحميل البيانات...</p>
-        <p className="text-[11px] text-[#4a5280] mt-1" style={{ fontFamily: 'Cairo, sans-serif' }}>SalesPro CRM</p>
+        <p className="text-[11px] text-[#4a5280] mt-1" style={{ fontFamily: 'Cairo, sans-serif' }}>Venom CRM</p>
       </div>
     </div>
   )
@@ -141,6 +141,11 @@ export default function Home() {
     setDataLoaded,
     setLoading,
   } = useCrmStore()
+
+  // Hydrate auth from localStorage on first mount
+  useEffect(() => {
+    hydrateAuth()
+  }, [])
 
   // Load data when authenticated
   useEffect(() => {
@@ -267,7 +272,7 @@ export default function Home() {
         {/* Footer - sticky to bottom */}
         <footer className="mt-auto border-t border-white/[0.06] bg-[#111520] px-4 md:px-6 py-3">
           <div className="flex items-center justify-between text-[11px] md:text-[12px] text-[#4a5280]" style={{ fontFamily: 'Cairo, sans-serif' }}>
-            <span>SalesPro CRM &copy; 2025 — منصة المبيعات الذكية</span>
+            <span>Venom CRM &copy; 2025 — منصة المبيعات الذكية</span>
             <span className="hidden sm:inline">مدعوم بالذكاء الاصطناعي 🤖</span>
           </div>
         </footer>

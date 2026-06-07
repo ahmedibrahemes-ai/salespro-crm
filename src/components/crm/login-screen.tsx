@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2, AlertCircle, User, ChevronDown } from 'lucide-react'
+import { Loader2, AlertCircle, User, Lock, Eye, EyeOff } from 'lucide-react'
 import { useCrmStore } from '@/lib/store'
 
 /* ------------------------------------------------------------------ */
@@ -18,43 +18,57 @@ const particles = Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
   opacity: Math.random() * 0.3 + 0.05,
 }))
 
-const ROLES = [
-  { key: 'tele' as const, label: 'تيلز', icon: '📞' },
-  { key: 'sales' as const, label: 'سيلز', icon: '💼' },
-  { key: 'admin' as const, label: 'أدمن', icon: '⚙️' },
-]
-
 export function LoginScreen() {
   const login = useCrmStore((s) => s.login)
 
-  const [name, setName] = useState('')
-  const [role, setRole] = useState<'tele' | 'sales' | 'admin' | null>(null)
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [roleDropdownOpen, setRoleDropdownOpen] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
-    if (!name.trim()) {
-      setError('الرجاء إدخال الاسم')
+    if (!username.trim()) {
+      setError('الرجاء إدخال اسم المستخدم')
       return
     }
 
-    if (!role) {
-      setError('الرجاء اختيار الدور')
+    if (!password) {
+      setError('الرجاء إدخال كلمة المرور')
       return
     }
 
     setLoading(true)
-    // Small delay for visual feedback
-    await new Promise((r) => setTimeout(r, 600))
-    login(name.trim(), role)
-    setLoading(false)
-  }
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login', username: username.trim(), password }),
+      })
 
-  const selectedRoleObj = ROLES.find((r) => r.key === role)
+      const data = await res.json()
+
+      if (!res.ok || data.error) {
+        setError(data.error || 'فشل تسجيل الدخول')
+        return
+      }
+
+      if (data.success && data.user) {
+        // Login with the user's display name and role from the server
+        login(data.user.displayName, data.user.role)
+      } else {
+        setError('حدث خطأ غير متوقع')
+      }
+    } catch (err) {
+      console.error('[login] Error:', err)
+      setError('فشل الاتصال بالخادم')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 flex items-center justify-center overflow-hidden bg-[#0a0d14]">
@@ -79,7 +93,7 @@ export function LoginScreen() {
               width: p.size,
               height: p.size,
               backgroundColor: `rgba(108,99,255,${p.opacity})`,
-              animation: `sp-float ${p.duration}s ease-in-out ${p.delay}s infinite alternate`,
+              animation: `vn-float ${p.duration}s ease-in-out ${p.delay}s infinite alternate`,
             }}
           />
         ))}
@@ -104,7 +118,7 @@ export function LoginScreen() {
                 '0 0 30px rgba(108,99,255,0.3), 0 0 60px rgba(0,212,170,0.15)',
             }}
           >
-            SP
+            VN
           </div>
         </div>
 
@@ -113,7 +127,7 @@ export function LoginScreen() {
           className="mb-1 text-center text-3xl font-bold tracking-tight text-[#f0f2ff]"
           style={{ fontFamily: 'Cairo, sans-serif' }}
         >
-          SalesPro CRM
+          Venom CRM
         </h1>
         <p
           className="mb-8 text-center text-sm text-[#8892b0]"
@@ -124,78 +138,44 @@ export function LoginScreen() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          {/* Name Input */}
+          {/* Username Input */}
           <div className="relative">
             <User className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-[#8892b0]" />
             <input
               type="text"
-              placeholder="الاسم"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              placeholder="اسم المستخدم"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               className="h-11 w-full rounded-lg border border-white/[0.08] bg-[#161b28] pr-10 pl-3 text-sm text-[#f0f2ff] placeholder:text-[#4a5280] outline-none transition-all focus:border-[#6c63ff] focus:ring-2 focus:ring-[#6c63ff]/30"
               style={{ fontFamily: 'Cairo, sans-serif' }}
-              autoComplete="name"
+              autoComplete="username"
               disabled={loading}
               dir="rtl"
             />
           </div>
 
-          {/* Role Selector */}
+          {/* Password Input */}
           <div className="relative">
+            <Lock className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-[#8892b0]" />
+            <input
+              type={showPassword ? 'text' : 'password'}
+              placeholder="كلمة المرور"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="h-11 w-full rounded-lg border border-white/[0.08] bg-[#161b28] pr-10 pl-10 text-sm text-[#f0f2ff] placeholder:text-[#4a5280] outline-none transition-all focus:border-[#6c63ff] focus:ring-2 focus:ring-[#6c63ff]/30"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+              autoComplete="current-password"
+              disabled={loading}
+              dir="rtl"
+            />
             <button
               type="button"
-              onClick={() => setRoleDropdownOpen(!roleDropdownOpen)}
-              className="flex h-11 w-full items-center justify-between rounded-lg border border-white/[0.08] bg-[#161b28] px-4 text-sm text-[#f0f2ff] outline-none transition-all focus:border-[#6c63ff] focus:ring-2 focus:ring-[#6c63ff]/30"
-              style={{ fontFamily: 'Cairo, sans-serif' }}
-              dir="rtl"
-              disabled={loading}
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4a5280] hover:text-[#8892b0] transition-colors cursor-pointer"
+              tabIndex={-1}
             >
-              <span className="flex items-center gap-2">
-                {selectedRoleObj ? (
-                  <>
-                    <span>{selectedRoleObj.icon}</span>
-                    <span>{selectedRoleObj.label}</span>
-                  </>
-                ) : (
-                  <span className="text-[#4a5280]">اختر الدور</span>
-                )}
-              </span>
-              <ChevronDown
-                size={16}
-                className={`text-[#8892b0] transition-transform duration-200 ${
-                  roleDropdownOpen ? 'rotate-180' : ''
-                }`}
-              />
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
-
-            {/* Dropdown */}
-            {roleDropdownOpen && (
-              <div className="absolute top-12 right-0 left-0 z-20 overflow-hidden rounded-lg border border-white/[0.08] bg-[#161b28] shadow-xl">
-                {ROLES.map((r) => (
-                  <button
-                    key={r.key}
-                    type="button"
-                    onClick={() => {
-                      setRole(r.key)
-                      setRoleDropdownOpen(false)
-                    }}
-                    className={`flex w-full items-center gap-2 px-4 py-2.5 text-sm transition-colors cursor-pointer ${
-                      role === r.key
-                        ? 'bg-[#6c63ff]/15 text-[#a8a3ff]'
-                        : 'text-[#f0f2ff] hover:bg-[#1c2234]'
-                    }`}
-                    style={{ fontFamily: 'Cairo, sans-serif' }}
-                    dir="rtl"
-                  >
-                    <span>{r.icon}</span>
-                    <span>{r.label}</span>
-                    {role === r.key && (
-                      <span className="mr-auto text-[#6c63ff]">✓</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Error */}
@@ -249,13 +229,13 @@ export function LoginScreen() {
           className="mt-4 text-center text-xs text-[#4a5280]"
           style={{ fontFamily: 'Cairo, sans-serif' }}
         >
-          SalesPro CRM &copy; {new Date().getFullYear()}
+          Venom CRM &copy; {new Date().getFullYear()}
         </p>
       </div>
 
       {/* Float animation keyframes */}
       <style jsx global>{`
-        @keyframes sp-float {
+        @keyframes vn-float {
           0% {
             transform: translateY(0px) translateX(0px);
             opacity: 0.05;

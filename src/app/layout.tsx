@@ -10,7 +10,7 @@ const cairo = Cairo({
 });
 
 export const metadata: Metadata = {
-  title: "SalesPro CRM — منصة المبيعات",
+  title: "Venom CRM — منصة المبيعات",
   description: "منصة متكاملة لإدارة المبيعات والتسويق مدعومة بالذكاء الاصطناعي",
   icons: {
     icon: "/logo.svg",

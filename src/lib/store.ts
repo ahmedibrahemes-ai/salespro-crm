@@ -208,9 +208,35 @@ function compareIds(a: string, b: string): number {
   return a.localeCompare(b)
 }
 
+// ===== Persisted Auth State =====
+function getPersistedAuth() {
+  if (typeof window === 'undefined') return { currentUser: null, currentRole: null, isAuthenticated: false }
+  try {
+    const stored = localStorage.getItem('venom-auth')
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      if (parsed.currentUser && parsed.currentRole) {
+        return { currentUser: parsed.currentUser, currentRole: parsed.currentRole, isAuthenticated: true }
+      }
+    }
+  } catch { /* ignore */ }
+  return { currentUser: null, currentRole: null, isAuthenticated: false }
+}
+
+function persistAuth(user: string | null, role: 'tele' | 'sales' | 'admin' | null) {
+  if (typeof window === 'undefined') return
+  try {
+    if (user && role) {
+      localStorage.setItem('venom-auth', JSON.stringify({ currentUser: user, currentRole: role }))
+    } else {
+      localStorage.removeItem('venom-auth')
+    }
+  } catch { /* ignore */ }
+}
+
 // ===== Store Implementation =====
 export const useCrmStore = create<CrmStore>((set, get) => ({
-  // Auth
+  // Auth (starts as logged out, will hydrate from localStorage on client)
   currentUser: null,
   currentRole: null,
   isAuthenticated: false,
@@ -253,9 +279,11 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
 
   // Actions
   login: (user, role) => {
+    persistAuth(user, role)
     set({ currentUser: user, currentRole: role, isAuthenticated: true, currentView: 'dashboard' })
   },
   logout: () => {
+    persistAuth(null, null)
     set({
       currentUser: null,
       currentRole: null,
@@ -611,6 +639,20 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
     return changedCount
   },
 }))
+
+// ===== Hydrate Auth from localStorage (call on client mount) =====
+export function hydrateAuth() {
+  if (typeof window === 'undefined') return
+  const auth = getPersistedAuth()
+  if (auth.currentUser && auth.currentRole) {
+    useCrmStore.setState({
+      currentUser: auth.currentUser,
+      currentRole: auth.currentRole,
+      isAuthenticated: true,
+      currentView: 'dashboard',
+    })
+  }
+}
 
 // ===== Utility Functions =====
 export function normalizePhone(input: string): string {

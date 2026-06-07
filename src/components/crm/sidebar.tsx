@@ -85,7 +85,7 @@ export function Sidebar() {
             fontFamily: 'Cairo, sans-serif',
           }}
         >
-          SP
+          VN
         </div>
 
         {/* Nav Items */}

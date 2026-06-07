@@ -1,5 +1,5 @@
 -- ╔══════════════════════════════════════════════════════════════╗
--- ║      SalesPro CRM - Supabase Database Schema Setup          ║
+-- ║      Venom CRM - Supabase Database Schema Setup              ║
 -- ║      IDEMPOTENT — Safe for NEW or EXISTING projects          ║
 -- ║      Run this SQL in Supabase SQL Editor (Dashboard)        ║
 -- ╚══════════════════════════════════════════════════════════════╝
@@ -138,6 +138,23 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 -- ════════════════════════════════════════════════════════════════
+-- 4b. APP USERS TABLE (for login authentication)
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS app_users (
+  id BIGSERIAL PRIMARY KEY,
+  username TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  password_salt TEXT NOT NULL,
+  display_name TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('tele', 'sales', 'admin')),
+  is_active BOOLEAN DEFAULT TRUE,
+  last_login_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_app_users_username ON app_users (username);
+
+-- ════════════════════════════════════════════════════════════════
 -- 5. ENABLE REALTIME (idempotent — checks before adding)
 -- ════════════════════════════════════════════════════════════════
 DO $$
@@ -219,6 +236,22 @@ CREATE POLICY "Allow public read access on settings"
 CREATE POLICY "Allow authenticated upsert on settings"
   ON settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+-- app_users policies (ONLY authenticated/admin can read/modify)
+-- Note: Login is handled via server-side API route using service_role key,
+-- so the client never directly queries app_users.
+ALTER TABLE app_users ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow authenticated read on app_users" ON app_users;
+DROP POLICY IF EXISTS "Allow authenticated insert on app_users" ON app_users;
+DROP POLICY IF EXISTS "Allow authenticated update on app_users" ON app_users;
+
+CREATE POLICY "Allow authenticated read on app_users"
+  ON app_users FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Allow authenticated insert on app_users"
+  ON app_users FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "Allow authenticated update on app_users"
+  ON app_users FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+
 -- ════════════════════════════════════════════════════════════════
 -- 7. SEED TEAM MEMBERS (only if table is empty)
 -- ════════════════════════════════════════════════════════════════
@@ -237,10 +270,26 @@ SELECT name, role, is_active FROM (VALUES
 WHERE NOT EXISTS (SELECT 1 FROM team_members LIMIT 1);
 
 -- ════════════════════════════════════════════════════════════════
+-- 8. SEED ADMIN USER (only if app_users table is empty)
+-- ════════════════════════════════════════════════════════════════
+-- Default admin: username=admin, password=admin123
+-- IMPORTANT: Change the password after first login!
+-- Password hash for "admin123" with salt "venom2024crm":
+-- SHA-256("admin123venom2024crm") = a1b2c3d4e5f6... (computed below)
+INSERT INTO app_users (username, password_hash, password_salt, display_name, role, is_active)
+SELECT username, password_hash, password_salt, display_name, role, is_active FROM (VALUES
+  ('admin', 'b6fdefd3654f4ff6e4ce86433e3d38aa3c47696a8716834fb936ed20b6502342', 'venom2024crm', 'Admin', 'admin', true)
+) AS v(username, password_hash, password_salt, display_name, role, is_active)
+WHERE NOT EXISTS (SELECT 1 FROM app_users LIMIT 1);
+
+-- ════════════════════════════════════════════════════════════════
 -- ✅ DONE! Your database is ready.
 -- ════════════════════════════════════════════════════════════════
 -- If this is an EXISTING project, all your customer data is preserved.
 -- If this is a NEW project, everything is created from scratch.
+--
+-- DEFAULT LOGIN: username=admin / password=admin123
+-- ⚠️ Change the admin password after first login!
 --
 -- Now go to Settings → API and copy:
 --   1. Project URL → NEXT_PUBLIC_SUPABASE_URL

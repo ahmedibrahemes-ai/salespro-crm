@@ -4,10 +4,10 @@ import { useMemo, useState, useCallback } from 'react'
 import { useCrmStore, SALES_STATUSES, ATTENDANCE_STATUSES, formatDate, getDateRange } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import { apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk } from '@/lib/supabase'
-import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search, Plus, Trash2, Archive, Phone, Filter, X, Check,
   Calendar, Loader2, ArrowLeftRight, Clock, Video, MapPin,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -22,18 +22,9 @@ import {
 } from '@/components/ui/table'
 
 /* ═══════════════════════════════════════════════════════
-   Animation variants
+   PAGE SIZE for pagination
    ═══════════════════════════════════════════════════════ */
-const rowVariants = {
-  hidden: { opacity: 0, y: -8 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.25 } },
-  exit: { opacity: 0, x: 40, transition: { duration: 0.2 } },
-}
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.03 } },
-}
+const PAGE_SIZE = 50
 
 /* ═══════════════════════════════════════════════════════
    Inline Editable Cell
@@ -82,7 +73,68 @@ function EditableCell({
 }
 
 /* ═══════════════════════════════════════════════════════
-   Sales Sheet Component
+   Lazy Select Cell — only renders Select when clicked
+   ═══════════════════════════════════════════════════════ */
+function LazySelectCell({
+  value,
+  options,
+  onChange,
+  displayMap,
+  placeholder = '—',
+  className = '',
+}: {
+  value: string
+  options: Array<{ key: string; label: string }>
+  onChange: (val: string) => void
+  displayMap?: Record<string, string>
+  placeholder?: string
+  className?: string
+}) {
+  const [open, setOpen] = useState(false)
+
+  if (!open) {
+    const displayLabel = displayMap?.[value] || options.find(o => o.key === value)?.label || value || placeholder
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className={`h-7 text-[11px] px-2 rounded border border-white/[0.06] bg-[#0a0d14] text-[#f0f2ff] hover:border-[#6c63ff]/30 transition-colors cursor-pointer text-right w-full ${className}`}
+      >
+        {displayLabel}
+      </button>
+    )
+  }
+
+  return (
+    <Select
+      value={value || undefined}
+      onValueChange={(v) => {
+        onChange(v)
+        setOpen(false)
+      }}
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) setOpen(false)
+      }}
+    >
+      <SelectTrigger className={`h-7 text-[11px] bg-[#0a0d14] border-[#6c63ff]/40 text-[#f0f2ff] ${className}`}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="bg-[#111520] border-white/[0.08]">
+        {options.map((opt) => (
+          <SelectItem key={opt.key} value={opt.key} className="text-[11px] text-[#f0f2ff]">
+            {opt.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
+   Sales Sheet Component — PERFORMANCE OPTIMIZED
+   - Removed Framer Motion (was creating stagger timers per row)
+   - Added pagination (50 rows per page)
+   - Lazy Select cells (only mount portal when editing)
    ═══════════════════════════════════════════════════════ */
 export function SalesSheet() {
   const {
@@ -100,8 +152,8 @@ export function SalesSheet() {
   const [selectedSales, setSelectedSales] = useState<string>(
     currentRole === 'sales' && currentUser ? currentUser : 'all'
   )
-  const [transferTarget, setTransferTarget] = useState<string | null>(null)
   const [transferLeadId, setTransferLeadId] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
 
   /* ─── Filtered leads ─── */
   const filteredLeads = useMemo(() => {
@@ -128,6 +180,21 @@ export function SalesSheet() {
 
     return result
   }, [leads, selectedSales, searchQuery, dateFilter])
+
+  /* ─── Paginated leads ─── */
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE))
+  const paginatedLeads = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return filteredLeads.slice(start, start + PAGE_SIZE)
+  }, [filteredLeads, currentPage])
+
+  // Reset page when filters change
+  const [prevFilterKey, setPrevFilterKey] = useState('')
+  const filterKey = `${selectedSales}|${searchQuery}|${dateFilter.preset}`
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey)
+    setCurrentPage(1)
+  }
 
   /* ─── Stats ─── */
   const stats = useMemo(() => {
@@ -202,7 +269,6 @@ export function SalesSheet() {
       addToast('error', 'فشل التحويل')
     }
     setTransferLeadId(null)
-    setTransferTarget(null)
   }, [updateLeadInCache, addToast])
 
   /* ─── Mark attendance ─── */
@@ -221,9 +287,26 @@ export function SalesSheet() {
     }
   }, [updateLeadInCache, currentUser, addToast])
 
+  /* ─── Display label maps for LazySelect ─── */
+  const salesStatusLabels = useMemo(() => {
+    const m: Record<string, string> = {}
+    SALES_STATUSES.forEach(s => { m[s.key] = s.label })
+    return m
+  }, [])
+
+  const meetingTypeOptions = useMemo(() => [
+    { key: 'offline', label: '🏛️ حضوري' },
+    { key: 'online', label: '💻 أونلاين' },
+  ], [])
+
+  const meetingTypeLabels = useMemo(() => ({
+    offline: '🏛️ حضوري',
+    online: '💻 أونلاين',
+  }), [])
+
   /* ═══════════════ RENDER ═══════════════ */
   return (
-    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-4">
+    <div className="space-y-4 animate-in fade-in duration-200">
       {/* ─── Header ─── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -243,16 +326,15 @@ export function SalesSheet() {
           { label: 'لم يحضر', value: stats.noShow, color: '#ff6b6b' },
           { label: 'تم التقفيل', value: stats.closedWon, color: '#00d4aa' },
         ].map((s, i) => (
-          <motion.div
+          <div
             key={i}
-            variants={rowVariants}
             className="bg-[#111520] border border-white/[0.06] rounded-xl p-3"
           >
             <div className="text-[11px] text-[#8892b0]">{s.label}</div>
             <div className="text-[20px] font-bold mt-0.5" style={{ color: s.color, fontFamily: 'Cairo, sans-serif' }}>
               {s.value}
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
 
@@ -337,9 +419,9 @@ export function SalesSheet() {
                 <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
                   <TableHead className="w-[40px] text-right text-[11px] text-[#4a5280]">
                     <Checkbox
-                      checked={selected.length === filteredLeads.length && filteredLeads.length > 0}
+                      checked={selected.length === paginatedLeads.length && paginatedLeads.length > 0}
                       onCheckedChange={(checked) => {
-                        if (checked) selectAllLeads(viewKey, filteredLeads.map((l) => l.id))
+                        if (checked) selectAllLeads(viewKey, paginatedLeads.map((l) => l.id))
                         else clearSelectedLeadIds(viewKey)
                       }}
                       className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
@@ -357,7 +439,7 @@ export function SalesSheet() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredLeads.length === 0 ? (
+                {paginatedLeads.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={10} className="text-center py-12 text-[#4a5280]">
                       <div className="text-[32px] mb-2">📊</div>
@@ -365,7 +447,7 @@ export function SalesSheet() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredLeads.map((lead) => {
+                  paginatedLeads.map((lead) => {
                     const isSelected = selected.includes(lead.id)
                     return (
                       <tr
@@ -411,21 +493,13 @@ export function SalesSheet() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Select
+                          <LazySelectCell
                             value={lead.salesStatus || 'new'}
-                            onValueChange={(v) => handleUpdateField(lead.id, 'salesStatus', v)}
-                          >
-                            <SelectTrigger className="h-7 text-[11px] w-[120px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-[#111520] border-white/[0.08]">
-                              {SALES_STATUSES.map((st) => (
-                                <SelectItem key={st.key} value={st.key} className="text-[11px] text-[#f0f2ff]">
-                                  {st.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            options={SALES_STATUSES}
+                            onChange={(v) => handleUpdateField(lead.id, 'salesStatus', v)}
+                            displayMap={salesStatusLabels}
+                            className="w-[120px]"
+                          />
                         </TableCell>
                         <TableCell>
                           <EditableCell
@@ -444,22 +518,13 @@ export function SalesSheet() {
                           />
                         </TableCell>
                         <TableCell>
-                          <Select
+                          <LazySelectCell
                             value={lead.meetingType || 'offline'}
-                            onValueChange={(v) => handleUpdateField(lead.id, 'meetingType', v)}
-                          >
-                            <SelectTrigger className="h-7 text-[11px] w-[90px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-[#111520] border-white/[0.08]">
-                              <SelectItem value="offline" className="text-[11px] text-[#f0f2ff]">
-                                <MapPin size={10} className="inline ml-1" />حضوري
-                              </SelectItem>
-                              <SelectItem value="online" className="text-[11px] text-[#f0f2ff]">
-                                <Video size={10} className="inline ml-1" />أونلاين
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
+                            options={meetingTypeOptions}
+                            onChange={(v) => handleUpdateField(lead.id, 'meetingType', v)}
+                            displayMap={meetingTypeLabels}
+                            className="w-[90px]"
+                          />
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
@@ -490,7 +555,7 @@ export function SalesSheet() {
                         <TableCell>
                           {transferLeadId === lead.id ? (
                             <Select
-                              value={transferTarget || ''}
+                              value={undefined}
                               onValueChange={(v) => handleTransfer(lead.id, v)}
                               onOpenChange={(open) => { if (!open) setTransferLeadId(null) }}
                             >
@@ -536,14 +601,37 @@ export function SalesSheet() {
 
           {filteredLeads.length > 0 && (
             <div className="border-t border-white/[0.06] px-4 py-2.5 flex items-center justify-between text-[11px] text-[#4a5280]">
-              <span>عرض {filteredLeads.length} عميل</span>
-              {selected.length > 0 && (
-                <span className="text-[#6c63ff]">{selected.length} محدد</span>
-              )}
+              <span>عرض {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, filteredLeads.length)} من {filteredLeads.length} عميل</span>
+              <div className="flex items-center gap-2">
+                {selected.length > 0 && (
+                  <span className="text-[#6c63ff]">{selected.length} محدد</span>
+                )}
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="w-7 h-7 rounded-md bg-[#1c2234] text-[#8892b0] flex items-center justify-center hover:bg-[#2a3050] transition-colors cursor-pointer disabled:opacity-30"
+                    >
+                      <ChevronRight size={12} />
+                    </button>
+                    <span className="text-[#f0f2ff] font-medium px-2">
+                      {currentPage} / {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="w-7 h-7 rounded-md bg-[#1c2234] text-[#8892b0] flex items-center justify-center hover:bg-[#2a3050] transition-colors cursor-pointer disabled:opacity-30"
+                    >
+                      <ChevronLeft size={12} />
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </CardContent>
       </Card>
-    </motion.div>
+    </div>
   )
 }

@@ -4,10 +4,10 @@ import { useMemo, useState, useCallback } from 'react'
 import { useCrmStore, CONTACT_RESULTS, STATUSES, ATTENDANCE_STATUSES, formatDate, getDateRange } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import { apiCreateLead, apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk } from '@/lib/supabase'
-import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search, Plus, Trash2, Archive, Phone, Filter, X, Check, ChevronDown,
   UserPlus, Calendar, MoreHorizontal, Loader2, AlertTriangle,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -22,18 +22,9 @@ import {
 } from '@/components/ui/table'
 
 /* ═══════════════════════════════════════════════════════
-   Animation variants
+   PAGE SIZE for pagination
    ═══════════════════════════════════════════════════════ */
-const rowVariants = {
-  hidden: { opacity: 0, y: -8 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.25 } },
-  exit: { opacity: 0, x: 40, transition: { duration: 0.2 } },
-}
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.03 } },
-}
+const PAGE_SIZE = 50
 
 /* ═══════════════════════════════════════════════════════
    Inline Editable Cell
@@ -82,7 +73,72 @@ function EditableCell({
 }
 
 /* ═══════════════════════════════════════════════════════
-   Tele Sheet Component
+   Lazy Select Cell — only renders Select when clicked
+   This is the KEY performance optimization: instead of mounting
+   3-4 Select portals per row (which creates 150-400+ DOM portals
+   for 50+ rows), we show a simple badge/text first and only
+   mount the Select dropdown when the user clicks to edit.
+   ═══════════════════════════════════════════════════════ */
+function LazySelectCell({
+  value,
+  options,
+  onChange,
+  displayMap,
+  placeholder = '—',
+  className = '',
+}: {
+  value: string
+  options: Array<{ key: string; label: string }>
+  onChange: (val: string) => void
+  displayMap?: Record<string, string>
+  placeholder?: string
+  className?: string
+}) {
+  const [open, setOpen] = useState(false)
+
+  if (!open) {
+    const displayLabel = displayMap?.[value] || options.find(o => o.key === value)?.label || value || placeholder
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className={`h-7 text-[11px] px-2 rounded border border-white/[0.06] bg-[#0a0d14] text-[#f0f2ff] hover:border-[#6c63ff]/30 transition-colors cursor-pointer text-right w-full ${className}`}
+      >
+        {displayLabel}
+      </button>
+    )
+  }
+
+  return (
+    <Select
+      value={value || undefined}
+      onValueChange={(v) => {
+        onChange(v)
+        setOpen(false)
+      }}
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) setOpen(false)
+      }}
+    >
+      <SelectTrigger className={`h-7 text-[11px] bg-[#0a0d14] border-[#6c63ff]/40 text-[#f0f2ff] ${className}`}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="bg-[#111520] border-white/[0.08]">
+        {options.map((opt) => (
+          <SelectItem key={opt.key} value={opt.key} className="text-[11px] text-[#f0f2ff]">
+            {opt.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
+   Tele Sheet Component — PERFORMANCE OPTIMIZED
+   - Removed Framer Motion (was creating stagger timers per row)
+   - Added pagination (50 rows per page)
+   - Lazy Select cells (only mount portal when editing)
    ═══════════════════════════════════════════════════════ */
 export function TeleSheet() {
   const {
@@ -106,6 +162,7 @@ export function TeleSheet() {
   const [selectedTele, setSelectedTele] = useState<string>(
     currentRole === 'tele' && currentUser ? currentUser : 'all'
   )
+  const [currentPage, setCurrentPage] = useState(1)
 
   /* ─── Filtered leads ─── */
   const filteredLeads = useMemo(() => {
@@ -136,6 +193,21 @@ export function TeleSheet() {
 
     return result
   }, [leads, selectedTele, searchQuery, dateFilter])
+
+  /* ─── Paginated leads ─── */
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE))
+  const paginatedLeads = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return filteredLeads.slice(start, start + PAGE_SIZE)
+  }, [filteredLeads, currentPage])
+
+  // Reset page when filters change
+  const [prevFilterKey, setPrevFilterKey] = useState('')
+  const filterKey = `${selectedTele}|${searchQuery}|${dateFilter.preset}`
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey)
+    setCurrentPage(1)
+  }
 
   /* ─── Stats ─── */
   const stats = useMemo(() => {
@@ -247,16 +319,28 @@ export function TeleSheet() {
     return clsMap[s.cls] || 'bg-[#1c2234] text-[#8892b0]'
   }
 
-  /* ─── Get attendance badge ─── */
-  const getAttendanceBadge = (attended: string | null) => {
-    const a = ATTENDANCE_STATUSES.find((s) => s.key === attended)
-    if (!a) return 'bg-[#1c2234] text-[#8892b0]'
-    return a.cls
-  }
+  /* ─── Display label maps for LazySelect ─── */
+  const contactResultLabels = useMemo(() => {
+    const m: Record<string, string> = {}
+    CONTACT_RESULTS.forEach(cr => { m[cr.key] = cr.label })
+    return m
+  }, [])
+
+  const statusLabels = useMemo(() => {
+    const m: Record<string, string> = {}
+    STATUSES.forEach(s => { m[s.key] = s.label })
+    return m
+  }, [])
+
+  const attendanceLabels = useMemo(() => {
+    const m: Record<string, string> = {}
+    ATTENDANCE_STATUSES.forEach(a => { m[a.key] = a.label })
+    return m
+  }, [])
 
   /* ═══════════════ RENDER ═══════════════ */
   return (
-    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-4">
+    <div className="space-y-4 animate-in fade-in duration-200">
       {/* ─── Header ─── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -282,16 +366,15 @@ export function TeleSheet() {
           { label: 'اجتماعات', value: stats.meetings, color: '#ffd166' },
           { label: 'تم التقفيل', value: stats.closedWon, color: '#00d4aa' },
         ].map((s, i) => (
-          <motion.div
+          <div
             key={i}
-            variants={rowVariants}
             className="bg-[#111520] border border-white/[0.06] rounded-xl p-3"
           >
             <div className="text-[11px] text-[#8892b0]">{s.label}</div>
             <div className="text-[20px] font-bold mt-0.5" style={{ color: s.color, fontFamily: 'Cairo, sans-serif' }}>
               {s.value}
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
 
@@ -380,9 +463,9 @@ export function TeleSheet() {
                 <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
                   <TableHead className="w-[40px] text-right text-[11px] text-[#4a5280]">
                     <Checkbox
-                      checked={selected.length === filteredLeads.length && filteredLeads.length > 0}
+                      checked={selected.length === paginatedLeads.length && paginatedLeads.length > 0}
                       onCheckedChange={(checked) => {
-                        if (checked) selectAllLeads(viewKey, filteredLeads.map((l) => l.id))
+                        if (checked) selectAllLeads(viewKey, paginatedLeads.map((l) => l.id))
                         else clearSelectedLeadIds(viewKey)
                       }}
                       className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
@@ -399,63 +482,55 @@ export function TeleSheet() {
               </TableHeader>
               <TableBody>
                 {/* ─── Inline Add Row ─── */}
-                <AnimatePresence>
-                  {showAddRow && (
-                    <motion.tr
-                      variants={rowVariants}
-                      initial="hidden"
-                      animate="visible"
-                      exit="exit"
-                      className="border-b border-[#6c63ff]/20 bg-[#6c63ff]/5"
-                    >
-                      <TableCell className="w-[40px]">
-                        <UserPlus size={14} className="text-[#6c63ff]" />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          placeholder="اسم العميل"
-                          value={newLead.customerName}
-                          onChange={(e) => setNewLead((p) => ({ ...p, customerName: e.target.value }))}
-                          className="h-7 text-[11px] bg-[#0a0d14] border-[#6c63ff]/30 text-[#f0f2ff]"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          placeholder="رقم التليفون"
-                          value={newLead.phone}
-                          onChange={(e) => setNewLead((p) => ({ ...p, phone: e.target.value }))}
-                          className="h-7 text-[11px] bg-[#0a0d14] border-[#6c63ff]/30 text-[#f0f2ff]"
-                        />
-                      </TableCell>
-                      <TableCell>—</TableCell>
-                      <TableCell>
-                        <Badge className="bg-[#6c63ff]/15 text-[#a8a3ff] text-[10px] border-0">جديد</Badge>
-                      </TableCell>
-                      <TableCell>—</TableCell>
-                      <TableCell>—</TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={handleAddLead}
-                            disabled={saving}
-                            className="w-7 h-7 rounded-md bg-[#00d4aa]/15 text-[#00d4aa] flex items-center justify-center hover:bg-[#00d4aa]/25 transition-colors cursor-pointer disabled:opacity-50"
-                          >
-                            {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
-                          </button>
-                          <button
-                            onClick={() => setShowAddRow(false)}
-                            className="w-7 h-7 rounded-md bg-red-500/15 text-red-400 flex items-center justify-center hover:bg-red-500/25 transition-colors cursor-pointer"
-                          >
-                            <X size={12} />
-                          </button>
-                        </div>
-                      </TableCell>
-                    </motion.tr>
-                  )}
-                </AnimatePresence>
+                {showAddRow && (
+                  <tr className="border-b border-[#6c63ff]/20 bg-[#6c63ff]/5">
+                    <TableCell className="w-[40px]">
+                      <UserPlus size={14} className="text-[#6c63ff]" />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        placeholder="اسم العميل"
+                        value={newLead.customerName}
+                        onChange={(e) => setNewLead((p) => ({ ...p, customerName: e.target.value }))}
+                        className="h-7 text-[11px] bg-[#0a0d14] border-[#6c63ff]/30 text-[#f0f2ff]"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        placeholder="رقم التليفون"
+                        value={newLead.phone}
+                        onChange={(e) => setNewLead((p) => ({ ...p, phone: e.target.value }))}
+                        className="h-7 text-[11px] bg-[#0a0d14] border-[#6c63ff]/30 text-[#f0f2ff]"
+                      />
+                    </TableCell>
+                    <TableCell>—</TableCell>
+                    <TableCell>
+                      <Badge className="bg-[#6c63ff]/15 text-[#a8a3ff] text-[10px] border-0">جديد</Badge>
+                    </TableCell>
+                    <TableCell>—</TableCell>
+                    <TableCell>—</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={handleAddLead}
+                          disabled={saving}
+                          className="w-7 h-7 rounded-md bg-[#00d4aa]/15 text-[#00d4aa] flex items-center justify-center hover:bg-[#00d4aa]/25 transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                        </button>
+                        <button
+                          onClick={() => setShowAddRow(false)}
+                          className="w-7 h-7 rounded-md bg-red-500/15 text-red-400 flex items-center justify-center hover:bg-red-500/25 transition-colors cursor-pointer"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    </TableCell>
+                  </tr>
+                )}
 
                 {/* ─── Data Rows ─── */}
-                {filteredLeads.length === 0 && !showAddRow ? (
+                {paginatedLeads.length === 0 && !showAddRow ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-12 text-[#4a5280]">
                       <div className="text-[32px] mb-2">📋</div>
@@ -464,7 +539,7 @@ export function TeleSheet() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredLeads.map((lead) => {
+                  paginatedLeads.map((lead) => {
                     const isSelected = selected.includes(lead.id)
                     return (
                       <tr
@@ -510,62 +585,38 @@ export function TeleSheet() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Select
+                          <LazySelectCell
                             value={lead.contactResult || 'none'}
-                            onValueChange={(v) => handleUpdateField(lead.id, 'contactResult', v === 'none' ? '' : v)}
-                          >
-                            <SelectTrigger className="h-7 text-[11px] w-[110px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-[#111520] border-white/[0.08]">
-                              {CONTACT_RESULTS.map((cr) => (
-                                <SelectItem key={cr.key} value={cr.key} className="text-[11px] text-[#f0f2ff]">
-                                  {cr.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            options={CONTACT_RESULTS}
+                            onChange={(v) => handleUpdateField(lead.id, 'contactResult', v === 'none' ? '' : v)}
+                            displayMap={contactResultLabels}
+                            className="w-[110px]"
+                          />
                         </TableCell>
                         <TableCell>
-                          <Select
+                          <LazySelectCell
                             value={lead.status || 'new'}
-                            onValueChange={(v) => handleUpdateField(lead.id, 'status', v)}
-                          >
-                            <SelectTrigger className="h-7 text-[11px] w-[110px] bg-[#0a0d14] border-white/[0.08]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-[#111520] border-white/[0.08]">
-                              {STATUSES.map((st) => (
-                                <SelectItem key={st.key} value={st.key} className="text-[11px] text-[#f0f2ff]">
-                                  {st.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            options={STATUSES}
+                            onChange={(v) => handleUpdateField(lead.id, 'status', v)}
+                            displayMap={statusLabels}
+                            className="w-[110px]"
+                          />
                         </TableCell>
                         <TableCell>
-                          <Select
+                          <LazySelectCell
                             value={lead.attended || 'pending'}
-                            onValueChange={(v) => {
-                              const val = v === 'pending' ? null : v
+                            options={ATTENDANCE_STATUSES}
+                            onChange={(v) => {
+                              const val = v === 'pending' ? '' : v
                               handleUpdateField(lead.id, 'attended', val || '')
                               if (val) {
                                 handleUpdateField(lead.id, 'attendanceMarkedAt', String(Date.now()))
                                 handleUpdateField(lead.id, 'attendanceMarkedBy', currentUser || '')
                               }
                             }}
-                          >
-                            <SelectTrigger className="h-7 text-[11px] w-[90px] bg-[#0a0d14] border-white/[0.08]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-[#111520] border-white/[0.08]">
-                              {ATTENDANCE_STATUSES.map((a) => (
-                                <SelectItem key={a.key} value={a.key} className="text-[11px] text-[#f0f2ff]">
-                                  {a.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            displayMap={attendanceLabels}
+                            className="w-[90px]"
+                          />
                         </TableCell>
                         <TableCell>
                           <span className="text-[11px] text-[#8892b0]">
@@ -589,17 +640,40 @@ export function TeleSheet() {
             </Table>
           </div>
 
-          {/* ─── Table Footer ─── */}
+          {/* ─── Table Footer with Pagination ─── */}
           {filteredLeads.length > 0 && (
             <div className="border-t border-white/[0.06] px-4 py-2.5 flex items-center justify-between text-[11px] text-[#4a5280]">
-              <span>عرض {filteredLeads.length} عميل</span>
-              {selected.length > 0 && (
-                <span className="text-[#6c63ff]">{selected.length} محدد</span>
-              )}
+              <span>عرض {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, filteredLeads.length)} من {filteredLeads.length} عميل</span>
+              <div className="flex items-center gap-2">
+                {selected.length > 0 && (
+                  <span className="text-[#6c63ff]">{selected.length} محدد</span>
+                )}
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="w-7 h-7 rounded-md bg-[#1c2234] text-[#8892b0] flex items-center justify-center hover:bg-[#2a3050] transition-colors cursor-pointer disabled:opacity-30"
+                    >
+                      <ChevronRight size={12} />
+                    </button>
+                    <span className="text-[#f0f2ff] font-medium px-2">
+                      {currentPage} / {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="w-7 h-7 rounded-md bg-[#1c2234] text-[#8892b0] flex items-center justify-center hover:bg-[#2a3050] transition-colors cursor-pointer disabled:opacity-30"
+                    >
+                      <ChevronLeft size={12} />
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </CardContent>
       </Card>
-    </motion.div>
+    </div>
   )
 }

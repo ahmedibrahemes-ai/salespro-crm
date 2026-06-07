@@ -8,7 +8,6 @@ import {
   TrendingUp, TrendingDown, PhoneCall, MessageCircle, Trophy, Bot,
   Target, ArrowLeft,
 } from 'lucide-react'
-import { motion } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
 
 /* ═══════════════════════════════════════════════════════
@@ -115,24 +114,10 @@ function formatCurrency(val: number): string {
 }
 
 /* ═══════════════════════════════════════════════════════
-   Animation variants
-   ═══════════════════════════════════════════════════════ */
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.06 },
-  },
-}
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 12 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } },
-}
-
-/* ═══════════════════════════════════════════════════════
-   Dashboard Component
+   Dashboard Component — PERFORMANCE OPTIMIZED
+   - Removed Framer Motion (was creating stagger timers)
+   - Using CSS transitions instead
+   - Single-pass KPI computation
    ═══════════════════════════════════════════════════════ */
 
 export function Dashboard() {
@@ -162,42 +147,54 @@ export function Dashboard() {
     return () => { cancelled = true }
   }, [])
 
-  /* ─── Filter leads by role ─── */
-  const myLeads = useMemo(() => {
-    if (!leads) return []
+  /* ─── Single-pass: Filter leads by role + compute KPIs ─── */
+  const { myLeads, kpiValues, attentionLeads, overdueCount } = useMemo(() => {
+    // Step 1: Filter by role
+    let filtered: Lead[]
     if (currentRole === 'tele' && currentUser) {
-      return leads.filter((l) => l.tele === currentUser && !l.isArchived)
+      filtered = leads.filter((l) => l.tele === currentUser && !l.isArchived)
+    } else if (currentRole === 'sales' && currentUser) {
+      filtered = leads.filter((l) => l.sales === currentUser && !l.isArchived)
+    } else {
+      filtered = leads.filter((l) => !l.isArchived)
     }
-    if (currentRole === 'sales' && currentUser) {
-      return leads.filter((l) => l.sales === currentUser && !l.isArchived)
-    }
-    return leads.filter((l) => !l.isArchived)
-  }, [leads, currentUser, currentRole])
 
-  /* ─── Computed KPI values ─── */
-  const kpiValues = useMemo(() => {
+    // Step 2: Single-pass KPI computation
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
     const todayTs = todayStart.getTime()
 
-    const leadsCreatedToday = myLeads.filter((l) => l.createdAt >= todayTs).length
-    const callsExecuted = myLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length
-    const meetingsBooked = myLeads.filter((l) => l.meetingDate && l.meetingDate !== '').length
-    const attendedConfirmed = myLeads.filter((l) => l.attended === 'attended').length
-    const closedWon = myLeads.filter((l) => l.status === 'closed-won').length
-    const conversionRate = myLeads.length > 0 ? Math.round((closedWon / myLeads.length) * 1000) / 10 : 0
+    let leadsCreatedToday = 0
+    let callsExecuted = 0
+    let meetingsBooked = 0
+    let attendedConfirmed = 0
+    let closedWon = 0
+    const overdue: Lead[] = []
 
-    return { leadsCreatedToday, callsExecuted, meetingsBooked, attendedConfirmed, closedWon, conversionRate }
-  }, [myLeads])
+    for (const l of filtered) {
+      if (l.createdAt >= todayTs) leadsCreatedToday++
+      if (l.contactResult && l.contactResult !== 'none' && l.contactResult !== '') callsExecuted++
+      if (l.meetingDate && l.meetingDate !== '') meetingsBooked++
+      if (l.attended === 'attended') attendedConfirmed++
+      if (l.status === 'closed-won') closedWon++
+      if (isOverdueLead(l) && overdue.length < 5) overdue.push(l)
+    }
 
-  /* ─── Overdue/attention leads ─── */
-  const attentionLeads = useMemo(() => {
-    return myLeads
-      .filter((l) => isOverdueLead(l))
-      .slice(0, 5)
-  }, [myLeads])
+    const conversionRate = filtered.length > 0 ? Math.round((closedWon / filtered.length) * 1000) / 10 : 0
 
-  const overdueCount = useMemo(() => myLeads.filter((l) => isOverdueLead(l)).length, [myLeads])
+    // Count total overdue
+    let totalOverdue = 0
+    for (const l of filtered) {
+      if (isOverdueLead(l)) totalOverdue++
+    }
+
+    return {
+      myLeads: filtered,
+      kpiValues: { leadsCreatedToday, callsExecuted, meetingsBooked, attendedConfirmed, closedWon, conversionRate },
+      attentionLeads: overdue,
+      overdueCount: totalOverdue,
+    }
+  }, [leads, currentUser, currentRole])
 
   /* ─── Target progress ─── */
   const targetAmount = apiStats?.targetAmount || 115000
@@ -284,16 +281,11 @@ export function Dashboard() {
 
   /* ═══════════════ RENDER ═══════════════ */
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="space-y-5"
-    >
+    <div className="space-y-5 animate-in fade-in duration-300">
       {/* ══════════════════════════════════════════════════
           1. URGENT STRIP
           ══════════════════════════════════════════════════ */}
-      <motion.div variants={itemVariants}>
+      <div>
         <div className="relative flex items-center gap-3 bg-gradient-to-br from-[#ff6b6b]/10 to-[#ff6b6b]/4 border border-[#ff6b6b]/20 rounded-2xl px-4 md:px-5 py-4 overflow-hidden">
           {/* Ping indicator */}
           <span className="absolute -top-1 -right-1 w-3 h-3">
@@ -327,7 +319,7 @@ export function Dashboard() {
             <ArrowLeft size={12} />
           </button>
         </div>
-      </motion.div>
+      </div>
 
       {/* ══════════════════════════════════════════════════
           2. KPI CARDS ROW
@@ -337,9 +329,8 @@ export function Dashboard() {
         style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}
       >
         {kpis.map((kpi, i) => (
-          <motion.div
+          <div
             key={i}
-            variants={itemVariants}
             className="bg-[#111520] border border-white/[0.06] rounded-2xl p-4 relative overflow-hidden hover:-translate-y-0.5 hover:border-[#6c63ff]/20 transition-all group"
           >
             {/* Decorative corner */}
@@ -376,14 +367,14 @@ export function Dashboard() {
               {kpi.up ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
               {kpi.delta}
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
 
       {/* ══════════════════════════════════════════════════
           3. TARGET PROGRESS BAR
           ══════════════════════════════════════════════════ */}
-      <motion.div variants={itemVariants}>
+      <div>
         <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5">
           <div className="flex justify-between items-center mb-3.5">
             <div>
@@ -403,16 +394,14 @@ export function Dashboard() {
             </div>
           </div>
 
-          {/* Progress bar */}
+          {/* Progress bar - CSS transition instead of Framer Motion */}
           <div className="h-3 bg-[#0a0d14] rounded-full overflow-hidden mb-2.5">
-            <motion.div
-              className="h-full rounded-full"
+            <div
+              className="h-full rounded-full transition-all duration-1000 ease-out"
               style={{
                 background: 'linear-gradient(to left, #6c63ff, #00d4aa)',
+                width: `${targetPct}%`,
               }}
-              initial={{ width: 0 }}
-              animate={{ width: `${targetPct}%` }}
-              transition={{ duration: 1.4, ease: [0.4, 0, 0.2, 1] }}
             />
           </div>
 
@@ -421,14 +410,14 @@ export function Dashboard() {
             <span>{daysLeft} يوم متبقي</span>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* ══════════════════════════════════════════════════
           4. TWO-COLUMN GRID
           ══════════════════════════════════════════════════ */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* ─── LEFT: Needs Attention ─── */}
-        <motion.div variants={itemVariants}>
+        <div>
           <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 h-full">
             <div className="flex items-center gap-2 text-[14px] font-semibold text-[#f0f2ff] mb-4">
               <Flame size={16} className="text-[#ff6b6b]" />
@@ -505,10 +494,10 @@ export function Dashboard() {
               </div>
             )}
           </div>
-        </motion.div>
+        </div>
 
         {/* ─── RIGHT: Weekly Performance ─── */}
-        <motion.div variants={itemVariants}>
+        <div>
           <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 h-full">
             <div className="flex items-center gap-2 text-[14px] font-semibold text-[#f0f2ff] mb-4">
               <PhoneCall size={16} className="text-[#6c63ff]" />
@@ -526,18 +515,16 @@ export function Dashboard() {
                       {dayData.day}
                     </div>
 
-                    {/* Bar */}
+                    {/* Bar — CSS transition instead of Framer Motion */}
                     <div className="flex-1 h-6 bg-[#0a0d14] rounded-lg overflow-hidden relative">
-                      <motion.div
-                        className="h-full rounded-lg"
+                      <div
+                        className="h-full rounded-lg transition-all duration-700 ease-out"
                         style={{
                           background: isMax
                             ? 'linear-gradient(to left, #6c63ff, #00d4aa)'
                             : 'rgba(108,99,255,0.5)',
+                          width: `${pct}%`,
                         }}
-                        initial={{ width: 0 }}
-                        animate={{ width: `${pct}%` }}
-                        transition={{ duration: 0.8, delay: i * 0.08, ease: 'easeOut' }}
                       />
                       {/* Count inside bar */}
                       <div className="absolute inset-0 flex items-center justify-end px-2">
@@ -562,7 +549,7 @@ export function Dashboard() {
               </span>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* ══════════════════════════════════════════════════
@@ -570,7 +557,7 @@ export function Dashboard() {
           ══════════════════════════════════════════════════ */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* ─── Call Analytics ─── */}
-        <motion.div variants={itemVariants}>
+        <div>
           <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 text-center">
             <div className="flex items-center justify-center gap-2 text-[14px] font-semibold text-[#f0f2ff] mb-4">
               <Phone size={16} className="text-[#6c63ff]" />
@@ -616,17 +603,17 @@ export function Dashboard() {
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* ─── AI Score ─── */}
-        <motion.div variants={itemVariants}>
+        <div>
           <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 text-center">
             <div className="flex items-center justify-center gap-2 text-[14px] font-semibold text-[#f0f2ff] mb-4">
               <Bot size={16} className="text-[#6c63ff]" />
               AI Score
             </div>
 
-            {/* Circular progress */}
+            {/* Circular progress - CSS transition */}
             <div className="relative inline-flex items-center justify-center">
               <svg className="w-24 h-24 -rotate-90" viewBox="0 0 100 100">
                 <circle
@@ -637,7 +624,7 @@ export function Dashboard() {
                   stroke="rgba(108,99,255,0.1)"
                   strokeWidth="8"
                 />
-                <motion.circle
+                <circle
                   cx="50"
                   cy="50"
                   r="42"
@@ -646,11 +633,8 @@ export function Dashboard() {
                   strokeWidth="8"
                   strokeLinecap="round"
                   strokeDasharray={`${2 * Math.PI * 42}`}
-                  initial={{ strokeDashoffset: 2 * Math.PI * 42 }}
-                  animate={{
-                    strokeDashoffset: 2 * Math.PI * 42 * (1 - aiScore / 10),
-                  }}
-                  transition={{ duration: 1.2, ease: 'easeOut' }}
+                  strokeDashoffset={2 * Math.PI * 42 * (1 - aiScore / 10)}
+                  className="transition-all duration-1000 ease-out"
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -681,10 +665,10 @@ export function Dashboard() {
                 : 'يحتاج تحسين'}
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* ─── مركزك (Your Rank) ─── */}
-        <motion.div variants={itemVariants}>
+        <div>
           <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 text-center">
             <div className="flex items-center justify-center gap-2 text-[14px] font-semibold text-[#f0f2ff] mb-4">
               <Trophy size={16} className="text-[#ffd166]" />
@@ -706,8 +690,8 @@ export function Dashboard() {
               <span className="text-[11px] text-[#00d4aa]">أعلى من الفريق بـ 18%</span>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
-    </motion.div>
+    </div>
   )
 }

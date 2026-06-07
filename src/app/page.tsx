@@ -13,40 +13,34 @@ import { AdminPanel } from '@/components/crm/admin-panel'
 import { MyMeetings } from '@/components/crm/my-meetings'
 import { BulkAdd } from '@/components/crm/bulk-add'
 import { MyArchive } from '@/components/crm/my-archive'
+import { DailyReport } from '@/components/crm/daily-report'
+import { MeetingsPage } from '@/components/crm/meetings-page'
+import { CustomersStatus } from '@/components/crm/customers-status'
 import { Loader2 } from 'lucide-react'
 
 /* ------------------------------------------------------------------ */
-/*  Placeholder for views not yet implemented                          */
+/*  Fallback view for unknown views                                    */
 /* ------------------------------------------------------------------ */
-function PlaceholderView({ title }: { title: string }) {
+function FallbackView({ view }: { view: string }) {
   return (
     <div className="flex-1 flex items-center justify-center min-h-[40vh]">
       <div className="text-center">
-        <div className="text-[48px] mb-3">🚧</div>
+        <div className="text-[48px] mb-3">🔍</div>
         <h2
           className="text-[18px] font-bold text-[#f0f2ff] mb-1"
           style={{ fontFamily: 'Cairo, sans-serif' }}
         >
-          {title}
+          الصفحة غير موجودة
         </h2>
         <p
           className="text-[13px] text-[#8892b0]"
           style={{ fontFamily: 'Cairo, sans-serif' }}
         >
-          هذه الصفحة قيد التطوير
+          عرض غير معروف: {view}
         </p>
       </div>
     </div>
   )
-}
-
-/* ------------------------------------------------------------------ */
-/*  View Title Map for placeholders                                    */
-/* ------------------------------------------------------------------ */
-const VIEW_LABELS: Record<string, string> = {
-  'meetings': 'الاجتماعات',
-  'customers-status': 'حالة العملاء',
-  'daily-report': 'تقرير يومي',
 }
 
 /* ------------------------------------------------------------------ */
@@ -68,8 +62,14 @@ function ViewRouter({ currentView }: { currentView: ViewName }) {
       return <MyArchive />
     case 'admin':
       return <AdminPanel />
+    case 'daily-report':
+      return <DailyReport />
+    case 'meetings':
+      return <MeetingsPage />
+    case 'customers-status':
+      return <CustomersStatus />
     default:
-      return <PlaceholderView title={VIEW_LABELS[currentView] || currentView} />
+      return <FallbackView view={currentView} />
   }
 }
 

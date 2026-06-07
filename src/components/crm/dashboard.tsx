@@ -320,7 +320,7 @@ export function Dashboard() {
 
           {/* CTA button */}
           <button
-            onClick={() => setCurrentView('followup')}
+            onClick={() => setCurrentView('my-meetings')}
             className="bg-[#161b28] border border-[#ff6b6b]/40 text-[#ff6b6b] px-4 py-2 rounded-xl text-[12px] font-semibold hover:bg-[#ff6b6b]/10 transition-all cursor-pointer shrink-0 hidden sm:flex items-center gap-1.5"
           >
             عرض الكل

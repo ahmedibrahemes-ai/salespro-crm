@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, Component } from 'react'
 import { useCrmStore, hydrateAuth, type ViewName } from '@/lib/store'
 import { apiGetLeads, apiGetArchivedLeads, apiGetTeam, apiSubscribeToLeads, apiUnsubscribe } from '@/lib/supabase'
 import { LoginScreen } from '@/components/crm/login-screen'
@@ -16,7 +16,67 @@ import { MyArchive } from '@/components/crm/my-archive'
 import { DailyReport } from '@/components/crm/daily-report'
 import { MeetingsPage } from '@/components/crm/meetings-page'
 import { CustomersStatus } from '@/components/crm/customers-status'
-import { Loader2 } from 'lucide-react'
+import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react'
+
+/* ------------------------------------------------------------------ */
+/*  Error Boundary to prevent component crashes from hanging the app   */
+/* ------------------------------------------------------------------ */
+interface ErrorBoundaryProps {
+  children: React.ReactNode
+  viewName?: string
+}
+interface ErrorBoundaryState {
+  hasError: boolean
+  error: Error | null
+}
+
+class ViewErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error(`[ErrorBoundary] View "${this.props.viewName}" crashed:`, error, errorInfo)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex-1 flex items-center justify-center min-h-[40vh]">
+          <div className="text-center max-w-md">
+            <div className="text-[48px] mb-3">⚠️</div>
+            <h2
+              className="text-[18px] font-bold text-[#f0f2ff] mb-2"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              حدث خطأ في هذه الصفحة
+            </h2>
+            <p
+              className="text-[13px] text-[#8892b0] mb-4"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              {this.state.error?.message || 'خطأ غير معروف'}
+            </p>
+            <button
+              onClick={() => this.setState({ hasError: false, error: null })}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#6c63ff]/15 text-[#6c63ff] text-[13px] font-medium hover:bg-[#6c63ff]/25 transition-colors cursor-pointer"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              <RefreshCw size={14} />
+              إعادة المحاولة
+            </button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  Fallback view for unknown views                                    */
@@ -44,33 +104,41 @@ function FallbackView({ view }: { view: string }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  View Router                                                        */
+/*  View Router (wrapped with Error Boundary)                          */
 /* ------------------------------------------------------------------ */
 function ViewRouter({ currentView }: { currentView: ViewName }) {
-  switch (currentView) {
-    case 'dashboard':
-      return <Dashboard />
-    case 'my-sheet':
-      return <TeleSheet />
-    case 'sales-sheet':
-      return <SalesSheet />
-    case 'my-meetings':
-      return <MyMeetings />
-    case 'bulk-add':
-      return <BulkAdd />
-    case 'my-archive':
-      return <MyArchive />
-    case 'admin':
-      return <AdminPanel />
-    case 'daily-report':
-      return <DailyReport />
-    case 'meetings':
-      return <MeetingsPage />
-    case 'customers-status':
-      return <CustomersStatus />
-    default:
-      return <FallbackView view={currentView} />
+  function renderView() {
+    switch (currentView) {
+      case 'dashboard':
+        return <Dashboard />
+      case 'my-sheet':
+        return <TeleSheet />
+      case 'sales-sheet':
+        return <SalesSheet />
+      case 'my-meetings':
+        return <MyMeetings />
+      case 'bulk-add':
+        return <BulkAdd />
+      case 'my-archive':
+        return <MyArchive />
+      case 'admin':
+        return <AdminPanel />
+      case 'daily-report':
+        return <DailyReport />
+      case 'meetings':
+        return <MeetingsPage />
+      case 'customers-status':
+        return <CustomersStatus />
+      default:
+        return <FallbackView view={currentView} />
+    }
   }
+
+  return (
+    <ViewErrorBoundary viewName={currentView}>
+      {renderView()}
+    </ViewErrorBoundary>
+  )
 }
 
 /* ------------------------------------------------------------------ */

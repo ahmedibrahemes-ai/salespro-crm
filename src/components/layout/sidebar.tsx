@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   LayoutDashboard,
   Phone,
@@ -96,7 +96,25 @@ export function Sidebar() {
 
   const [expanded, setExpanded] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null)
+  const collapseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const meetingBadge = useMeetingBadgeCount()
+
+  const handleMouseEnter = useCallback(() => {
+    if (collapseTimer.current) {
+      clearTimeout(collapseTimer.current)
+      collapseTimer.current = null
+    }
+    if (!mobileOpen) setExpanded(true)
+  }, [mobileOpen])
+
+  const handleMouseLeave = useCallback(() => {
+    // Small delay before collapsing to prevent flicker
+    collapseTimer.current = setTimeout(() => {
+      setExpanded(false)
+      setHoveredItem(null)
+    }, 150)
+  }, [])
 
   // Filter nav items by current role
   const filteredItems = useMemo(
@@ -166,10 +184,11 @@ export function Sidebar() {
           fixed right-0 top-0 h-screen bg-[#111520] border-l border-white/[0.06]
           flex flex-col items-center py-5 z-[80] overflow-hidden
           transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
-          ${mobileOpen ? 'w-[220px]' : 'w-0 md:w-[72px]'}
+          ${mobileOpen ? 'w-[220px]' : expanded ? 'w-[220px]' : 'w-0 md:w-[72px]'}
+          ${expanded && !mobileOpen ? 'shadow-[-4px_0_24px_rgba(0,0,0,0.4)]' : ''}
         `}
-        onMouseEnter={() => !mobileOpen && setExpanded(true)}
-        onMouseLeave={() => setExpanded(false)}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       >
         {/* Close button on mobile */}
         {mobileOpen && (

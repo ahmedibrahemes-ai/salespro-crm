@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useCallback } from 'react'
+import { useMemo, useState, useCallback, useEffect } from 'react'
 import {
   useCrmStore, CONTACT_RESULTS, STATUSES, SALES_STATUSES, ATTENDANCE_STATUSES,
   formatDate, getDateRange, type AdminTab,
@@ -14,7 +14,8 @@ import {
 import {
   BarChart3, Phone, Users, Archive, Settings, UserCog, ChevronLeft,
   Search, Trash2, PhoneCall, Trophy, UserPlus, UserMinus, Pencil,
-  Check, X, Plus, ArrowUpDown, LayoutGrid,
+  Check, X, Plus, ArrowUpDown, LayoutGrid, Shield, KeyRound,
+  Loader2, Eye, EyeOff, ToggleLeft, ToggleRight,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -43,6 +44,7 @@ const ADMIN_TABS: { key: AdminTab; label: string; icon: React.ElementType }[] = 
   { key: 'all-leads', label: 'كل العملاء', icon: LayoutGrid },
   { key: 'archive', label: 'الأرشيف', icon: Archive },
   { key: 'team', label: 'الفريق', icon: UserCog },
+  { key: 'users', label: 'المستخدمين', icon: Shield },
   { key: 'settings', label: 'الإعدادات', icon: Settings },
 ]
 
@@ -649,6 +651,359 @@ function TeamTab() {
 }
 
 /* ═══════════════════════════════════════════════════════
+   Users Management Tab
+   Admin can create, list, toggle, reset passwords
+   ═══════════════════════════════════════════════════════ */
+interface AppUser {
+  id: string
+  username: string
+  display_name: string
+  role: string
+  is_active: boolean
+  last_login_at: string | null
+  created_at: string
+}
+
+function UsersTab() {
+  const addToast = useCrmStore((s) => s.addToast)
+  const [users, setUsers] = useState<AppUser[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [newUser, setNewUser] = useState({ username: '', password: '', displayName: '', role: 'tele' as 'tele' | 'sales' | 'admin' })
+  const [showPassword, setShowPassword] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [resetUserId, setResetUserId] = useState<string | null>(null)
+  const [resetPassword, setResetPassword] = useState('')
+  const [resetSaving, setResetSaving] = useState(false)
+
+  /* ─── Fetch users ─── */
+  const fetchUsers = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'list-users' }),
+      })
+      const data = await res.json()
+      if (data.users) setUsers(data.users as AppUser[])
+    } catch {
+      addToast('error', 'فشل في تحميل المستخدمين')
+    } finally {
+      setLoading(false)
+    }
+  }, [addToast])
+
+  useEffect(() => { fetchUsers() }, [fetchUsers])
+
+  /* ─── Create user ─── */
+  const handleCreateUser = useCallback(async () => {
+    if (!newUser.username.trim() || !newUser.password || !newUser.displayName.trim()) {
+      addToast('warning', 'جميع الحقول مطلوبة')
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create-user',
+          username: newUser.username.trim(),
+          password: newUser.password,
+          displayName: newUser.displayName.trim(),
+          role: newUser.role,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        addToast('error', data.error || 'فشل في إنشاء المستخدم')
+        return
+      }
+      addToast('success', `تم إنشاء المستخدم ${newUser.displayName} بنجاح ✅`)
+      setNewUser({ username: '', password: '', displayName: '', role: 'tele' })
+      setShowAddForm(false)
+      fetchUsers()
+    } catch {
+      addToast('error', 'فشل في إنشاء المستخدم')
+    } finally {
+      setSaving(false)
+    }
+  }, [newUser, addToast, fetchUsers])
+
+  /* ─── Toggle user active ─── */
+  const handleToggleUser = useCallback(async (userId: string, isActive: boolean) => {
+    try {
+      await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle-user', userId, isActive: !isActive }),
+      })
+      addToast('success', isActive ? 'تم تعطيل المستخدم' : 'تم تفعيل المستخدم')
+      fetchUsers()
+    } catch {
+      addToast('error', 'فشل في تحديث حالة المستخدم')
+    }
+  }, [addToast, fetchUsers])
+
+  /* ─── Reset password ─── */
+  const handleResetPassword = useCallback(async () => {
+    if (!resetUserId || !resetPassword) {
+      addToast('warning', 'كلمة المرور الجديدة مطلوبة')
+      return
+    }
+    setResetSaving(true)
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reset-password', userId: resetUserId, newPassword: resetPassword }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        addToast('error', data.error || 'فشل في إعادة تعيين كلمة المرور')
+        return
+      }
+      addToast('success', 'تم إعادة تعيين كلمة المرور بنجاح ✅')
+      setResetUserId(null)
+      setResetPassword('')
+    } catch {
+      addToast('error', 'فشل في إعادة تعيين كلمة المرور')
+    } finally {
+      setResetSaving(false)
+    }
+  }, [resetUserId, resetPassword, addToast])
+
+  const roleLabels: Record<string, string> = { tele: 'تيلي', sales: 'سيلز', admin: 'أدمن' }
+  const roleColors: Record<string, string> = { tele: 'bg-[#6c63ff]/15 text-[#a8a3ff]', sales: 'bg-[#00d4aa]/15 text-[#00d4aa]', admin: 'bg-amber-500/15 text-amber-400' }
+
+  return (
+    <div className="space-y-4">
+      {/* Add User Button */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Badge className="bg-[#1c2234] text-[#8892b0] text-[11px] border-0">
+            {users.length} مستخدم
+          </Badge>
+        </div>
+        <Button
+          onClick={() => setShowAddForm(!showAddForm)}
+          className="bg-[#6c63ff] hover:bg-[#5b54e6] text-white gap-1.5 text-[12px] h-9 cursor-pointer"
+        >
+          <UserPlus size={14} />
+          إنشاء مستخدم
+        </Button>
+      </div>
+
+      {/* Add User Form */}
+      {showAddForm && (
+        <Card className="bg-[#111520] border-[#6c63ff]/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[14px] text-[#f0f2ff] flex items-center gap-2">
+              <Shield size={16} className="text-[#6c63ff]" />
+              إنشاء مستخدم جديد
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] text-[#8892b0] mb-1 block">اسم المستخدم (للدخول)</label>
+                <Input
+                  placeholder="مثال: amira2024"
+                  value={newUser.username}
+                  onChange={(e) => setNewUser((p) => ({ ...p, username: e.target.value }))}
+                  className="h-9 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]"
+                  dir="ltr"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-[#8892b0] mb-1 block">كلمة المرور</label>
+                <div className="relative">
+                  <Input
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="كلمة المرور"
+                    value={newUser.password}
+                    onChange={(e) => setNewUser((p) => ({ ...p, password: e.target.value }))}
+                    className="h-9 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] pr-3 pl-9"
+                    dir="ltr"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#4a5280] hover:text-[#8892b0] cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="text-[11px] text-[#8892b0] mb-1 block">الاسم المعروض</label>
+                <Input
+                  placeholder="مثال: أميرة"
+                  value={newUser.displayName}
+                  onChange={(e) => setNewUser((p) => ({ ...p, displayName: e.target.value }))}
+                  className="h-9 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-[#8892b0] mb-1 block">الدور</label>
+                <Select value={newUser.role} onValueChange={(v: 'tele' | 'sales' | 'admin') => setNewUser((p) => ({ ...p, role: v }))}>
+                  <SelectTrigger className="h-9 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#111520] border-white/[0.08]">
+                    <SelectItem value="tele" className="text-[12px]">تيلي</SelectItem>
+                    <SelectItem value="sales" className="text-[12px]">سيلز</SelectItem>
+                    <SelectItem value="admin" className="text-[12px]">أدمن</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 mt-4">
+              <Button
+                onClick={handleCreateUser}
+                disabled={saving}
+                className="bg-[#00d4aa] hover:bg-[#00b894] text-[#0a0d14] gap-1.5 text-[12px] h-9 font-semibold cursor-pointer"
+              >
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                إنشاء المستخدم
+              </Button>
+              <Button
+                onClick={() => { setShowAddForm(false); setNewUser({ username: '', password: '', displayName: '', role: 'tele' }) }}
+                className="bg-[#1c2234] text-[#8892b0] hover:text-[#f0f2ff] text-[12px] h-9 border-0 cursor-pointer"
+              >
+                إلغاء
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Reset Password Form */}
+      {resetUserId && (
+        <Card className="bg-[#111520] border-amber-500/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <KeyRound size={16} className="text-amber-400" />
+              <span className="text-[13px] text-[#f0f2ff] font-semibold">إعادة تعيين كلمة المرور</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                type="password"
+                placeholder="كلمة المرور الجديدة"
+                value={resetPassword}
+                onChange={(e) => setResetPassword(e.target.value)}
+                className="h-9 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] max-w-[250px]"
+                dir="ltr"
+              />
+              <Button
+                onClick={handleResetPassword}
+                disabled={resetSaving}
+                className="bg-amber-500 hover:bg-amber-600 text-[#0a0d14] gap-1.5 text-[12px] h-9 font-semibold cursor-pointer"
+              >
+                {resetSaving ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />}
+                تحديث
+              </Button>
+              <Button
+                onClick={() => { setResetUserId(null); setResetPassword('') }}
+                className="bg-[#1c2234] text-[#8892b0] hover:text-[#f0f2ff] text-[12px] h-9 border-0 cursor-pointer"
+              >
+                إلغاء
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Users Table */}
+      <Card className="bg-[#111520] border-white/[0.06]">
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 size={24} className="animate-spin text-[#6c63ff]" />
+            </div>
+          ) : users.length === 0 ? (
+            <div className="text-center py-12 text-[#4a5280]">
+              <div className="text-[32px] mb-2">👤</div>
+              <div className="text-[13px]">لا يوجد مستخدمين</div>
+              <div className="text-[11px] mt-1">اضغط &quot;إنشاء مستخدم&quot; لإضافة مستخدم جديد</div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
+                    <TableHead className="text-right text-[11px] text-[#4a5280]">المستخدم</TableHead>
+                    <TableHead className="text-right text-[11px] text-[#4a5280]">اسم الدخول</TableHead>
+                    <TableHead className="text-right text-[11px] text-[#4a5280]">الدور</TableHead>
+                    <TableHead className="text-right text-[11px] text-[#4a5280]">الحالة</TableHead>
+                    <TableHead className="text-right text-[11px] text-[#4a5280]">آخر دخول</TableHead>
+                    <TableHead className="text-right text-[11px] text-[#4a5280] w-[120px]">إجراءات</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((user) => (
+                    <TableRow key={user.id} className={`border-b border-white/[0.04] ${!user.is_active ? 'opacity-50' : ''}`}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold shrink-0 ${user.role === 'admin' ? 'bg-amber-500/15 text-amber-400' : user.role === 'tele' ? 'bg-[#6c63ff]/15 text-[#a8a3ff]' : 'bg-[#00d4aa]/15 text-[#00d4aa]'}`}>
+                            {(user.display_name || user.username).slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="text-[12px] text-[#f0f2ff] font-medium">{user.display_name || '—'}</div>
+                            <div className="text-[10px] text-[#4a5280]">{user.created_at ? new Date(user.created_at).toLocaleDateString('ar-EG') : '—'}</div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-[12px] text-[#8892b0] font-mono" dir="ltr">{user.username}</TableCell>
+                      <TableCell>
+                        <Badge className={`text-[10px] border-0 ${roleColors[user.role] || 'bg-[#1c2234] text-[#8892b0]'}`}>
+                          {roleLabels[user.role] || user.role}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={`text-[10px] border-0 ${user.is_active ? 'bg-[#00d4aa]/15 text-[#00d4aa]' : 'bg-red-500/15 text-red-400'}`}>
+                          {user.is_active ? 'مفعّل' : 'معطّل'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-[11px] text-[#4a5280]">
+                        {user.last_login_at ? new Date(user.last_login_at).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'لم يسجل دخول'}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => setResetUserId(user.id)}
+                            className="w-7 h-7 rounded-md bg-amber-500/10 text-amber-400/70 flex items-center justify-center hover:bg-amber-500/20 hover:text-amber-400 transition-colors cursor-pointer"
+                            title="تغيير كلمة المرور"
+                          >
+                            <KeyRound size={12} />
+                          </button>
+                          <button
+                            onClick={() => handleToggleUser(user.id, user.is_active)}
+                            className="w-7 h-7 rounded-md flex items-center justify-center transition-colors cursor-pointer"
+                            title={user.is_active ? 'تعطيل' : 'تفعيل'}
+                          >
+                            {user.is_active ? (
+                              <ToggleRight size={16} className="text-[#00d4aa]" />
+                            ) : (
+                              <ToggleLeft size={16} className="text-red-400" />
+                            )}
+                          </button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
    Settings Tab (Placeholder)
    ═══════════════════════════════════════════════════════ */
 function SettingsTab() {
@@ -748,6 +1103,9 @@ export function AdminPanel() {
         </TabsContent>
         <TabsContent value="team" className="mt-4">
           <TeamTab />
+        </TabsContent>
+        <TabsContent value="users" className="mt-4">
+          <UsersTab />
         </TabsContent>
         <TabsContent value="settings" className="mt-4">
           <SettingsTab />

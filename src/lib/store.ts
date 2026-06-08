@@ -96,6 +96,7 @@ export type AdminTab =
   | 'all-leads'
   | 'archive'
   | 'team'
+  | 'users'
   | 'settings'
 
 // ===== Duplicate Cache Entry =====

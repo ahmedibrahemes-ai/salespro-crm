@@ -59,6 +59,8 @@ interface TeamPerfRow {
 export function CustomersStatus() {
   const leads = useCrmStore((s) => s.leads)
   const team = useCrmStore((s) => s.team)
+  const currentUser = useCrmStore((s) => s.currentUser)
+  const currentRole = useCrmStore((s) => s.currentRole)
 
   /* ─── Local State ─── */
   const [memberFilter, setMemberFilter] = useState<string>('all')
@@ -68,6 +70,13 @@ export function CustomersStatus() {
   const { filteredLeads, statusBreakdown, teamPerformance, kpiValues, maxStatusCount } = useMemo(() => {
     // Step 1: Active leads
     let result = leads.filter((l) => !l.isArchived)
+
+    // Step 1.5: Filter by role — tele/sales see only their own data
+    if (currentRole === 'tele' && currentUser) {
+      result = result.filter((l) => l.tele === currentUser)
+    } else if (currentRole === 'sales' && currentUser) {
+      result = result.filter((l) => l.sales === currentUser)
+    }
 
     // Step 2: Filter by team member
     if (memberFilter !== 'all') {
@@ -157,7 +166,7 @@ export function CustomersStatus() {
       kpiValues: kpis,
       maxStatusCount: maxCount,
     }
-  }, [leads, team, memberFilter, searchQuery])
+  }, [leads, team, memberFilter, searchQuery, currentUser, currentRole])
 
   /* ─── Filtered team performance (for search in table) ─── */
   const filteredTeamPerf = useMemo(() => {

@@ -136,6 +136,8 @@ export function DailyReport() {
   const leads = useCrmStore((s) => s.leads)
   const archivedLeads = useCrmStore((s) => s.archivedLeads)
   const team = useCrmStore((s) => s.team)
+  const currentUser = useCrmStore((s) => s.currentUser)
+  const currentRole = useCrmStore((s) => s.currentRole)
 
   /* ─── Date Navigation ─── */
   const [selectedDate, setSelectedDate] = useState(new Date())
@@ -173,7 +175,14 @@ export function DailyReport() {
 
   /* ─── SINGLE PASS: All computations in one useMemo ─── */
   const computed = useMemo(() => {
-    const allLeads = [...leads, ...archivedLeads]
+    let allLeads = [...leads, ...archivedLeads]
+
+    // Role-based filtering: tele/sales only see their own data
+    if (currentRole === 'tele' && currentUser) {
+      allLeads = allLeads.filter((l) => l.tele === currentUser)
+    } else if (currentRole === 'sales' && currentUser) {
+      allLeads = allLeads.filter((l) => l.sales === currentUser)
+    }
 
     // KPI values - single pass
     let newLeadsCount = 0
@@ -332,7 +341,7 @@ export function DailyReport() {
       teamActivity,
       topPerformer,
     }
-  }, [leads, archivedLeads, team, selectedDate])
+  }, [leads, archivedLeads, team, selectedDate, currentUser, currentRole])
 
   /* ─── Performance Rating ─── */
   const performanceRating = useMemo(() => {

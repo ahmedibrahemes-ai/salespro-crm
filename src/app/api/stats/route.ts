@@ -47,6 +47,19 @@ export async function GET() {
   try {
     // Use admin client if available (bypasses RLS), otherwise anon client
     const client = isAdminAvailable() ? getSupabaseAdmin()! : createAnonClient()
+    if (!client) {
+      // Return empty stats when Supabase is not configured (demo mode)
+      return NextResponse.json({
+        totalLeads: 0, totalActive: 0, totalArchived: 0, totalAttended: 0,
+        totalNoShow: 0, totalPending: 0, totalMeetings: 0, totalClosedWon: 0,
+        totalClosedLost: 0, todayStats: { leadsCreated: 0, meetingsToday: 0, attendedToday: 0 },
+        perTele: {}, perSales: {}, totalCalls: 0, closedDeals: 0, conversionRate: 0,
+        leadsToday: 0, callsToday: 0, dealsToday: 0, currentMonth: getCurrentMonthAr(),
+        weeklyCalls: ['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'].map(day => ({ day, count: 0 })),
+        callAnalytics: { totalMinutes: 0, successCount: 0, failCount: 0, avgDuration: '0:00' },
+        aiScore: 0, overdueCount: 0,
+      })
+    }
 
     // ===== Core counts using count: 'exact' =====
     const [

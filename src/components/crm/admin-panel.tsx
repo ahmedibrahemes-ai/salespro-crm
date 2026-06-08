@@ -666,6 +666,8 @@ interface AppUser {
 
 function UsersTab() {
   const addToast = useCrmStore((s) => s.addToast)
+  const team = useCrmStore((s) => s.team)
+  const setTeam = useCrmStore((s) => s.setTeam)
   const [users, setUsers] = useState<AppUser[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -696,7 +698,7 @@ function UsersTab() {
 
   useEffect(() => { fetchUsers() }, [fetchUsers])
 
-  /* ─── Create user ─── */
+  /* ─── Create user + auto-add to team ─── */
   const handleCreateUser = useCallback(async () => {
     if (!newUser.username.trim() || !newUser.password || !newUser.displayName.trim()) {
       addToast('warning', 'جميع الحقول مطلوبة')
@@ -720,6 +722,24 @@ function UsersTab() {
         addToast('error', data.error || 'فشل في إنشاء المستخدم')
         return
       }
+
+      // Auto-add to team_members if role is tele or sales
+      const memberRole = newUser.role as 'tele' | 'sales'
+      if (memberRole === 'tele' || memberRole === 'sales') {
+        try {
+          await apiAddTeamMember(newUser.displayName.trim(), memberRole)
+          // Update local team state
+          const updated = { ...team }
+          if (!updated[memberRole].includes(newUser.displayName.trim())) {
+            updated[memberRole] = [...updated[memberRole], newUser.displayName.trim()]
+            setTeam(updated)
+          }
+        } catch {
+          // Team member creation failed but user was created — non-critical
+          console.warn('[UsersTab] Failed to auto-add team member')
+        }
+      }
+
       addToast('success', `تم إنشاء المستخدم ${newUser.displayName} بنجاح ✅`)
       setNewUser({ username: '', password: '', displayName: '', role: 'tele' })
       setShowAddForm(false)
@@ -729,7 +749,7 @@ function UsersTab() {
     } finally {
       setSaving(false)
     }
-  }, [newUser, addToast, fetchUsers])
+  }, [newUser, addToast, fetchUsers, team, setTeam])
 
   /* ─── Toggle user active ─── */
   const handleToggleUser = useCallback(async (userId: string, isActive: boolean) => {

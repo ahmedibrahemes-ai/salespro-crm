@@ -58,12 +58,14 @@ export function createAuthenticatedClient(accessToken: string): SupabaseClient {
  * Used for reliable pagination in GET endpoints.
  * RLS SELECT policies should allow public reads.
  */
-export function createAnonClient(): SupabaseClient {
+export function createAnonClient(): SupabaseClient | null {
   if (!SUPABASE_URL) {
-    throw new Error('NEXT_PUBLIC_SUPABASE_URL is not configured.')
+    console.warn('[supabase-admin] NEXT_PUBLIC_SUPABASE_URL is not configured. Returning null.')
+    return null
   }
   if (!ANON_KEY) {
-    throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY is not configured.')
+    console.warn('[supabase-admin] NEXT_PUBLIC_SUPABASE_ANON_KEY is not configured. Returning null.')
+    return null
   }
   return createClient(SUPABASE_URL, ANON_KEY, {
     auth: {

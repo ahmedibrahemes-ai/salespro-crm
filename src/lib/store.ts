@@ -111,6 +111,8 @@ interface CrmStore {
   currentUser: string | null
   currentRole: 'tele' | 'sales' | 'admin' | null
   isAuthenticated: boolean
+  userId: string | null
+  username: string | null
 
   // Navigation
   currentView: ViewName
@@ -131,7 +133,7 @@ interface CrmStore {
   setLoading: (loading: boolean) => void
 
   // Actions
-  login: (user: string, role: 'tele' | 'sales' | 'admin') => void
+  login: (user: string, role: 'tele' | 'sales' | 'admin', userId?: string, username?: string) => void
   logout: () => void
   updateLeadInCache: (id: string, updates: Partial<Lead>) => void
   addLeadToCache: (lead: Lead) => void
@@ -212,24 +214,24 @@ function compareIds(a: string, b: string): number {
 
 // ===== Persisted Auth State =====
 function getPersistedAuth() {
-  if (typeof window === 'undefined') return { currentUser: null, currentRole: null, isAuthenticated: false }
+  if (typeof window === 'undefined') return { currentUser: null, currentRole: null, isAuthenticated: false, userId: null, username: null }
   try {
     const stored = localStorage.getItem('venom-auth')
     if (stored) {
       const parsed = JSON.parse(stored)
       if (parsed.currentUser && parsed.currentRole) {
-        return { currentUser: parsed.currentUser, currentRole: parsed.currentRole, isAuthenticated: true }
+        return { currentUser: parsed.currentUser, currentRole: parsed.currentRole, isAuthenticated: true, userId: parsed.userId || null, username: parsed.username || null }
       }
     }
   } catch { /* ignore */ }
-  return { currentUser: null, currentRole: null, isAuthenticated: false }
+  return { currentUser: null, currentRole: null, isAuthenticated: false, userId: null, username: null }
 }
 
-function persistAuth(user: string | null, role: 'tele' | 'sales' | 'admin' | null) {
+function persistAuth(user: string | null, role: 'tele' | 'sales' | 'admin' | null, userId?: string | null, username?: string | null) {
   if (typeof window === 'undefined') return
   try {
     if (user && role) {
-      localStorage.setItem('venom-auth', JSON.stringify({ currentUser: user, currentRole: role }))
+      localStorage.setItem('venom-auth', JSON.stringify({ currentUser: user, currentRole: role, userId: userId || null, username: username || null }))
     } else {
       localStorage.removeItem('venom-auth')
     }
@@ -242,6 +244,8 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
   currentUser: null,
   currentRole: null,
   isAuthenticated: false,
+  userId: null,
+  username: null,
 
   // Navigation
   currentView: 'login',
@@ -280,9 +284,9 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
   setLoading: (loading) => set({ loading }),
 
   // Actions
-  login: (user, role) => {
-    persistAuth(user, role)
-    set({ currentUser: user, currentRole: role, isAuthenticated: true, currentView: 'dashboard' })
+  login: (user, role, userId?, username?) => {
+    persistAuth(user, role, userId, username)
+    set({ currentUser: user, currentRole: role, isAuthenticated: true, currentView: 'dashboard', userId: userId || null, username: username || null })
   },
   logout: () => {
     persistAuth(null, null)
@@ -290,6 +294,8 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
       currentUser: null,
       currentRole: null,
       isAuthenticated: false,
+      userId: null,
+      username: null,
       currentView: 'login',
       leads: [],
       archivedLeads: [],
@@ -652,6 +658,8 @@ export function hydrateAuth() {
       currentRole: auth.currentRole,
       isAuthenticated: true,
       currentView: 'dashboard',
+      userId: auth.userId || null,
+      username: auth.username || null,
     })
   }
 }

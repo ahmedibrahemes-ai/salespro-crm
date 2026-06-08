@@ -231,6 +231,9 @@ export async function GET(request: NextRequest) {
     // The admin (service role) client can have inconsistent pagination behavior.
     // Since RLS SELECT policies allow public reads, anon client works fine.
     const client = createAnonClient()
+    if (!client) {
+      return NextResponse.json({ leads: [], hasMore: false }, { status: 200 })
+    }
     const source = 'supabase'
 
     const PAGE_SIZE = 1000 // Supabase REST API default max rows per request

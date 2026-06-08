@@ -217,6 +217,7 @@ export function MeetingsPage() {
   const leads = useCrmStore((s) => s.leads)
   const team = useCrmStore((s) => s.team)
   const currentUser = useCrmStore((s) => s.currentUser)
+  const currentRole = useCrmStore((s) => s.currentRole)
   const addToast = useCrmStore((s) => s.addToast)
   const updateLeadInCache = useCrmStore((s) => s.updateLeadInCache)
 
@@ -235,6 +236,13 @@ export function MeetingsPage() {
   /* ─── Filtered meetings ─── */
   const meetingLeads = useMemo(() => {
     let result = leads.filter((l) => !l.isArchived && l.meetingDate && l.meetingDate !== '')
+
+    // Role-based filtering: tele/sales only see their own meetings
+    if (currentRole === 'tele' && currentUser) {
+      result = result.filter((l) => l.tele === currentUser)
+    } else if (currentRole === 'sales' && currentUser) {
+      result = result.filter((l) => l.sales === currentUser)
+    }
 
     if (timeFilter === 'today') {
       result = result.filter((l) => isToday(l.meetingDate))
@@ -263,7 +271,7 @@ export function MeetingsPage() {
     })
 
     return result
-  }, [leads, timeFilter, memberFilter, searchQuery])
+  }, [leads, timeFilter, memberFilter, searchQuery, currentUser, currentRole])
 
   /* ─── Stats ─── */
   const stats = useMemo(() => {

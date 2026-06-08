@@ -171,8 +171,10 @@ export function TeleSheet() {
   })
   const [saving, setSaving] = useState(false)
   const [bulkAction, setBulkAction] = useState<string | null>(null)
+  // Tele users are locked to their own data; admin can see everyone
+  const isLockedToSelf = currentRole === 'tele'
   const [selectedTele, setSelectedTele] = useState<string>(
-    currentRole === 'tele' && currentUser ? currentUser : 'all'
+    isLockedToSelf && currentUser ? currentUser : 'all'
   )
   const [transferLeadId, setTransferLeadId] = useState<string | null>(null)
   const [transferSales, setTransferSales] = useState('')
@@ -184,8 +186,10 @@ export function TeleSheet() {
   const filteredLeads = useMemo(() => {
     let result = leads.filter((l) => !l.isArchived)
 
-    // Filter by tele
-    if (selectedTele !== 'all') {
+    // Filter by tele — tele users can ONLY see their own leads
+    if (isLockedToSelf) {
+      result = result.filter((l) => l.tele === currentUser)
+    } else if (selectedTele !== 'all') {
       result = result.filter((l) => l.tele === selectedTele)
     }
 
@@ -446,19 +450,26 @@ export function TeleSheet() {
       <Card className="bg-[#111520] border-white/[0.06]">
         <CardContent className="p-3">
           <div className="flex flex-wrap items-center gap-2">
-            {/* Tele filter */}
-            <Select value={selectedTele} onValueChange={setSelectedTele}>
-              <SelectTrigger className="w-[140px] h-8 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
+            {/* Tele filter — locked for tele users, selectable for admin */}
+            {isLockedToSelf ? (
+              <div className="h-8 px-3 rounded-md border border-white/[0.08] bg-[#0a0d14] flex items-center gap-2 text-[12px] text-[#f0f2ff] w-[140px]">
                 <Filter size={12} className="text-[#6c63ff]" />
-                <SelectValue placeholder="فلتر التيلي" />
-              </SelectTrigger>
-              <SelectContent className="bg-[#111520] border-white/[0.08]">
-                <SelectItem value="all" className="text-[12px] text-[#f0f2ff]">الكل</SelectItem>
-                {team.tele.map((name) => (
-                  <SelectItem key={name} value={name} className="text-[12px] text-[#f0f2ff]">{name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <span>{currentUser}</span>
+              </div>
+            ) : (
+              <Select value={selectedTele} onValueChange={setSelectedTele}>
+                <SelectTrigger className="w-[140px] h-8 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
+                  <Filter size={12} className="text-[#6c63ff]" />
+                  <SelectValue placeholder="فلتر التيلي" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#111520] border-white/[0.08]">
+                  <SelectItem value="all" className="text-[12px] text-[#f0f2ff]">الكل</SelectItem>
+                  {team.tele.map((name) => (
+                    <SelectItem key={name} value={name} className="text-[12px] text-[#f0f2ff]">{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             {/* Search */}
             <div className="relative flex-1 min-w-[180px]">

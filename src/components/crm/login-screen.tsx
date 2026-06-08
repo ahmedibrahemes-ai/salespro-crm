@@ -57,8 +57,8 @@ export function LoginScreen() {
       }
 
       if (data.success && data.user) {
-        // Login with the user's display name and role from the server
-        login(data.user.displayName, data.user.role)
+        // Login with the user's display name, role, userId, and username from the server
+        login(data.user.displayName, data.user.role, data.user.id, data.user.username)
       } else {
         setError('حدث خطأ غير متوقع')
       }
@@ -66,14 +66,14 @@ export function LoginScreen() {
       console.error('[login] Error:', err)
       // Demo mode fallback: if API is unreachable, allow demo login
       // This enables testing when Supabase is not configured
-      const DEMO_USERS: Record<string, { displayName: string; role: 'tele' | 'sales' | 'admin' }> = {
-        admin: { displayName: 'أحمد سالم', role: 'admin' },
-        tele: { displayName: 'Amira', role: 'tele' },
-        sales: { displayName: 'Rania', role: 'sales' },
+      const DEMO_USERS: Record<string, { displayName: string; role: 'tele' | 'sales' | 'admin'; id: string; username: string }> = {
+        admin: { displayName: 'أحمد سالم', role: 'admin', id: 'demo-admin', username: 'admin' },
+        tele: { displayName: 'Amira', role: 'tele', id: 'demo-tele', username: 'tele' },
+        sales: { displayName: 'Rania', role: 'sales', id: 'demo-sales', username: 'sales' },
       }
       const demoUser = DEMO_USERS[username.trim().toLowerCase()]
       if (demoUser) {
-        login(demoUser.displayName, demoUser.role)
+        login(demoUser.displayName, demoUser.role, demoUser.id, demoUser.username)
         return
       }
       setError('فشل الاتصال بالخادم — جرب admin / tele / sales كوضع تجريبي')

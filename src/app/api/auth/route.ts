@@ -21,6 +21,9 @@ async function verifyPassword(password: string, storedHash: string, salt: string
 export async function POST(request: NextRequest) {
   try {
     const client = getSupabaseAdmin() || createAnonClient()
+    if (!client) {
+      return NextResponse.json({ error: 'قاعدة البيانات غير متاحة. يرجى إعداد Supabase.' }, { status: 503 })
+    }
     const body = await request.json()
     const { action } = body
 
@@ -184,6 +187,26 @@ export async function POST(request: NextRequest) {
         .eq('id', userId)
 
       return NextResponse.json({ success: true, message: 'تم إعادة تعيين كلمة المرور' })
+    }
+
+    // ── Delete User (admin) ──
+    if (action === 'delete-user') {
+      const { userId } = body
+      if (!userId) {
+        return NextResponse.json({ error: 'معرف المستخدم مطلوب' }, { status: 400 })
+      }
+
+      const { error: deleteError } = await client
+        .from('app_users')
+        .delete()
+        .eq('id', userId)
+
+      if (deleteError) {
+        console.error('[auth] Delete user error:', deleteError.message)
+        return NextResponse.json({ error: 'فشل في حذف المستخدم' }, { status: 500 })
+      }
+
+      return NextResponse.json({ success: true, message: 'تم حذف المستخدم' })
     }
 
     return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })

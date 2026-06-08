@@ -160,8 +160,10 @@ export function SalesSheet() {
   const searchQuery = searchQueries[viewKey] || ''
   const dateFilter = dateRangeFilters[viewKey] || { preset: 'all' }
 
+  // Sales users are locked to their own data; admin can see everyone
+  const isLockedToSelf = currentRole === 'sales'
   const [selectedSales, setSelectedSales] = useState<string>(
-    currentRole === 'sales' && currentUser ? currentUser : 'all'
+    isLockedToSelf && currentUser ? currentUser : 'all'
   )
   const [currentPage, setCurrentPage] = useState(1)
 
@@ -169,7 +171,10 @@ export function SalesSheet() {
   const filteredLeads = useMemo(() => {
     let result = leads.filter((l) => !l.isArchived)
 
-    if (selectedSales !== 'all') {
+    // Sales users can ONLY see leads assigned to them
+    if (isLockedToSelf) {
+      result = result.filter((l) => l.sales === currentUser)
+    } else if (selectedSales !== 'all') {
       result = result.filter((l) => l.sales === selectedSales)
     }
 
@@ -189,7 +194,7 @@ export function SalesSheet() {
     }
 
     return result
-  }, [leads, selectedSales, searchQuery, dateFilter])
+  }, [leads, selectedSales, searchQuery, dateFilter, isLockedToSelf, currentUser])
 
   /* ─── Paginated leads ─── */
   const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE))
@@ -332,18 +337,26 @@ export function SalesSheet() {
       <Card className="bg-[#111520] border-white/[0.06]">
         <CardContent className="p-3">
           <div className="flex flex-wrap items-center gap-2">
-            <Select value={selectedSales} onValueChange={setSelectedSales}>
-              <SelectTrigger className="w-[140px] h-8 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
+            {/* Sales filter — locked for sales users, selectable for admin */}
+            {isLockedToSelf ? (
+              <div className="h-8 px-3 rounded-md border border-white/[0.08] bg-[#0a0d14] flex items-center gap-2 text-[12px] text-[#f0f2ff] w-[140px]">
                 <Filter size={12} className="text-[#6c63ff]" />
-                <SelectValue placeholder="فلتر السيلز" />
-              </SelectTrigger>
-              <SelectContent className="bg-[#111520] border-white/[0.08]">
-                <SelectItem value="all" className="text-[12px] text-[#f0f2ff]">الكل</SelectItem>
-                {team.sales.map((name) => (
-                  <SelectItem key={name} value={name} className="text-[12px] text-[#f0f2ff]">{name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <span>{currentUser}</span>
+              </div>
+            ) : (
+              <Select value={selectedSales} onValueChange={setSelectedSales}>
+                <SelectTrigger className="w-[140px] h-8 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
+                  <Filter size={12} className="text-[#6c63ff]" />
+                  <SelectValue placeholder="فلتر السيلز" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#111520] border-white/[0.08]">
+                  <SelectItem value="all" className="text-[12px] text-[#f0f2ff]">الكل</SelectItem>
+                  {team.sales.map((name) => (
+                    <SelectItem key={name} value={name} className="text-[12px] text-[#f0f2ff]">{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             <div className="relative flex-1 min-w-[180px]">
               <Search size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#4a5280]" />

@@ -508,6 +508,27 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true })
       }
 
+      case 'getSetting': {
+        const key = data as string
+        if (!key) {
+          return NextResponse.json({ error: 'Setting key is required' }, { status: 400 })
+        }
+        const { data: row, error } = await client
+          .from('settings')
+          .select('value')
+          .eq('key', key)
+          .single()
+        if (error) {
+          // Not found is not an error — return null
+          if (error.code === 'PGRST116') {
+            return NextResponse.json({ data: null })
+          }
+          console.error('[api/leads] Get setting error:', error, '(mode:', mode, ')')
+          return NextResponse.json({ error: error.message }, { status: 400 })
+        }
+        return NextResponse.json({ data: row?.value ?? null })
+      }
+
       case 'addTeamMember': {
         const { name, role } = data as { name: string; role: string }
         // Check if inactive member exists

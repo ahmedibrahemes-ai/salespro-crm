@@ -1,86 +1,37 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useCrmStore } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import { isTodayTimestamp } from '@/lib/crm-utils'
 import {
   Flame, UserPlus, Phone, CalendarCheck, UserCheck, Percent,
-  TrendingUp, TrendingDown, PhoneCall, MessageCircle, Trophy, Bot,
-  Target, ArrowLeft,
+  TrendingUp, TrendingDown, PhoneCall, MessageCircle, Trophy,
+  Target, ArrowLeft, Clock, Users, Settings2, Save, PhoneOff,
+  PhoneIncoming,
 } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/card'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose,
+} from '@/components/ui/dialog'
 
 /* ═══════════════════════════════════════════════════════
    Types
    ═══════════════════════════════════════════════════════ */
 
-interface ApiStats {
-  totalLeads: number
-  totalCalls: number
-  closedDeals: number
-  salesValue: number
-  conversionRate: number
-  leadsToday: number
-  callsToday: number
-  dealsToday: number
-  pipelineValue: number
-  avgDealValue: number
-  targetAmount: number
-  achievedAmount: number
-  hotCount: number
-  warmCount: number
-  coldCount: number
-  overdueCount: number
-  weeklyCalls: { day: string; count: number }[]
-  callAnalytics: {
-    totalMinutes: number
-    successCount: number
-    failCount: number
-    avgDuration: string
-  }
-  aiScore: number
+interface TargetSettings {
+  type: 'meetings' | 'money' | 'closings'
+  value: number
 }
 
 /* ═══════════════════════════════════════════════════════
    Helpers
    ═══════════════════════════════════════════════════════ */
 
-function isOverdueLead(lead: Lead): boolean {
-  if (lead.isArchived) return false
-  if (lead.status === 'closed-won' || lead.status === 'closed-lost') return false
-  const needsFollowup = ['followup', 'no-reply', 'callback', 'new', 'whatsapp'].includes(lead.status)
-  if (!needsFollowup) return false
-  const lastContact = lead.contactResultAt
-  if (!lastContact) return true
-  const hoursSince = (Date.now() - lastContact) / (1000 * 60 * 60)
-  return hoursSince > 24
-}
-
 function getInitials(name: string): string {
   if (!name) return '؟'
   const parts = name.trim().split(/\s+/)
   if (parts.length >= 2) return parts[0][0] + parts[1][0]
   return name.slice(0, 2)
-}
-
-function getTemperatureColor(lead: Lead): string {
-  const s = lead.status
-  if (s === 'closed-won') return '#00d4aa'
-  if (s === 'negotiation' || s === 'proposal-sent') return '#6c63ff'
-  if (s === 'followup' || s === 'meeting-done') return '#ffd166'
-  if (s === 'closed-lost' || s === 'not-interested') return '#ff6b6b'
-  if (s === 'objection-price' || s === 'objection-other') return '#ff6b6b'
-  return '#8892b0'
-}
-
-function getBadgeForLead(lead: Lead): { label: string; color: string; bg: string } {
-  if (isOverdueLead(lead)) return { label: 'متأخر', color: '#ff6b6b', bg: 'rgba(255,107,107,.15)' }
-  if (lead.status === 'closed-won') return { label: 'تم التقفيل', color: '#00d4aa', bg: 'rgba(0,212,170,.15)' }
-  if (lead.meetingDate) return { label: 'عنده اجتماع', color: '#ffd166', bg: 'rgba(255,209,102,.15)' }
-  if (lead.status === 'followup') return { label: 'متابعة', color: '#6c63ff', bg: 'rgba(108,99,255,.15)' }
-  if (lead.status === 'new') return { label: 'جديد', color: '#6c9fff', bg: 'rgba(108,159,255,.15)' }
-  return { label: lead.status, color: '#8892b0', bg: 'rgba(136,146,176,.1)' }
 }
 
 function getCurrentMonthAr(): string {
@@ -103,11 +54,81 @@ function formatCurrency(val: number): string {
   return val.toString()
 }
 
+/**
+ * Get the start of the current Arabic work week (Saturday).
+ * Week runs Saturday(6) to Friday(5).
+ */
+function getWeekRange(): { satStart: number; friEnd: number } {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const dayOfWeek = today.getDay() // 0=Sun, 6=Sat
+
+  // Days since last Saturday (if today is Saturday, offset = 0)
+  const daysSinceSaturday = dayOfWeek === 6 ? 0 : dayOfWeek + 1
+  const satStart = new Date(today.getTime() - daysSinceSaturday * 86400000).getTime()
+  const friEnd = satStart + 7 * 86400000
+
+  return { satStart, friEnd }
+}
+
+/** Get the day-of-week index (0=Sat, 1=Sun, ..., 6=Fri) for a timestamp */
+function getArabicDayIndex(ts: number): number {
+  const d = new Date(ts).getDay() // 0=Sun, 1=Mon, ..., 6=Sat
+  // Convert to Sat=0, Sun=1, ..., Fri=6
+  return d === 6 ? 0 : d + 1
+}
+
+const ARABIC_DAYS = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
+
+function getPositionLabelAr(pos: number): string {
+  if (pos === 1) return 'المركز الأول'
+  if (pos === 2) return 'المركز الثاني'
+  if (pos === 3) return 'المركز الثالث'
+  return `المركز ${pos}`
+}
+
 /* ═══════════════════════════════════════════════════════
-   Dashboard Component — PERFORMANCE OPTIMIZED
-   - Removed Framer Motion (was creating stagger timers)
-   - Using CSS transitions instead
-   - Single-pass KPI computation
+   API helpers for target settings
+   ═══════════════════════════════════════════════════════ */
+
+async function apiGetTarget(): Promise<TargetSettings | null> {
+  try {
+    const res = await fetch('/api/leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ operation: 'getSetting', data: 'target' }),
+    })
+    if (res.ok) {
+      const json = await res.json()
+      if (json.data) {
+        return json.data as TargetSettings
+      }
+    }
+  } catch (err) {
+    console.warn('[Dashboard] Failed to load target settings:', err)
+  }
+  return null
+}
+
+async function apiSaveTarget(settings: TargetSettings): Promise<boolean> {
+  try {
+    const res = await fetch('/api/leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ operation: 'saveSetting', data: { key: 'target', value: settings } }),
+    })
+    return res.ok
+  } catch (err) {
+    console.warn('[Dashboard] Failed to save target settings:', err)
+    return false
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   Dashboard Component — COMPLETE REWRITE
+   - No Framer Motion — CSS transitions only
+   - Event-timestamp based stats (contactResultAt, assignedAt)
+   - RTL layout, Cairo font, dark theme
    ═══════════════════════════════════════════════════════ */
 
 export function Dashboard() {
@@ -116,113 +137,230 @@ export function Dashboard() {
   const currentRole = useCrmStore((s) => s.currentRole)
   const team = useCrmStore((s) => s.team)
   const setCurrentView = useCrmStore((s) => s.setCurrentView)
+  const setActiveFilter = useCrmStore((s) => s.setActiveFilter)
+  const targetSettings = useCrmStore((s) => s.targetSettings)
+  const setTargetSettings = useCrmStore((s) => s.setTargetSettings)
 
-  /* ─── Fetch API stats ─── */
-  const [apiStats, setApiStats] = useState<ApiStats | null>(null)
-  const [statsLoading, setStatsLoading] = useState(true)
+  /* ─── Target settings dialog state ─── */
+  const [targetDialogOpen, setTargetDialogOpen] = useState(false)
+  const [editTargetType, setEditTargetType] = useState<TargetSettings['type']>('meetings')
+  const [editTargetValue, setEditTargetValue] = useState<number>(50)
+  const [savingTarget, setSavingTarget] = useState(false)
 
+  /* ─── Load target from Supabase on mount ─── */
   useEffect(() => {
     let cancelled = false
-    async function loadStats() {
-      try {
-        setStatsLoading(true)
-        const res = await fetch('/api/stats')
-        if (res.ok && !cancelled) {
-          const data = await res.json()
-          setApiStats(data)
-        }
-      } catch (err) {
-        console.error('Failed to fetch stats:', err)
-      } finally {
-        if (!cancelled) setStatsLoading(false)
+    async function loadTarget() {
+      const settings = await apiGetTarget()
+      if (!cancelled && settings) {
+        setTargetSettings(settings)
       }
     }
-    loadStats()
+    loadTarget()
     return () => { cancelled = true }
+  }, [setTargetSettings])
+
+  /* ─── Single-pass: Filter leads by role ─── */
+  const myLeads = useMemo(() => {
+    if (currentRole === 'tele' && currentUser) {
+      return leads.filter((l) => l.tele === currentUser && !l.isArchived)
+    }
+    if (currentRole === 'sales' && currentUser) {
+      return leads.filter((l) => l.sales === currentUser && !l.isArchived)
+    }
+    return leads.filter((l) => !l.isArchived)
+  }, [leads, currentUser, currentRole])
+
+  /* ─── All leads (admin sees all, others see own) ─── */
+  const allActiveLeads = useMemo(() => {
+    return leads.filter((l) => !l.isArchived)
+  }, [leads])
+
+  /* ─── Today start timestamp ─── */
+  const todayStart = useMemo(() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d.getTime()
   }, [])
 
-  /* ─── Single-pass: Filter leads by role + compute KPIs ─── */
-  const { myLeads, kpiValues, attentionLeads, overdueCount } = useMemo(() => {
-    // Step 1: Filter by role
-    let filtered: Lead[]
-    if (currentRole === 'tele' && currentUser) {
-      filtered = leads.filter((l) => l.tele === currentUser && !l.isArchived)
-    } else if (currentRole === 'sales' && currentUser) {
-      filtered = leads.filter((l) => l.sales === currentUser && !l.isArchived)
-    } else {
-      filtered = leads.filter((l) => !l.isArchived)
-    }
-
-    // Step 2: Single-pass KPI computation
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
-    const todayTs = todayStart.getTime()
-
+  /* ─── KPI computation (event-timestamp based) ─── */
+  const kpiValues = useMemo(() => {
     let leadsCreatedToday = 0
+    let callsToday = 0
     let callsExecuted = 0
     let meetingsBooked = 0
     let attendedConfirmed = 0
     let closedWon = 0
-    const overdue: Lead[] = []
 
-    for (const l of filtered) {
-      if (l.createdAt >= todayTs) leadsCreatedToday++
-      if (l.contactResult && l.contactResult !== 'none' && l.contactResult !== '') callsExecuted++
-      if (l.meetingDate && l.meetingDate !== '') meetingsBooked++
+    for (const l of myLeads) {
+      // Leads created today
+      if (l.createdAt >= todayStart) leadsCreatedToday++
+
+      // Calls: based on contactResultAt
+      if (l.contactResult && l.contactResult !== 'none' && l.contactResult !== '') {
+        callsExecuted++
+        if (l.contactResultAt && l.contactResultAt >= todayStart) {
+          callsToday++
+        }
+      }
+
+      // Meetings: based on assignedAt (when tele transferred to sales)
+      if (l.assignedAt && l.assignedAt >= todayStart) {
+        meetingsBooked++
+      }
+
+      // Attended confirmed
       if (l.attended === 'attended') attendedConfirmed++
+
+      // Closed won
       if (l.status === 'closed-won') closedWon++
-      if (isOverdueLead(l) && overdue.length < 5) overdue.push(l)
     }
 
-    const conversionRate = filtered.length > 0 ? Math.round((closedWon / filtered.length) * 1000) / 10 : 0
+    const conversionRate = myLeads.length > 0 ? Math.round((closedWon / myLeads.length) * 1000) / 10 : 0
 
-    // Count total overdue
-    let totalOverdue = 0
-    for (const l of filtered) {
-      if (isOverdueLead(l)) totalOverdue++
+    return { leadsCreatedToday, callsToday, callsExecuted, meetingsBooked, attendedConfirmed, closedWon, conversionRate }
+  }, [myLeads, todayStart])
+
+  /* ─── Uncontacted leads count (for urgent strip) ─── */
+  const uncontactedCount = useMemo(() => {
+    return myLeads.filter((l) => !l.contactResult || l.contactResult === 'none' || l.contactResult === '').length
+  }, [myLeads])
+
+  /* ─── PENDING CLIENTS TRACKING (عملاء في الانتظار) ─── */
+  const pendingClients = useMemo(() => {
+    // Leads transferred to sales (sales is set) but attended is 'pending' or null
+    let filtered: Lead[]
+    if (currentRole === 'tele' && currentUser) {
+      // Tele only sees their own transferred clients that are still pending
+      filtered = myLeads.filter(
+        (l) => l.sales && l.sales.trim() !== '' && (!l.attended || l.attended === 'pending')
+      )
+    } else {
+      // Admin/sales see all pending
+      filtered = allActiveLeads.filter(
+        (l) => l.sales && l.sales.trim() !== '' && (!l.attended || l.attended === 'pending')
+      )
+    }
+    return filtered.slice(0, 5) // Show max 5 in the card
+  }, [myLeads, allActiveLeads, currentRole, currentUser])
+
+  const pendingClientsTotal = useMemo(() => {
+    if (currentRole === 'tele' && currentUser) {
+      return myLeads.filter(
+        (l) => l.sales && l.sales.trim() !== '' && (!l.attended || l.attended === 'pending')
+      ).length
+    }
+    return allActiveLeads.filter(
+      (l) => l.sales && l.sales.trim() !== '' && (!l.attended || l.attended === 'pending')
+    ).length
+  }, [myLeads, allActiveLeads, currentRole, currentUser])
+
+  /* ─── Target progress (admin-controlled) ─── */
+  const targetProgress = useMemo(() => {
+    const { type, value } = targetSettings
+    let achieved = 0
+
+    if (type === 'meetings') {
+      // Count meetings based on assignedAt (transfers)
+      achieved = myLeads.filter((l) => l.assignedAt).length
+    } else if (type === 'closings') {
+      // Count closed-won deals
+      achieved = myLeads.filter((l) => l.status === 'closed-won').length
+    } else if (type === 'money') {
+      // Sum of closed-won deals value — use a reasonable estimate
+      // Since we don't have a dealValue field, count closed-won as the metric
+      achieved = myLeads.filter((l) => l.status === 'closed-won').length
     }
 
-    return {
-      myLeads: filtered,
-      kpiValues: { leadsCreatedToday, callsExecuted, meetingsBooked, attendedConfirmed, closedWon, conversionRate },
-      attentionLeads: overdue,
-      overdueCount: totalOverdue,
-    }
-  }, [leads, currentUser, currentRole])
+    const pct = value > 0 ? Math.min(Math.round((achieved / value) * 100), 100) : 0
+    const remaining = Math.max(value - achieved, 0)
 
-  /* ─── Target progress ─── */
-  const targetAmount = apiStats?.targetAmount || 115000
-  const achievedAmount = apiStats?.achievedAmount || apiStats?.salesValue || 0
-  const targetPct = targetAmount > 0 ? Math.min(Math.round((achievedAmount / targetAmount) * 100), 100) : 0
-  const remaining = targetAmount - achievedAmount
+    return { achieved, pct, remaining, type, value }
+  }, [targetSettings, myLeads])
+
   const daysLeft = getDaysRemainingInMonth()
   const monthAr = getCurrentMonthAr()
 
-  /* ─── Weekly calls data ─── */
+  /* ─── Weekly Performance (Saturday to Friday) ─── */
   const weeklyCallsData = useMemo(() => {
-    if (apiStats?.weeklyCalls?.length) return apiStats.weeklyCalls
-    return [
-      { day: 'الأحد', count: 16 },
-      { day: 'الإثنين', count: 8 },
-      { day: 'الثلاثاء', count: 14 },
-      { day: 'الأربعاء', count: 11 },
-      { day: 'الخميس', count: 19 },
-      { day: 'الجمعة', count: 9 },
-      { day: 'السبت', count: 12 },
-    ]
-  }, [apiStats])
+    const { satStart, friEnd } = getWeekRange()
+    const dayCounts = [0, 0, 0, 0, 0, 0, 0] // Sat, Sun, Mon, Tue, Wed, Thu, Fri
+
+    for (const l of myLeads) {
+      // Use contactResultAt for call date
+      if (l.contactResultAt && l.contactResultAt >= satStart && l.contactResultAt < friEnd) {
+        if (l.contactResult && l.contactResult !== 'none' && l.contactResult !== '') {
+          const dayIdx = getArabicDayIndex(l.contactResultAt)
+          dayCounts[dayIdx]++
+        }
+      }
+    }
+
+    return ARABIC_DAYS.map((day, i) => ({ day, count: dayCounts[i] }))
+  }, [myLeads])
 
   const maxWeeklyCall = useMemo(
     () => Math.max(...weeklyCallsData.map((d) => d.count), 1),
     [weeklyCallsData]
   )
 
-  /* ─── Call analytics ─── */
-  const callAnalytics = apiStats?.callAnalytics ?? { totalMinutes: 0, successCount: 0, failCount: 0, avgDuration: '0:00' }
-  const totalCallHours = (callAnalytics.totalMinutes / 60).toFixed(1)
+  /* ─── Call Stats (إحصائيات المكالمات) ─── */
+  const callStats = useMemo(() => {
+    // Use contactResultAt-based filtering for all-time stats
+    let totalCalls = 0
+    let answered = 0
+    let unanswered = 0
 
-  /* ─── AI Score ─── */
-  const aiScore = apiStats?.aiScore ?? 0
+    for (const l of myLeads) {
+      if (l.contactResult && l.contactResult !== 'none' && l.contactResult !== '') {
+        // Only count leads that have a contactResultAt (event timestamp)
+        if (l.contactResultAt) {
+          totalCalls++
+          if (l.contactResult === 'replied') {
+            answered++
+          }
+          if (l.contactResult === 'no-reply' || l.contactResult === 'busy') {
+            unanswered++
+          }
+        }
+      }
+    }
+
+    const answerRate = totalCalls > 0 ? Math.round((answered / totalCalls) * 100) : 0
+
+    return { totalCalls, answered, unanswered, answerRate }
+  }, [myLeads])
+
+  /* ─── RANK (مركزك) — Tele team only, based on meetings booked ─── */
+  const rankInfo = useMemo(() => {
+    if (currentRole !== 'tele' || !currentUser) {
+      return { position: 0, totalMembers: 0, meetingsCount: 0, percentile: 0 }
+    }
+
+    // Count meetings per tele team member (based on assignedAt)
+    const meetingCounts: Record<string, number> = {}
+    for (const member of team.tele) {
+      meetingCounts[member] = 0
+    }
+
+    for (const l of allActiveLeads) {
+      if (l.assignedAt && l.tele && team.tele.includes(l.tele)) {
+        meetingCounts[l.tele] = (meetingCounts[l.tele] || 0) + 1
+      }
+    }
+
+    // Sort by meetings descending
+    const sorted = Object.entries(meetingCounts).sort((a, b) => b[1] - a[1])
+    const position = sorted.findIndex(([name]) => name === currentUser) + 1
+    const meetingsCount = meetingCounts[currentUser] || 0
+    const totalMembers = sorted.length
+
+    // Calculate percentile: what % of team this user is above
+    const membersBelow = sorted.filter(([_, count]) => count < meetingsCount).length
+    const percentile = totalMembers > 1 ? Math.round((membersBelow / (totalMembers - 1)) * 100) : 0
+
+    return { position, totalMembers, meetingsCount, percentile }
+  }, [currentRole, currentUser, team.tele, allActiveLeads])
 
   /* ─── KPI Cards Config ─── */
   const kpis = [
@@ -232,26 +370,20 @@ export function Dashboard() {
       colorBg: 'rgba(108,99,255,.15)',
       value: kpiValues.leadsCreatedToday,
       label: 'ليدز جديدة اليوم',
-      delta: '+12%',
-      up: true,
     },
     {
       icon: <Phone size={20} />,
       color: '#00d4aa',
       colorBg: 'rgba(0,212,170,.15)',
-      value: kpiValues.callsExecuted,
-      label: 'مكالمات منفذة',
-      delta: '+8%',
-      up: true,
+      value: kpiValues.callsToday,
+      label: 'مكالمات اليوم',
     },
     {
       icon: <CalendarCheck size={20} />,
       color: '#ffd166',
       colorBg: 'rgba(255,209,102,.15)',
       value: kpiValues.meetingsBooked,
-      label: 'اجتماعات محجوزة',
-      delta: '+22%',
-      up: true,
+      label: 'اجتماعات اليوم',
     },
     {
       icon: <UserCheck size={20} />,
@@ -259,8 +391,6 @@ export function Dashboard() {
       colorBg: 'rgba(0,212,170,.15)',
       value: kpiValues.attendedConfirmed,
       label: 'حضور مؤكد',
-      delta: '+15%',
-      up: true,
     },
     {
       icon: <Percent size={20} />,
@@ -268,52 +398,88 @@ export function Dashboard() {
       colorBg: 'rgba(255,107,107,.15)',
       value: `${kpiValues.conversionRate}%`,
       label: 'نسبة التحويل',
-      delta: kpiValues.conversionRate >= 20 ? '+3%' : '-2%',
-      up: kpiValues.conversionRate >= 20,
     },
   ]
 
+  /* ─── Target dialog handlers ─── */
+  const openTargetDialog = useCallback(() => {
+    setEditTargetType(targetSettings.type)
+    setEditTargetValue(targetSettings.value)
+    setTargetDialogOpen(true)
+  }, [targetSettings])
+
+  const handleSaveTarget = useCallback(async () => {
+    setSavingTarget(true)
+    const newSettings: TargetSettings = { type: editTargetType, value: editTargetValue }
+    const success = await apiSaveTarget(newSettings)
+    if (success) {
+      setTargetSettings(newSettings)
+    }
+    setSavingTarget(false)
+    setTargetDialogOpen(false)
+  }, [editTargetType, editTargetValue, setTargetSettings])
+
+  /* ─── Urgent strip handler ─── */
+  const handleShowUncontacted = useCallback(() => {
+    setCurrentView('my-sheet')
+    setActiveFilter('tele-sheet', 'uncontacted')
+  }, [setCurrentView, setActiveFilter])
+
+  /* ─── Pending clients handler ─── */
+  const handleShowPendingClients = useCallback(() => {
+    setCurrentView('transfers')
+  }, [setCurrentView])
+
+  /* ─── Target type labels ─── */
+  const targetTypeLabel = useMemo(() => {
+    switch (targetSettings.type) {
+      case 'meetings': return 'اجتماعات'
+      case 'money': return 'إيرادات'
+      case 'closings': return 'تقفيلات'
+    }
+  }, [targetSettings.type])
+
   /* ═══════════════ RENDER ═══════════════ */
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
+    <div dir="rtl" className="space-y-6 animate-in fade-in duration-300" style={{ fontFamily: 'Cairo, sans-serif' }}>
       {/* ══════════════════════════════════════════════════
-          1. URGENT STRIP
+          1. URGENT STRIP — Uncontacted leads
           ══════════════════════════════════════════════════ */}
-      <div>
-        <div className="relative flex items-center gap-3 bg-gradient-to-br from-[#ff6b6b]/10 to-[#ff6b6b]/4 border border-[#ff6b6b]/20 rounded-2xl px-5 md:px-6 py-4 overflow-hidden">
-          {/* Ping indicator */}
-          <span className="absolute -top-1 -right-1 w-3 h-3">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#ff6b6b] opacity-75" />
-            <span className="relative inline-flex h-3 w-3 rounded-full bg-[#ff6b6b]" />
-          </span>
+      {currentRole === 'tele' && uncontactedCount > 0 && (
+        <div>
+          <div className="relative flex items-center gap-3 bg-gradient-to-br from-[#ff6b6b]/10 to-[#ff6b6b]/4 border border-[#ff6b6b]/20 rounded-2xl px-5 md:px-6 py-4 overflow-hidden">
+            {/* Ping indicator */}
+            <span className="absolute -top-1 -right-1 w-3 h-3">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#ff6b6b] opacity-75" />
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-[#ff6b6b]" />
+            </span>
 
-          {/* Fire icon */}
-          <div className="w-12 h-12 rounded-xl bg-[#ff6b6b]/15 flex items-center justify-center shrink-0">
-            <Flame size={24} className="text-[#ff6b6b]" />
-          </div>
-
-          {/* Text */}
-          <div className="flex-1 min-w-0">
-            <div className="text-[19px] font-extrabold text-[#ffffff]">
-              {overdueCount > 0 ? overdueCount : 0} عملاء يحتاجون اهتمامك الآن!
+            {/* Fire icon */}
+            <div className="w-12 h-12 rounded-xl bg-[#ff6b6b]/15 flex items-center justify-center shrink-0">
+              <Flame size={24} className="text-[#ff6b6b]" />
             </div>
-            <div className="text-[14px] font-bold text-[#b0b8d0] mt-0.5 truncate">
-              {attentionLeads.length > 0
-                ? attentionLeads.map((l) => l.customerName || l.phone).join(' · ')
-                : 'لا يوجد عملاء بحاجة لاهتمام فوري'}
-            </div>
-          </div>
 
-          {/* CTA button */}
-          <button
-            onClick={() => setCurrentView('my-meetings')}
-            className="bg-[#161b28] border border-[#ff6b6b]/50 text-[#ff6b6b] px-4 py-2 rounded-xl text-[13px] font-bold hover:bg-[#ff6b6b]/10 transition-all cursor-pointer shrink-0 hidden sm:flex items-center gap-1.5"
-          >
-            عرض الكل
-            <ArrowLeft size={12} />
-          </button>
+            {/* Text */}
+            <div className="flex-1 min-w-0">
+              <div className="text-[19px] font-extrabold text-[#ffffff]">
+                {uncontactedCount} عملاء لم يتم التواصل معهم!
+              </div>
+              <div className="text-[14px] font-bold text-[#b0b8d0] mt-0.5 truncate">
+                ابدأ بالتواصل معهم الآن
+              </div>
+            </div>
+
+            {/* CTA button — navigate to my-sheet with uncontacted filter */}
+            <button
+              onClick={handleShowUncontacted}
+              className="bg-[#161b28] border border-[#ff6b6b]/50 text-[#ff6b6b] px-4 py-2 rounded-xl text-[13px] font-bold hover:bg-[#ff6b6b]/10 transition-all cursor-pointer shrink-0 hidden sm:flex items-center gap-1.5"
+            >
+              عرض الكل
+              <ArrowLeft size={12} />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ══════════════════════════════════════════════════
           2. KPI CARDS ROW
@@ -346,27 +512,17 @@ export function Dashboard() {
               className="text-[30px] md:text-[32px] font-black leading-tight"
               style={{ color: kpi.color, fontFamily: 'Cairo, sans-serif' }}
             >
-              {statsLoading ? '—' : kpi.value}
+              {kpi.value}
             </div>
 
             {/* Label */}
             <div className="text-[14px] font-bold text-[#b0b8d0] mt-1">{kpi.label}</div>
-
-            {/* Delta */}
-            <div
-              className={`text-[14px] font-bold mt-2 flex items-center gap-1 ${
-                kpi.up ? 'text-[#00ffbb]' : 'text-[#ff6b6b]'
-              }`}
-            >
-              {kpi.up ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
-              {kpi.delta}
-            </div>
           </div>
         ))}
       </div>
 
       {/* ══════════════════════════════════════════════════
-          3. TARGET PROGRESS BAR
+          3. TARGET PROGRESS BAR — Admin-controlled
           ══════════════════════════════════════════════════ */}
       <div>
         <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 md:p-6">
@@ -375,32 +531,41 @@ export function Dashboard() {
               <div className="text-[19px] font-extrabold text-[#ffffff] flex items-center gap-2">
                 <Target size={20} className="text-[#8b83ff]" />
                 تارجت الشهر — {monthAr} {new Date().getFullYear()}
+                {currentRole === 'admin' && (
+                  <button
+                    onClick={openTargetDialog}
+                    className="w-8 h-8 rounded-lg bg-[#8b83ff]/10 flex items-center justify-center text-[#8b83ff] hover:bg-[#8b83ff]/20 transition-colors cursor-pointer"
+                    title="تعديل التارجت"
+                  >
+                    <Settings2 size={16} />
+                  </button>
+                )}
               </div>
               <div className="text-[14px] font-bold text-[#b0b8d0] mt-1">
-                {formatCurrency(achievedAmount)} من أصل {formatCurrency(targetAmount)} EGP
+                {targetProgress.achieved} من أصل {targetProgress.value} {targetTypeLabel}
               </div>
             </div>
             <div
               className="text-[34px] font-black text-[#8b83ff]"
               style={{ fontFamily: 'Cairo, sans-serif' }}
             >
-              {targetPct}%
+              {targetProgress.pct}%
             </div>
           </div>
 
-          {/* Progress bar - CSS transition instead of Framer Motion */}
+          {/* Progress bar */}
           <div className="h-3 bg-[#0a0d14] rounded-full overflow-hidden mb-2.5">
             <div
               className="h-full rounded-full transition-all duration-1000 ease-out"
               style={{
                 background: 'linear-gradient(to left, #8b83ff, #00ffbb)',
-                width: `${targetPct}%`,
+                width: `${targetProgress.pct}%`,
               }}
             />
           </div>
 
           <div className="flex items-center justify-between text-[14px] font-bold text-[#b0b8d0]">
-            <span>تبقى {formatCurrency(remaining > 0 ? remaining : 0)} EGP للوصول للهدف</span>
+            <span>تبقى {targetProgress.remaining} {targetTypeLabel} للوصول للهدف</span>
             <span>{daysLeft} يوم متبقي</span>
           </div>
         </div>
@@ -410,20 +575,32 @@ export function Dashboard() {
           4. TWO-COLUMN GRID
           ══════════════════════════════════════════════════ */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* ─── LEFT: Needs Attention ─── */}
+        {/* ─── LEFT: Pending Clients (عملاء في الانتظار) ─── */}
         <div>
-          <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 md:p-6 h-full">
-            <div className="flex items-center gap-2 text-[19px] font-extrabold text-[#ffffff] mb-4">
-              <Flame size={20} className="text-[#ff6b6b]" />
-              يحتاجون اهتمامك الآن
+          <div
+            className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 md:p-6 h-full cursor-pointer hover:border-[#ffd166]/20 transition-all"
+            onClick={handleShowPendingClients}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2 text-[19px] font-extrabold text-[#ffffff]">
+                <Clock size={20} className="text-[#ffd166]" />
+                عملاء في الانتظار
+              </div>
+              {pendingClientsTotal > 0 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleShowPendingClients() }}
+                  className="bg-[#161b28] border border-[#ffd166]/50 text-[#ffd166] px-3 py-1.5 rounded-xl text-[12px] font-bold hover:bg-[#ffd166]/10 transition-all cursor-pointer flex items-center gap-1"
+                >
+                  عرض الكل
+                  <ArrowLeft size={10} />
+                </button>
+              )}
             </div>
 
-            {attentionLeads.length > 0 ? (
+            {pendingClients.length > 0 ? (
               <div className="space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
-                {attentionLeads.map((lead) => {
-                  const badge = getBadgeForLead(lead)
+                {pendingClients.map((lead) => {
                   const initials = getInitials(lead.customerName || lead.phone)
-                  const tempColor = getTemperatureColor(lead)
                   return (
                     <div
                       key={lead.id}
@@ -433,9 +610,9 @@ export function Dashboard() {
                       <div
                         className="w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0"
                         style={{
-                          background: `${tempColor}20`,
-                          color: tempColor,
-                          border: `1px solid ${tempColor}33`,
+                          background: 'rgba(255,209,102,0.15)',
+                          color: '#ffd166',
+                          border: '1px solid rgba(255,209,102,0.2)',
                         }}
                       >
                         {initials}
@@ -446,51 +623,55 @@ export function Dashboard() {
                         <div className="text-[15px] font-bold text-[#ffffff] truncate">
                           {lead.customerName || 'عميل'}
                         </div>
-                        <div className="text-[14px] font-bold text-[#b0b8d0] truncate">
-                          {lead.storeUrl || lead.phone}
+                        <div className="text-[13px] font-bold text-[#b0b8d0] truncate">
+                          {lead.sales && (
+                            <span className="text-[#00d4aa]">السيلز: {lead.sales}</span>
+                          )}
+                          {lead.meetingDate && (
+                            <span className="mr-2">📅 {lead.meetingDate}{lead.meetingTime ? ` ${lead.meetingTime}` : ''}</span>
+                          )}
                         </div>
                       </div>
 
-                      {/* Badge */}
+                      {/* Pending badge */}
                       <span
                         className="text-[12px] font-bold px-2.5 py-1 rounded-full shrink-0"
-                        style={{ background: badge.bg, color: badge.color }}
+                        style={{ background: 'rgba(255,209,102,0.15)', color: '#ffd166' }}
                       >
-                        {badge.label}
+                        ⏳ انتظار
                       </span>
 
-                      {/* Action buttons */}
-                      <div className="flex items-center gap-2 shrink-0">
-                        <a
-                          href={`tel:${lead.phone}`}
-                          className="w-9 h-9 rounded-lg bg-[#00d4aa]/10 flex items-center justify-center text-[#00d4aa] hover:bg-[#00d4aa]/20 transition-colors"
-                          title="اتصال"
-                        >
-                          <Phone size={15} />
-                        </a>
-                        <a
-                          href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '')}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-9 h-9 rounded-lg bg-[#25D366]/10 flex items-center justify-center text-[#25D366] hover:bg-[#25D366]/20 transition-colors"
-                          title="واتساب"
-                        >
-                          <MessageCircle size={15} />
-                        </a>
-                      </div>
+                      {/* Phone action */}
+                      <a
+                        href={`tel:${lead.phone}`}
+                        className="w-9 h-9 rounded-lg bg-[#00d4aa]/10 flex items-center justify-center text-[#00d4aa] hover:bg-[#00d4aa]/20 transition-colors shrink-0"
+                        title="اتصال"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Phone size={15} />
+                      </a>
                     </div>
                   )
                 })}
               </div>
             ) : (
               <div className="text-[13px] font-semibold text-[#8892b0] py-6 text-center">
-                لا يوجد عملاء بحاجة لاهتمام فوري 🎉
+                لا يوجد عملاء في الانتظار 🎉
+              </div>
+            )}
+
+            {pendingClientsTotal > 0 && (
+              <div className="mt-3 pt-3 border-t border-white/[0.06] flex items-center justify-between">
+                <span className="text-[14px] font-bold text-[#b0b8d0]">إجمالي العملاء في الانتظار</span>
+                <span className="text-[17px] font-bold text-[#ffd166]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                  {pendingClientsTotal}
+                </span>
               </div>
             )}
           </div>
         </div>
 
-        {/* ─── RIGHT: Weekly Performance ─── */}
+        {/* ─── RIGHT: Weekly Performance (Saturday to Friday) ─── */}
         <div>
           <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 md:p-6 h-full">
             <div className="flex items-center gap-2 text-[19px] font-extrabold text-[#ffffff] mb-4">
@@ -499,9 +680,9 @@ export function Dashboard() {
             </div>
 
             <div className="space-y-3">
-              {weeklyCallsData.map((dayData, i) => {
+              {weeklyCallsData.map((dayData) => {
                 const pct = (dayData.count / maxWeeklyCall) * 100
-                const isMax = dayData.count === maxWeeklyCall
+                const isMax = dayData.count === maxWeeklyCall && dayData.count > 0
                 return (
                   <div key={dayData.day} className="flex items-center gap-3">
                     {/* Day label */}
@@ -509,7 +690,7 @@ export function Dashboard() {
                       {dayData.day}
                     </div>
 
-                    {/* Bar — CSS transition instead of Framer Motion */}
+                    {/* Bar */}
                     <div className="flex-1 h-6 bg-[#0a0d14] rounded-lg overflow-hidden relative">
                       <div
                         className="h-full rounded-lg transition-all duration-700 ease-out"
@@ -550,118 +731,82 @@ export function Dashboard() {
           5. THREE-COLUMN GRID
           ══════════════════════════════════════════════════ */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* ─── Call Analytics ─── */}
+        {/* ─── Call Stats (إحصائيات المكالمات) ─── */}
         <div>
           <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 md:p-6 text-center">
             <div className="flex items-center justify-center gap-2 text-[19px] font-extrabold text-[#ffffff] mb-4">
               <Phone size={20} className="text-[#8b83ff]" />
-              Call Analytics
+              إحصائيات المكالمات
             </div>
 
-            <div
-              className="text-[34px] font-black text-[#00ffbb]"
-              style={{ fontFamily: 'Cairo, sans-serif' }}
-            >
-              {statsLoading ? '—' : totalCallHours}
-              <span className="text-[17px] font-semibold text-[#b0b8d0] mr-1">ساعة</span>
+            {/* Total calls */}
+            <div className="text-[34px] font-black text-[#00ffbb]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              {callStats.totalCalls}
             </div>
-            <div className="text-[14px] font-bold text-[#b0b8d0] mt-1">إجمالي وقت المكالمات</div>
+            <div className="text-[14px] font-bold text-[#b0b8d0] mt-1">إجمالي المكالمات</div>
 
             <div className="flex justify-center gap-5 mt-4 pt-3 border-t border-white/[0.06]">
               <div>
-                <div
-                  className="text-[20px] font-bold text-[#00ffbb]"
-                  style={{ fontFamily: 'Cairo, sans-serif' }}
-                >
-                  {statsLoading ? '—' : callAnalytics.successCount}
+                <div className="flex items-center justify-center gap-1 text-[#00d4aa]">
+                  <PhoneIncoming size={14} />
+                  <span className="text-[20px] font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                    {callStats.answered}
+                  </span>
                 </div>
-                <div className="text-[14px] font-bold text-[#b0b8d0]">ناجحة</div>
+                <div className="text-[13px] font-bold text-[#b0b8d0]">مجابة</div>
               </div>
               <div>
-                <div
-                  className="text-[20px] font-bold text-[#ff6b6b]"
-                  style={{ fontFamily: 'Cairo, sans-serif' }}
-                >
-                  {statsLoading ? '—' : callAnalytics.failCount}
+                <div className="flex items-center justify-center gap-1 text-[#ff6b6b]">
+                  <PhoneOff size={14} />
+                  <span className="text-[20px] font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                    {callStats.unanswered}
+                  </span>
                 </div>
-                <div className="text-[14px] font-bold text-[#b0b8d0]">فاشلة</div>
-              </div>
-              <div>
-                <div
-                  className="text-[20px] font-bold text-[#8b83ff]"
-                  style={{ fontFamily: 'Cairo, sans-serif' }}
-                >
-                  {statsLoading ? '—' : callAnalytics.avgDuration}
-                </div>
-                <div className="text-[14px] font-bold text-[#b0b8d0]">متوسط</div>
+                <div className="text-[13px] font-bold text-[#b0b8d0]">غير مجابة</div>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* ─── AI Score ─── */}
-        <div>
-          <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 md:p-6 text-center">
-            <div className="flex items-center justify-center gap-2 text-[19px] font-extrabold text-[#ffffff] mb-4">
-              <Bot size={20} className="text-[#8b83ff]" />
-              AI Score
-            </div>
-
-            {/* Circular progress - CSS transition */}
-            <div className="relative inline-flex items-center justify-center">
-              <svg className="w-24 h-24 -rotate-90" viewBox="0 0 100 100">
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="42"
-                  fill="none"
-                  stroke="rgba(108,99,255,0.1)"
-                  strokeWidth="8"
-                />
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="42"
-                  fill="none"
-                  stroke="#6c63ff"
-                  strokeWidth="8"
-                  strokeLinecap="round"
-                  strokeDasharray={`${2 * Math.PI * 42}`}
-                  strokeDashoffset={2 * Math.PI * 42 * (1 - aiScore / 10)}
-                  className="transition-all duration-1000 ease-out"
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span
-                  className="text-[34px] font-black text-[#8b83ff] leading-none"
-                  style={{ fontFamily: 'Cairo, sans-serif' }}
-                >
-                  {statsLoading ? '—' : aiScore.toFixed(1)}
+            {/* Answer rate */}
+            <div className="mt-4 pt-3 border-t border-white/[0.06]">
+              <div className="flex items-center justify-center gap-1.5">
+                <Percent size={14} className="text-[#8b83ff]" />
+                <span className="text-[16px] font-bold text-[#8b83ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                  نسبة الإجابة: {callStats.answerRate}%
                 </span>
-                <span className="text-[14px] font-bold text-[#b0b8d0]">/10</span>
               </div>
-            </div>
-
-            <div className="text-[14px] font-bold text-[#b0b8d0] mt-3">متوسط جودة المكالمات</div>
-            <div
-              className={`text-[14px] mt-1.5 font-bold ${
-                aiScore >= 8
-                  ? 'text-[#00ffbb]'
-                  : aiScore >= 6
-                  ? 'text-[#ffdd88]'
-                  : 'text-[#ff8888]'
-              }`}
-            >
-              {aiScore >= 8
-                ? 'ممتاز! أعلى من المتوسط'
-                : aiScore >= 6
-                ? 'جيد — قريب من المتوسط'
-                : 'يحتاج تحسين'}
             </div>
           </div>
         </div>
 
-        {/* ─── مركزك (Your Rank) ─── */}
+        {/* ─── Pending Clients Summary ─── */}
+        <div>
+          <div
+            className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 md:p-6 text-center cursor-pointer hover:border-[#ffd166]/20 transition-all"
+            onClick={handleShowPendingClients}
+          >
+            <div className="flex items-center justify-center gap-2 text-[19px] font-extrabold text-[#ffffff] mb-4">
+              <Users size={20} className="text-[#ffd166]" />
+              العملاء المحولون
+            </div>
+
+            <div className="text-[46px] leading-none">👥</div>
+            <div
+              className="text-[22px] font-bold text-[#ffd166] mt-2"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              {pendingClientsTotal} في الانتظار
+            </div>
+            <div className="text-[14px] font-bold text-[#b0b8d0] mt-1">
+              عملاء تم تحويلهم للسيلز ولم يحضروا بعد
+            </div>
+            <div className="mt-3 pt-3 border-t border-white/[0.06] flex items-center justify-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#ffd166]" />
+              <span className="text-[14px] font-bold text-[#ffd166]">اضغط للمتابعة</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── مركزك (Your Rank) — Tele team only ─── */}
         <div>
           <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 md:p-6 text-center">
             <div className="flex items-center justify-center gap-2 text-[19px] font-extrabold text-[#ffffff] mb-4">
@@ -669,23 +814,112 @@ export function Dashboard() {
               مركزك
             </div>
 
-            <div className="text-[46px] leading-none">🏆</div>
-            <div
-              className="text-[22px] font-bold text-[#ffdd88] mt-2"
-              style={{ fontFamily: 'Cairo, sans-serif' }}
-            >
-              المركز الأول
-            </div>
-            <div className="text-[14px] font-bold text-[#b0b8d0] mt-1">
-              1,240 نقطة — {monthAr} {new Date().getFullYear()}
-            </div>
-            <div className="mt-3 pt-3 border-t border-white/[0.06] flex items-center justify-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#00ffbb]" />
-              <span className="text-[14px] font-bold text-[#00ffbb]">أعلى من الفريق بـ 18%</span>
-            </div>
+            {currentRole === 'tele' && currentUser ? (
+              <>
+                <div className="text-[46px] leading-none">
+                  {rankInfo.position === 1 ? '🥇' : rankInfo.position === 2 ? '🥈' : rankInfo.position === 3 ? '🥉' : '🏆'}
+                </div>
+                <div
+                  className="text-[22px] font-bold text-[#ffdd88] mt-2"
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                >
+                  {getPositionLabelAr(rankInfo.position)}
+                </div>
+                <div className="text-[14px] font-bold text-[#b0b8d0] mt-1">
+                  {rankInfo.meetingsCount} اجتماع — {monthAr} {new Date().getFullYear()}
+                </div>
+                {rankInfo.totalMembers > 1 && (
+                  <div className="mt-3 pt-3 border-t border-white/[0.06] flex items-center justify-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-[#00ffbb]" />
+                    <span className="text-[14px] font-bold text-[#00ffbb]">
+                      أعلى من {rankInfo.percentile}% من الفريق
+                    </span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="text-[46px] leading-none">🏆</div>
+                <div
+                  className="text-[18px] font-bold text-[#8892b0] mt-2"
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                >
+                  متاح لفريق التلي فقط
+                </div>
+                <div className="text-[14px] font-bold text-[#b0b8d0] mt-1">
+                  تصنيف بناءً على عدد الاجتماعات
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
+
+      {/* ══════════════════════════════════════════════════
+          TARGET SETTINGS DIALOG (Admin only)
+          ══════════════════════════════════════════════════ */}
+      <Dialog open={targetDialogOpen} onOpenChange={setTargetDialogOpen}>
+        <DialogContent className="bg-[#111520] border-white/[0.06] text-[#f0f2ff]" dir="rtl" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          <DialogHeader>
+            <DialogTitle className="text-[#f0f2ff] text-right">إعدادات التارجت</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Target type */}
+            <div>
+              <label className="text-[14px] font-bold text-[#b0b8d0] block mb-2">نوع التارجت</label>
+              <div className="flex gap-2">
+                {([
+                  { key: 'meetings', label: 'اجتماعات' },
+                  { key: 'money', label: 'إيرادات' },
+                  { key: 'closings', label: 'تقفيلات' },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.key}
+                    onClick={() => setEditTargetType(opt.key)}
+                    className={`flex-1 px-4 py-2.5 rounded-xl text-[14px] font-bold transition-all cursor-pointer border ${
+                      editTargetType === opt.key
+                        ? 'bg-[#6c63ff]/20 border-[#6c63ff] text-[#6c63ff]'
+                        : 'bg-[#0a0d14] border-white/[0.06] text-[#8892b0] hover:border-white/[0.12]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Target value */}
+            <div>
+              <label className="text-[14px] font-bold text-[#b0b8d0] block mb-2">القيمة المستهدفة</label>
+              <input
+                type="number"
+                value={editTargetValue}
+                onChange={(e) => setEditTargetValue(Number(e.target.value))}
+                className="w-full bg-[#0a0d14] border border-white/[0.06] rounded-xl px-4 py-2.5 text-[16px] font-bold text-[#f0f2ff] focus:border-[#6c63ff] focus:outline-none transition-colors"
+                min={1}
+                dir="ltr"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <DialogClose asChild>
+              <button className="px-4 py-2 rounded-xl text-[14px] font-bold bg-[#0a0d14] border border-white/[0.06] text-[#8892b0] hover:text-[#b0b8d0] transition-colors cursor-pointer">
+                إلغاء
+              </button>
+            </DialogClose>
+            <button
+              onClick={handleSaveTarget}
+              disabled={savingTarget || editTargetValue < 1}
+              className="px-4 py-2 rounded-xl text-[14px] font-bold bg-[#6c63ff] text-white hover:bg-[#5a52e0] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+            >
+              <Save size={14} />
+              {savingTarget ? 'جاري الحفظ...' : 'حفظ'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

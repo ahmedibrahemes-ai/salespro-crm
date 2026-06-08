@@ -14,7 +14,6 @@ export const CONTACT_RESULTS = [
 
 // ===== Tele Sheet Statuses =====
 export const STATUSES = [
-  { key: 'new', label: '🆕 جديد', cls: 'status-new' },
   { key: 'meeting', label: '📅 اجتماع', cls: 'status-done' },
   { key: 'whatsapp', label: '💬 واتس', cls: 'status-followup' },
   { key: 'not-interested', label: '🚫 غير مهتم', cls: 'status-closed-lost' },
@@ -218,6 +217,10 @@ interface CrmStore {
   lastSyncAt: number | null
   setLastSyncAt: (ts: number) => void
   syncChangesToCache: (freshLeads: Lead[], freshArchived: Lead[]) => number
+
+  // Target Settings
+  targetSettings: { type: 'meetings' | 'money' | 'closings'; value: number }
+  setTargetSettings: (settings: { type: string; value: number }) => void
 }
 
 // ===== Toast auto-dismiss timers =====
@@ -607,6 +610,10 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
     if (!norm) return undefined
     return get().duplicatesCache[norm]
   },
+
+  // Target Settings
+  targetSettings: { type: 'meetings', value: 50 },
+  setTargetSettings: (settings) => set({ targetSettings: settings as { type: 'meetings' | 'money' | 'closings'; value: number } }),
 
   // Real-time Sync Status
   realtimeStatus: 'connecting',

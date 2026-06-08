@@ -508,15 +508,30 @@ export function EmployeeProfile() {
               >
                 <ChevronRight size={16} />
               </button>
-              <button
-                onClick={goToToday}
-                className="flex items-center gap-2 px-3 py-1 rounded-lg hover:bg-white/[0.05] transition-colors cursor-pointer"
-              >
-                <Calendar size={14} className="text-[#6c63ff]" />
-                <span className="text-[14px] font-bold text-[#f0f2ff] min-w-[100px] text-center">
-                  {teleFilterDayLabel}
-                </span>
-              </button>
+              {/* Calendar date picker */}
+              <div className="relative">
+                <input
+                  type="date"
+                  value={teleFilterDateStr}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      const [y, m, d] = e.target.value.split('-').map(Number)
+                      setTeleFilterDate(new Date(y, m - 1, d))
+                    }
+                  }}
+                  className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
+                  max={new Date().toISOString().split('T')[0]}
+                />
+                <button
+                  onClick={goToToday}
+                  className="flex items-center gap-2 px-3 py-1 rounded-lg hover:bg-white/[0.05] transition-colors cursor-pointer relative z-0"
+                >
+                  <Calendar size={14} className="text-[#6c63ff]" />
+                  <span className="text-[14px] font-bold text-[#f0f2ff] min-w-[100px] text-center">
+                    {teleFilterDayLabel}
+                  </span>
+                </button>
+              </div>
               <button
                 onClick={goToNextDay}
                 disabled={isTeleFilterToday}

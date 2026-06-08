@@ -416,11 +416,14 @@ export function TeleSheet() {
   const removeLeadFromCache = useCrmStore((s) => s.removeLeadFromCache)
   const batchRemoveLeadsFromCache = useCrmStore((s) => s.batchRemoveLeadsFromCache)
   const archiveLeadsInCache = useCrmStore((s) => s.archiveLeadsInCache)
+  const activeFilter = useCrmStore((s) => s.activeFilter)
+  const setActiveFilter = useCrmStore((s) => s.setActiveFilter)
 
   const viewKey = 'tele-sheet'
   const selected = selectedLeadIds[viewKey] || []
   const searchQuery = searchQueries[viewKey] || ''
   const dateFilter = dateRangeFilters[viewKey] || { preset: 'all' }
+  const currentFilter = activeFilter[viewKey] || ''
 
   const [showAddRow, setShowAddRow] = useState(false)
   const [newLead, setNewLead] = useState({
@@ -452,6 +455,11 @@ export function TeleSheet() {
       result = result.filter((l) => l.tele === selectedTele)
     }
 
+    // Active filter (e.g. "uncontacted" from dashboard)
+    if (currentFilter === 'uncontacted') {
+      result = result.filter((l) => !l.contactResult || l.contactResult === 'none' || l.contactResult === '')
+    }
+
     // Search
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
@@ -471,7 +479,7 @@ export function TeleSheet() {
     }
 
     return result
-  }, [leads, selectedTele, searchQuery, dateFilter, isLockedToSelf, currentUser])
+  }, [leads, selectedTele, searchQuery, dateFilter, isLockedToSelf, currentUser, currentFilter])
 
   /* ─── Paginated leads ─── */
   const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE))
@@ -482,7 +490,7 @@ export function TeleSheet() {
 
   // Reset page when filters change
   const [prevFilterKey, setPrevFilterKey] = useState('')
-  const filterKey = `${selectedTele}|${searchQuery}|${dateFilter.preset}`
+  const filterKey = `${selectedTele}|${searchQuery}|${dateFilter.preset}|${currentFilter}`
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey)
     setCurrentPage(1)
@@ -688,13 +696,22 @@ export function TeleSheet() {
           </h2>
           <p className="text-[13px] font-semibold text-[#8892b0] mt-0.5">إدارة العملاء المحُوَّلين للتلي ماركتنج</p>
         </div>
-        <Button
-          onClick={() => setShowAddRow(true)}
-          className="bg-[#6c63ff] hover:bg-[#5b54e6] text-white gap-1.5 text-[12px] h-9 cursor-pointer"
-        >
-          <Plus size={14} />
-          إضافة عميل
-        </Button>
+        <div className="flex items-center gap-2">
+          {currentFilter === 'uncontacted' && (
+            <Badge className="bg-[#ff6b6b]/15 text-[#ff6b6b] text-[12px] font-bold border border-[#ff6b6b]/20 gap-1 cursor-pointer hover:bg-[#ff6b6b]/25" onClick={() => setActiveFilter(viewKey, '')}>
+              <Phone size={12} />
+              عملاء لم يتم التواصل معهم
+              <X size={10} className="mr-1" />
+            </Badge>
+          )}
+          <Button
+            onClick={() => setShowAddRow(true)}
+            className="bg-[#6c63ff] hover:bg-[#5b54e6] text-white gap-1.5 text-[12px] h-9 cursor-pointer"
+          >
+            <Plus size={14} />
+            إضافة عميل
+          </Button>
+        </div>
       </div>
 
       {/* ─── Stats Row ─── */}
@@ -942,11 +959,11 @@ export function TeleSheet() {
                                 href={lead.storeUrl.startsWith('http') ? lead.storeUrl : `https://${lead.storeUrl}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="w-5 h-5 rounded flex items-center justify-center text-[#6c63ff] hover:text-[#a8a3ff] transition-colors shrink-0"
+                                className="w-8 h-8 rounded-lg bg-[#6c63ff]/10 flex items-center justify-center text-[#6c63ff] hover:bg-[#6c63ff]/20 hover:text-[#a8a3ff] transition-colors shrink-0"
                                 title="فتح المتجر"
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                <ExternalLink size={11} />
+                                <ExternalLink size={16} />
                               </a>
                             )}
                           </div>

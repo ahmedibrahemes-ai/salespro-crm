@@ -66,13 +66,13 @@ export function Topbar() {
       {/* Right side: Page title + greeting */}
       <div className="text-right mr-10 md:mr-0">
         <h1
-          className="text-[26px] md:text-[28px] font-extrabold text-[#f0f2ff] leading-tight"
+          className="text-[22px] md:text-[24px] font-extrabold text-[#f0f2ff] leading-tight"
           style={{ fontFamily: 'Cairo, sans-serif' }}
         >
           {viewInfo.title}
         </h1>
         <p
-          className="text-[15px] md:text-[16px] font-semibold text-[#8892b0] mt-1"
+          className="text-[13px] md:text-[14px] font-semibold text-[#8892b0] mt-1"
           style={{ fontFamily: 'Cairo, sans-serif' }}
         >
           {viewInfo.subtitle
@@ -85,7 +85,7 @@ export function Topbar() {
       <div className="flex gap-2.5 items-center">
         {/* Date chip */}
         <div
-          className="hidden sm:flex px-3.5 py-2 bg-[#161b28] border border-white/[0.06] rounded-lg text-[14px] font-medium text-[#8892b0] items-center gap-2 select-none"
+          className="hidden sm:flex px-3.5 py-2 bg-[#161b28] border border-white/[0.06] rounded-lg text-[12px] font-medium text-[#8892b0] items-center gap-2 select-none"
           style={{ fontFamily: 'Cairo, sans-serif' }}
         >
           <Calendar size={14} className="text-[#6c63ff]" />

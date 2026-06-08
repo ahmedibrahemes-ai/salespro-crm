@@ -233,7 +233,7 @@ export function Sidebar() {
                 key={item.view}
                 onClick={() => handleNav(item.view)}
                 className={`
-                  relative w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[15px] font-bold
+                  relative w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-bold
                   transition-all duration-200 whitespace-nowrap overflow-hidden cursor-pointer
                   ${isActive
                     ? 'bg-[#6c63ff]/15 text-[#a8a3ff]'
@@ -285,7 +285,7 @@ export function Sidebar() {
         <div className="w-full px-2 mb-2">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[15px] font-bold text-red-400/70 hover:bg-red-500/10 hover:text-red-400 transition-colors cursor-pointer whitespace-nowrap overflow-hidden"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-bold text-red-400/70 hover:bg-red-500/10 hover:text-red-400 transition-colors cursor-pointer whitespace-nowrap overflow-hidden"
             style={{ fontFamily: 'Cairo, sans-serif' }}
           >
             <span className="shrink-0 w-5 flex justify-center">
@@ -304,7 +304,7 @@ export function Sidebar() {
         <div className="w-full px-2 pt-2 border-t border-white/[0.06]">
           <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer overflow-hidden hover:bg-[#1c2234] transition-colors">
             <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold text-white shrink-0"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0"
               style={{ background: 'linear-gradient(135deg, #6c63ff 0%, #00d4aa 100%)' }}
             >
               {currentUser ? getInitials(currentUser) : '?'}
@@ -314,13 +314,13 @@ export function Sidebar() {
               style={{ opacity: showLabel ? 1 : 0 }}
             >
               <div
-                className="text-[14px] font-bold text-[#f0f2ff] whitespace-nowrap"
+                className="text-[12px] font-bold text-[#f0f2ff] whitespace-nowrap"
                 style={{ fontFamily: 'Cairo, sans-serif' }}
               >
                 {currentUser || '—'}
               </div>
               <div
-                className="text-[13px] font-semibold text-[#6c63ff] whitespace-nowrap"
+                className="text-[11px] font-semibold text-[#6c63ff] whitespace-nowrap"
                 style={{ fontFamily: 'Cairo, sans-serif' }}
               >
                 {currentRole ? ROLE_LABELS[currentRole] : '—'}

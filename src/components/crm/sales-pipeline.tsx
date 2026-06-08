@@ -41,7 +41,7 @@ function SortableDealCard({ lead, stageColor }: { lead: Lead; stageColor: string
       {/* Top row: Grip + Name */}
       <div className="flex items-center gap-1.5 mb-1">
         <GripVertical size={11} className="text-[#4a5280] shrink-0" />
-        <span className="text-[14px] font-semibold text-[#f0f2ff] truncate flex-1">
+        <span className="text-[12px] font-semibold text-[#f0f2ff] truncate flex-1">
           {lead.name}
           {lead.hot && <span className="mr-1">🔥</span>}
         </span>
@@ -53,12 +53,12 @@ function SortableDealCard({ lead, stageColor }: { lead: Lead; stageColor: string
       </div>
 
       {/* Value */}
-      <div className="text-[13px] text-[#00d4aa] font-bold mr-5">
+      <div className="text-[11px] text-[#00d4aa] font-bold mr-5">
         {formatCurrency(lead.value)} EGP
       </div>
 
       {/* Time since creation */}
-      <div className="text-[12px] text-[#4a5280] mt-0.5 flex items-center gap-1 mr-5">
+      <div className="text-[11px] text-[#4a5280] mt-0.5 flex items-center gap-1 mr-5">
         {lead.status === 'won' ? (
           <>
             <Check size={10} className="text-[#00d4aa]" />
@@ -94,7 +94,7 @@ function SortableDealCard({ lead, stageColor }: { lead: Lead; stageColor: string
               style={{ width: `${lead.probability}%`, background: stageColor }}
             />
           </div>
-          <span className="text-[12px] text-[#8892b0] shrink-0">{lead.probability}%</span>
+          <span className="text-[11px] text-[#8892b0] shrink-0">{lead.probability}%</span>
         </div>
       )}
     </div>
@@ -114,7 +114,7 @@ function StageColumn({ stage, leads }: { stage: typeof PIPELINE_STAGES[number]; 
     <div className="flex-1 min-w-[130px]">
       {/* Stage Header */}
       <div
-        className="text-[13px] font-bold py-2 px-2.5 rounded-lg text-center mb-2.5 tracking-wide transition-all"
+        className="text-[11px] font-bold py-2 px-2.5 rounded-lg text-center mb-2.5 tracking-wide transition-all"
         style={{
           background: stage.bg,
           color: stage.color,
@@ -124,7 +124,7 @@ function StageColumn({ stage, leads }: { stage: typeof PIPELINE_STAGES[number]; 
       >
         <div>{stage.labelEn}</div>
         <div className="flex items-center justify-center gap-1.5 mt-0.5">
-          <span className="text-[12px] opacity-80">{leads.length} deals</span>
+          <span className="text-[11px] opacity-80">{leads.length} deals</span>
           {stageValue > 0 && (
             <span className="text-[11px] opacity-60">· {formatCurrency(stageValue)}</span>
           )}
@@ -146,7 +146,7 @@ function StageColumn({ stage, leads }: { stage: typeof PIPELINE_STAGES[number]; 
         </SortableContext>
 
         {leads.length === 0 && (
-          <div className="flex items-center justify-center py-8 text-[13px] text-[#4a5280]">
+          <div className="flex items-center justify-center py-8 text-[11px] text-[#4a5280]">
             فارغ
           </div>
         )}
@@ -227,19 +227,19 @@ export function SalesPipeline() {
       {/* Header */}
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div>
-          <h2 className="text-[20px] font-bold text-[#f0f2ff]">Sales Pipeline</h2>
-          <p className="text-[14px] text-[#4a5280] mt-0.5">اسحب الكارت بين المراحل</p>
+          <h2 className="text-[17px] font-bold text-[#f0f2ff]">Sales Pipeline</h2>
+          <p className="text-[12px] text-[#4a5280] mt-0.5">اسحب الكارت بين المراحل</p>
         </div>
         <div className="flex items-center gap-4">
           <div className="bg-[#111520] border border-white/[0.06] rounded-xl px-4 py-2.5">
-            <div className="text-[12px] text-[#4a5280] uppercase tracking-wider">Pipeline Value</div>
-            <div className="text-[18px] font-bold text-[#00d4aa] mt-0.5">
-              {formatCurrency(totalPipelineValue)} <span className="text-[13px] text-[#4a5280]">EGP</span>
+            <div className="text-[11px] text-[#4a5280] uppercase tracking-wider">Pipeline Value</div>
+            <div className="text-[15px] font-bold text-[#00d4aa] mt-0.5">
+              {formatCurrency(totalPipelineValue)} <span className="text-[11px] text-[#4a5280]">EGP</span>
             </div>
           </div>
           <div className="bg-[#111520] border border-white/[0.06] rounded-xl px-4 py-2.5">
-            <div className="text-[12px] text-[#4a5280] uppercase tracking-wider">Active Deals</div>
-            <div className="text-[18px] font-bold text-[#f0f2ff] mt-0.5">{totalActiveDeals}</div>
+            <div className="text-[11px] text-[#4a5280] uppercase tracking-wider">Active Deals</div>
+            <div className="text-[15px] font-bold text-[#f0f2ff] mt-0.5">{totalActiveDeals}</div>
           </div>
         </div>
       </div>
@@ -268,9 +268,9 @@ export function SalesPipeline() {
             <div className="bg-[#161b28] border-2 border-[#6c63ff] rounded-xl p-3 shadow-[0_8px_32px_rgba(0,0,0,.5)] opacity-95 rotate-1">
               <div className="flex items-center gap-1.5 mb-1">
                 <GripVertical size={11} className="text-[#6c63ff]" />
-                <span className="text-[14px] font-semibold text-[#f0f2ff]">{activeLead.name}</span>
+                <span className="text-[12px] font-semibold text-[#f0f2ff]">{activeLead.name}</span>
               </div>
-              <div className="text-[13px] text-[#00d4aa] font-bold ml-5">
+              <div className="text-[11px] text-[#00d4aa] font-bold ml-5">
                 {formatCurrency(activeLead.value)} EGP
               </div>
               {activeLead.probability > 0 && activeLead.probability < 100 && (
@@ -278,7 +278,7 @@ export function SalesPipeline() {
                   <div className="flex-1 h-[3px] bg-[#0a0d14] rounded-full overflow-hidden">
                     <div className="h-full rounded-full bg-[#6c63ff]" style={{ width: `${activeLead.probability}%` }} />
                   </div>
-                  <span className="text-[12px] text-[#8892b0] shrink-0">{activeLead.probability}%</span>
+                  <span className="text-[11px] text-[#8892b0] shrink-0">{activeLead.probability}%</span>
                 </div>
               )}
             </div>

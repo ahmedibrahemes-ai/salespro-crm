@@ -63,7 +63,7 @@ export function TeamSection() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Leaderboard */}
         <div className="bg-[#111520] border border-white/[0.06] rounded-[14px] p-5">
-          <div className="flex items-center gap-2 text-[17px] font-semibold text-[#f0f2ff] mb-4">
+          <div className="flex items-center gap-2 text-[14px] font-semibold text-[#f0f2ff] mb-4">
             <Trophy size={17} className="text-[#ffd166]" />
             Leaderboard — {getCurrentMonthArabic()}
           </div>
@@ -79,23 +79,23 @@ export function TeamSection() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.3, delay: i * 0.08 }}
                 >
-                  <span className="text-[18px] w-7 text-center shrink-0">
-                    {i < 3 ? MEDALS[i] : <span className="text-[15px] text-[#4a5280] font-bold">{i + 1}</span>}
+                  <span className="text-[15px] w-7 text-center shrink-0">
+                    {i < 3 ? MEDALS[i] : <span className="text-[13px] text-[#4a5280] font-bold">{i + 1}</span>}
                   </span>
                   <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-[14px] font-bold text-white shrink-0 shadow-md"
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-bold text-white shrink-0 shadow-md"
                     style={{ background: AVATAR_GRADIENTS[i % AVATAR_GRADIENTS.length] }}
                   >
                     {member.initials}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-[15px] font-semibold text-[#f0f2ff]">{member.nameAr || member.name}</span>
+                      <span className="text-[13px] font-semibold text-[#f0f2ff]">{member.nameAr || member.name}</span>
                       {isCurrentUser && (
-                        <span className="text-[12px] font-bold text-[#6c63ff] bg-[#6c63ff]/15 px-2 py-0.5 rounded-md">أنت</span>
+                        <span className="text-[11px] font-bold text-[#6c63ff] bg-[#6c63ff]/15 px-2 py-0.5 rounded-md">أنت</span>
                       )}
                     </div>
-                    <div className="text-[13px] text-[#8892b0] mt-0.5">{member.deals} صفقات · {member.convRate}% conv</div>
+                    <div className="text-[11px] text-[#8892b0] mt-0.5">{member.deals} صفقات · {member.convRate}% conv</div>
                   </div>
                   <div className="w-[80px] h-[5px] bg-[#0a0d14] rounded-full overflow-hidden shrink-0">
                     <motion.div
@@ -106,7 +106,7 @@ export function TeamSection() {
                       transition={{ duration: 0.8, delay: i * 0.1 }}
                     />
                   </div>
-                  <span className="text-[16px] font-bold text-[#00d4aa] min-w-[50px] text-left shrink-0" style={{ fontFamily: 'Cairo' }}>
+                  <span className="text-[14px] font-bold text-[#00d4aa] min-w-[50px] text-left shrink-0" style={{ fontFamily: 'Cairo' }}>
                     {formatCurrency(member.revenue)}
                   </span>
                 </motion.div>
@@ -117,22 +117,22 @@ export function TeamSection() {
 
         {/* Points & Badges */}
         <div className="bg-[#111520] border border-white/[0.06] rounded-[14px] p-5 text-center">
-          <div className="flex items-center justify-center gap-2 text-[17px] font-semibold text-[#f0f2ff] mb-4">
+          <div className="flex items-center justify-center gap-2 text-[14px] font-semibold text-[#f0f2ff] mb-4">
             <Medal size={17} className="text-[#6c63ff]" />
             نقاطك وشاراتك
           </div>
 
           <div className="mb-2">
-            <div className="text-[54px] font-black text-[#6c63ff] leading-none" style={{ fontFamily: 'Cairo' }}>
+            <div className="text-[46px] font-black text-[#6c63ff] leading-none" style={{ fontFamily: 'Cairo' }}>
               {topMember?.points?.toLocaleString() ?? '1,240'}
             </div>
-            <div className="text-[16px] text-[#8892b0] mt-1">نقطة</div>
+            <div className="text-[14px] text-[#8892b0] mt-1">نقطة</div>
           </div>
 
-          <div className="text-[17px] text-[#00d4aa] font-semibold mb-1">
+          <div className="text-[14px] text-[#00d4aa] font-semibold mb-1">
             🏆 المركز الأول هذا الشهر!
           </div>
-          <div className="text-[14px] text-[#4a5280] mb-5">+{topMember ? Math.round(topMember.points * 0.24) : 240} نقطة عن الشهر الماضي</div>
+          <div className="text-[12px] text-[#4a5280] mb-5">+{topMember ? Math.round(topMember.points * 0.24) : 240} نقطة عن الشهر الماضي</div>
 
           <div className="grid grid-cols-5 gap-2">
             {topBadges.length > 0 ? topBadges.map((badgeKey, i) => {
@@ -146,18 +146,18 @@ export function TeamSection() {
                   <div className="flex justify-center mb-1.5" style={{ color: badgeInfo?.color || '#ffd166' }}>
                     {badgeInfo?.icon || <Star size={22} />}
                   </div>
-                  <div className="text-[12px] text-[#8892b0] leading-tight">{badgeKey}</div>
+                  <div className="text-[11px] text-[#8892b0] leading-tight">{badgeKey}</div>
                 </motion.div>
               )
             }) : (
-              <div className="col-span-5 text-[14px] text-[#4a5280] py-4">لا توجد شارات بعد</div>
+              <div className="col-span-5 text-[12px] text-[#4a5280] py-4">لا توجد شارات بعد</div>
             )}
           </div>
 
           {/* All available badges preview (if earned badges < 5) */}
           {topBadges.length > 0 && topBadges.length < 5 && (
             <div className="mt-3 pt-3 border-t border-white/[0.06]">
-              <div className="text-[13px] text-[#4a5280] mb-2">شارات قادمة</div>
+              <div className="text-[11px] text-[#4a5280] mb-2">شارات قادمة</div>
               <div className="flex gap-2 justify-center flex-wrap">
                 {Object.entries(BADGE_MAP)
                   .filter(([key]) => !topBadges.includes(key))

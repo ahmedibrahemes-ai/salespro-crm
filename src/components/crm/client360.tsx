@@ -50,7 +50,7 @@ export function Client360() {
   if (!lead) {
     return (
       <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <div className="text-[#8892b0] text-center py-12 text-[16px]">لا يوجد بيانات عملاء — أضف ليدز أولاً</div>
+        <div className="text-[#8892b0] text-center py-12 text-[14px]">لا يوجد بيانات عملاء — أضف ليدز أولاً</div>
       </motion.div>
     )
   }
@@ -90,13 +90,13 @@ export function Client360() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowSwitcher(!showSwitcher)}
-            className="flex items-center gap-2 px-3 py-2 bg-[#161b28] border border-white/[0.06] rounded-lg text-[14px] text-[#8892b0] hover:border-[#6c63ff]/30 hover:text-[#f0f2ff] transition-all cursor-pointer"
+            className="flex items-center gap-2 px-3 py-2 bg-[#161b28] border border-white/[0.06] rounded-lg text-[12px] text-[#8892b0] hover:border-[#6c63ff]/30 hover:text-[#f0f2ff] transition-all cursor-pointer"
           >
             <Search size={13} />
             تغيير العميل
             <ChevronRight size={12} className={`transition-transform ${showSwitcher ? 'rotate-90' : ''}`} />
           </button>
-          <div className="text-[14px] text-[#4a5280]">
+          <div className="text-[12px] text-[#4a5280]">
             {activeLeads.length} عميل متاح
           </div>
         </div>
@@ -117,7 +117,7 @@ export function Client360() {
                   placeholder="بحث بالاسم أو الهاتف..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full px-3 py-2 bg-[#161b28] border border-white/[0.06] rounded-lg text-[14px] text-[#f0f2ff] outline-none focus:border-[#6c63ff]/30 transition-colors mb-2"
+                  className="w-full px-3 py-2 bg-[#161b28] border border-white/[0.06] rounded-lg text-[12px] text-[#f0f2ff] outline-none focus:border-[#6c63ff]/30 transition-colors mb-2"
                   dir="rtl"
                 />
                 {/* Client list */}
@@ -130,19 +130,19 @@ export function Client360() {
                         setShowSwitcher(false)
                         setSearchQuery('')
                       }}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[14px] transition-colors cursor-pointer ${
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] transition-colors cursor-pointer ${
                         l.id === lead.id
                           ? 'bg-[#6c63ff]/15 text-[#f0f2ff] border border-[#6c63ff]/20'
                           : 'text-[#8892b0] hover:bg-white/[0.03]'
                       }`}
                     >
-                      <div className="w-7 h-7 rounded-full bg-[#161b28] flex items-center justify-center text-[12px] font-bold shrink-0"
+                      <div className="w-7 h-7 rounded-full bg-[#161b28] flex items-center justify-center text-[11px] font-bold shrink-0"
                         style={{ background: getTemperatureLabel(l).bg, color: getTemperatureLabel(l).color }}
                       >
                         {getInitials(l.name)}
                       </div>
                       <span className="truncate font-medium">{l.name}</span>
-                      <span className="text-[12px] opacity-60">{l.company || getSourceLabel(l.source)}</span>
+                      <span className="text-[11px] opacity-60">{l.company || getSourceLabel(l.source)}</span>
                     </button>
                   ))}
                 </div>
@@ -159,17 +159,17 @@ export function Client360() {
 
         <div className="relative flex flex-wrap items-center gap-4 p-5">
           {/* Avatar */}
-          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#6c63ff] to-[#00d4aa] flex items-center justify-center text-[20px] font-bold text-white shrink-0 shadow-lg shadow-[#6c63ff]/20">
+          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#6c63ff] to-[#00d4aa] flex items-center justify-center text-[17px] font-bold text-white shrink-0 shadow-lg shadow-[#6c63ff]/20">
             {getInitials(lead.name)}
           </div>
 
           {/* Name + Company + Temperature */}
           <div className="flex-1 min-w-0">
-            <div className="text-[20px] font-bold text-[#f0f2ff]">{lead.name}</div>
+            <div className="text-[17px] font-bold text-[#f0f2ff]">{lead.name}</div>
             <div className="flex items-center gap-2 mt-1">
-              {lead.company && <span className="text-[15px] text-[#8892b0]">{lead.company}</span>}
+              {lead.company && <span className="text-[13px] text-[#8892b0]">{lead.company}</span>}
               <span
-                className="text-[12px] font-bold px-2 py-0.5 rounded-full"
+                className="text-[11px] font-bold px-2 py-0.5 rounded-full"
                 style={{ background: tempInfo.bg, color: tempInfo.color }}
               >
                 {tempInfo.label}
@@ -179,17 +179,17 @@ export function Client360() {
 
           {/* Deal value */}
           <div className="text-left shrink-0">
-            <div className="text-[26px] font-extrabold text-[#00d4aa]" style={{ fontFamily: 'Cairo' }}>
+            <div className="text-[22px] font-extrabold text-[#00d4aa]" style={{ fontFamily: 'Cairo' }}>
               {formatCurrency(lead.value)}
             </div>
-            <div className="text-[14px] text-[#8892b0]">قيمة الفرصة EGP</div>
+            <div className="text-[12px] text-[#8892b0]">قيمة الفرصة EGP</div>
           </div>
 
           {/* Action buttons */}
           <div className="flex gap-2 shrink-0">
             <a
               href={`tel:${lead.phone}`}
-              className="bg-[#161b28] border border-white/[0.06] px-3 py-2 rounded-lg text-[14px] text-[#f0f2ff] flex items-center gap-1.5 hover:border-[#6c63ff]/40 hover:bg-[#6c63ff]/8 transition-all cursor-pointer"
+              className="bg-[#161b28] border border-white/[0.06] px-3 py-2 rounded-lg text-[12px] text-[#f0f2ff] flex items-center gap-1.5 hover:border-[#6c63ff]/40 hover:bg-[#6c63ff]/8 transition-all cursor-pointer"
             >
               <Phone size={13} className="text-[#6c63ff]" /> اتصل
             </a>
@@ -197,13 +197,13 @@ export function Client360() {
               href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '')}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="bg-[#161b28] border border-[#25d366]/30 text-[#25d366] px-3 py-2 rounded-lg text-[14px] flex items-center gap-1.5 hover:bg-[#25d366]/10 transition-all cursor-pointer"
+              className="bg-[#161b28] border border-[#25d366]/30 text-[#25d366] px-3 py-2 rounded-lg text-[12px] flex items-center gap-1.5 hover:bg-[#25d366]/10 transition-all cursor-pointer"
             >
               <MessageCircle size={13} /> واتساب
             </a>
             <a
               href={lead.email ? `mailto:${lead.email}` : '#'}
-              className="bg-[#161b28] border border-white/[0.06] px-3 py-2 rounded-lg text-[14px] text-[#f0f2ff] flex items-center gap-1.5 hover:border-[#6c9fff]/40 hover:bg-[#6c9fff]/8 transition-all cursor-pointer"
+              className="bg-[#161b28] border border-white/[0.06] px-3 py-2 rounded-lg text-[12px] text-[#f0f2ff] flex items-center gap-1.5 hover:border-[#6c9fff]/40 hover:bg-[#6c9fff]/8 transition-all cursor-pointer"
             >
               <Mail size={13} className="text-[#6c9fff]" /> إيميل
             </a>
@@ -221,17 +221,17 @@ export function Client360() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: i * 0.05 }}
           >
-            <div className="text-[13px] text-[#8892b0] mb-1.5 flex items-center gap-1.5">
+            <div className="text-[11px] text-[#8892b0] mb-1.5 flex items-center gap-1.5">
               <span style={{ color: item.color || '#6c63ff' }}>{item.icon}</span>
               {item.label}
             </div>
             {item.badge ? (
-              <span className="text-[14px] font-bold px-2.5 py-1 rounded-full" style={{ background: item.badgeBg, color: item.badgeColor }}>
+              <span className="text-[12px] font-bold px-2.5 py-1 rounded-full" style={{ background: item.badgeBg, color: item.badgeColor }}>
                 {item.value}
               </span>
             ) : (
               <div
-                className={`font-medium ${item.big ? 'text-[24px] font-extrabold' : 'text-[15px]'}`}
+                className={`font-medium ${item.big ? 'text-[20px] font-extrabold' : 'text-[13px]'}`}
                 style={{ color: item.color || '#f0f2ff', fontFamily: item.big ? 'Cairo' : undefined }}
               >
                 {item.value}
@@ -243,7 +243,7 @@ export function Client360() {
 
       {/* Timeline Card */}
       <div className="bg-[#111520] border border-white/[0.06] rounded-[14px] p-5">
-        <div className="flex items-center gap-2 text-[17px] font-semibold text-[#f0f2ff] mb-4">
+        <div className="flex items-center gap-2 text-[14px] font-semibold text-[#f0f2ff] mb-4">
           <Activity size={17} className="text-[#6c63ff]" />
           Timeline كامل
         </div>
@@ -270,12 +270,12 @@ export function Client360() {
                   </div>
 
                   <div className="flex-1 min-w-0 pt-0.5">
-                    <div className="text-[14px] text-[#f0f2ff] leading-relaxed">{activity.text}</div>
-                    <div className="text-[13px] text-[#4a5280] mt-1">{formatTimeAgo(activity.createdAt)}</div>
+                    <div className="text-[12px] text-[#f0f2ff] leading-relaxed">{activity.text}</div>
+                    <div className="text-[11px] text-[#4a5280] mt-1">{formatTimeAgo(activity.createdAt)}</div>
                   </div>
 
                   {activity.type === 'call' && activity.score > 0 && (
-                    <span className="text-[12px] font-bold text-[#6c63ff] bg-[#6c63ff]/10 px-2 py-0.5 rounded-md shrink-0 self-start">
+                    <span className="text-[11px] font-bold text-[#6c63ff] bg-[#6c63ff]/10 px-2 py-0.5 rounded-md shrink-0 self-start">
                       {activity.score}/10
                     </span>
                   )}
@@ -286,8 +286,8 @@ export function Client360() {
         ) : (
           <div className="text-center py-8">
             <Activity size={28} className="text-[#4a5280] mx-auto mb-2" />
-            <div className="text-[14px] text-[#8892b0]">لا يوجد نشاط مسجل لهذا العميل</div>
-            <div className="text-[13px] text-[#4a5280] mt-1">أضف نشاط من قسم المتابعة أو المكالمات</div>
+            <div className="text-[12px] text-[#8892b0]">لا يوجد نشاط مسجل لهذا العميل</div>
+            <div className="text-[11px] text-[#4a5280] mt-1">أضف نشاط من قسم المتابعة أو المكالمات</div>
           </div>
         )}
       </div>

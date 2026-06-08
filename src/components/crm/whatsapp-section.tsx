@@ -125,8 +125,8 @@ export function WhatsAppSection() {
               <MessageCircle size={16} className="text-[#25d366]" />
             </div>
             <div>
-              <div className="text-[16px] font-bold text-[#f0f2ff]">واتساب</div>
-              <div className="text-[13px] text-[#8892b0]">{chatLeads.length} محادثة</div>
+              <div className="text-[14px] font-bold text-[#f0f2ff]">واتساب</div>
+              <div className="text-[11px] text-[#8892b0]">{chatLeads.length} محادثة</div>
             </div>
           </div>
 
@@ -152,7 +152,7 @@ export function WhatsAppSection() {
                 >
                   {/* Avatar */}
                   <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center text-[14px] font-bold shrink-0"
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0"
                     style={{
                       background: lead.hot ? 'rgba(255,107,107,.15)' : 'rgba(108,159,255,.15)',
                       color: lead.hot ? '#ff6b6b' : '#6c9fff',
@@ -165,14 +165,14 @@ export function WhatsAppSection() {
                   {/* Name + Last Message */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-[15px] font-semibold text-[#f0f2ff] truncate">
+                      <span className="text-[13px] font-semibold text-[#f0f2ff] truncate">
                         {lead.name}
                       </span>
-                      <span className="text-[12px] text-[#4a5280] shrink-0">
+                      <span className="text-[11px] text-[#4a5280] shrink-0">
                         {lastMsg ? formatTime(lastMsg.createdAt) : ''}
                       </span>
                     </div>
-                    <div className="text-[13px] text-[#8892b0] truncate mt-0.5">
+                    <div className="text-[11px] text-[#8892b0] truncate mt-0.5">
                       {lastMsg
                         ? (lastMsg.fromMe ? 'أنت: ' : '') + lastMsg.text
                         : 'لا يوجد رسائل'
@@ -182,14 +182,14 @@ export function WhatsAppSection() {
 
                   {/* Unread Badge */}
                   {unread > 0 && (
-                    <span className="bg-[#25d366] text-white text-[12px] w-5 h-5 rounded-full flex items-center justify-center font-bold shrink-0">
+                    <span className="bg-[#25d366] text-white text-[11px] w-5 h-5 rounded-full flex items-center justify-center font-bold shrink-0">
                       {unread}
                     </span>
                   )}
                 </div>
               )
             }) : (
-              <div className="px-4 py-8 text-center text-[14px] text-[#8892b0]">
+              <div className="px-4 py-8 text-center text-[12px] text-[#8892b0]">
                 لا يوجد محادثات بعد
               </div>
             )}
@@ -204,11 +204,11 @@ export function WhatsAppSection() {
               <div className="px-5 py-3.5 border-b border-white/[0.06] bg-[#111520]/80 backdrop-blur-sm flex items-center gap-3">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#25d366] animate-pulse" />
                 <div>
-                  <span className="text-[16px] font-bold text-[#f0f2ff]">{selectedLead.name}</span>
-                  <span className="text-[14px] text-[#25d366] mr-2">Online</span>
+                  <span className="text-[14px] font-bold text-[#f0f2ff]">{selectedLead.name}</span>
+                  <span className="text-[12px] text-[#25d366] mr-2">Online</span>
                 </div>
                 <div className="mr-auto flex items-center gap-2">
-                  <span className="text-[12px] text-[#4a5280] bg-white/[0.04] px-2 py-1 rounded-lg">
+                  <span className="text-[11px] text-[#4a5280] bg-white/[0.04] px-2 py-1 rounded-lg">
                     {selectedLead.company || selectedLead.phone}
                   </span>
                 </div>
@@ -225,7 +225,7 @@ export function WhatsAppSection() {
                 {/* Date separator */}
                 <div className="flex items-center gap-3 my-2">
                   <div className="flex-1 h-px bg-white/[0.06]" />
-                  <span className="text-[12px] text-[#4a5280] bg-white/[0.04] px-3 py-1 rounded-full">
+                  <span className="text-[11px] text-[#4a5280] bg-white/[0.04] px-3 py-1 rounded-full">
                     اليوم
                   </span>
                   <div className="flex-1 h-px bg-white/[0.06]" />
@@ -241,7 +241,7 @@ export function WhatsAppSection() {
                       className={`${msg.fromMe ? 'self-end' : 'self-start'} max-w-[75%]`}
                     >
                       <div
-                        className={`px-4 py-2.5 text-[15px] leading-relaxed ${
+                        className={`px-4 py-2.5 text-[13px] leading-relaxed ${
                           msg.fromMe
                             ? 'bg-[#6c63ff]/15 border border-[#6c63ff]/20 rounded-2xl rounded-tl-md'
                             : 'bg-[#161b28] border border-white/[0.06] rounded-2xl rounded-tr-md'
@@ -250,11 +250,11 @@ export function WhatsAppSection() {
                         <span className="text-[#e8eaff]">{msg.text}</span>
                       </div>
                       <div className={`flex items-center gap-1.5 mt-1 ${msg.fromMe ? 'justify-start' : ''}`}>
-                        <span className="text-[12px] text-[#4a5280]">
+                        <span className="text-[11px] text-[#4a5280]">
                           {formatMessageTime(msg.createdAt)}
                         </span>
                         {msg.fromMe && (
-                          <span className={`text-[12px] ${msg.read ? 'text-[#25d366]' : 'text-[#4a5280]'}`}>
+                          <span className={`text-[11px] ${msg.read ? 'text-[#25d366]' : 'text-[#4a5280]'}`}>
                             {msg.read ? '✓✓' : '✓'}
                           </span>
                         )}
@@ -264,7 +264,7 @@ export function WhatsAppSection() {
                     <div className="flex-1 flex items-center justify-center">
                       <div className="text-center">
                         <MessageCircle size={32} className="text-[#4a5280] mx-auto mb-2" />
-                        <div className="text-[15px] text-[#8892b0]">ابدأ المحادثة</div>
+                        <div className="text-[13px] text-[#8892b0]">ابدأ المحادثة</div>
                       </div>
                     </div>
                   )}
@@ -280,7 +280,7 @@ export function WhatsAppSection() {
                     <button
                       key={reply}
                       onClick={() => handleQuickReply(reply)}
-                      className={`px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
                         reply === 'حول لـ Opportunity'
                           ? 'bg-[#00d4aa]/10 border border-[#00d4aa]/25 text-[#00d4aa] hover:bg-[#00d4aa]/20'
                           : 'bg-[#161b28] border border-white/[0.06] text-[#8892b0] hover:border-[#6c63ff]/40 hover:text-[#b8bfff]'
@@ -300,7 +300,7 @@ export function WhatsAppSection() {
                     value={inputMsg}
                     onChange={(e) => setInputMsg(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-                    className="flex-1 px-4 py-2.5 bg-[#161b28] border border-white/[0.06] rounded-xl text-[15px] text-[#f0f2ff] placeholder-[#4a5280] outline-none focus:border-[#6c63ff]/40 transition-colors"
+                    className="flex-1 px-4 py-2.5 bg-[#161b28] border border-white/[0.06] rounded-xl text-[13px] text-[#f0f2ff] placeholder-[#4a5280] outline-none focus:border-[#6c63ff]/40 transition-colors"
                     dir="rtl"
                     disabled={sending}
                   />
@@ -318,8 +318,8 @@ export function WhatsAppSection() {
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
                 <MessageCircle size={40} className="text-[#4a5280] mx-auto mb-3" />
-                <div className="text-[16px] text-[#8892b0]">اختر محادثة للبدء</div>
-                <div className="text-[14px] text-[#4a5280] mt-1">اختر محادثة من القائمة على اليمين</div>
+                <div className="text-[14px] text-[#8892b0]">اختر محادثة للبدء</div>
+                <div className="text-[12px] text-[#4a5280] mt-1">اختر محادثة من القائمة على اليمين</div>
               </div>
             </div>
           )}

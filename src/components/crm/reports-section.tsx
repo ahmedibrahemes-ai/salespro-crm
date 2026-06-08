@@ -20,7 +20,7 @@ const LOSS_RED_SHADES = ['#ff6b6b', '#ff4d4d', '#e63946', '#d62828', '#ff8c42']
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-[#161b28] border border-white/[0.08] rounded-lg px-3 py-2 text-[14px] shadow-xl">
+    <div className="bg-[#161b28] border border-white/[0.08] rounded-lg px-3 py-2 text-[12px] shadow-xl">
       <div className="text-[#8892b0] mb-1">{label}</div>
       <div className="text-[#f0f2ff] font-bold">{payload[0].value}%</div>
     </div>
@@ -30,7 +30,7 @@ function CustomTooltip({ active, payload, label }: any) {
 function PieTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-[#161b28] border border-white/[0.08] rounded-lg px-3 py-2 text-[14px] shadow-xl">
+    <div className="bg-[#161b28] border border-white/[0.08] rounded-lg px-3 py-2 text-[12px] shadow-xl">
       <div className="text-[#f0f2ff] font-bold">{payload[0].name}: {payload[0].value}</div>
     </div>
   )
@@ -141,7 +141,7 @@ export function ReportsSection() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Best Lead Sources - Pie Chart */}
         <div className="bg-[#111520] border border-white/[0.06] rounded-[14px] p-5">
-          <div className="flex items-center gap-2 text-[17px] font-semibold text-[#f0f2ff] mb-4">
+          <div className="flex items-center gap-2 text-[14px] font-semibold text-[#f0f2ff] mb-4">
             <PieIcon size={17} className="text-[#6c63ff]" />
             أفضل مصادر الليدز
           </div>
@@ -170,8 +170,8 @@ export function ReportsSection() {
               {sourceData.map((s, i) => (
                 <div key={s.key} className="flex items-center gap-2.5">
                   <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.color }} />
-                  <span className="text-[14px] text-[#8892b0] flex-1">{s.label}</span>
-                  <span className="text-[14px] font-bold" style={{ color: s.color }}>{s.pct}%</span>
+                  <span className="text-[12px] text-[#8892b0] flex-1">{s.label}</span>
+                  <span className="text-[12px] font-bold" style={{ color: s.color }}>{s.pct}%</span>
                 </div>
               ))}
             </div>
@@ -180,7 +180,7 @@ export function ReportsSection() {
 
         {/* Loss Reasons - Horizontal Bar Chart */}
         <div className="bg-[#111520] border border-white/[0.06] rounded-[14px] p-5">
-          <div className="flex items-center gap-2 text-[17px] font-semibold text-[#f0f2ff] mb-4">
+          <div className="flex items-center gap-2 text-[14px] font-semibold text-[#f0f2ff] mb-4">
             <XCircle size={17} className="text-[#ff6b6b]" />
             أسباب خسارة الصفقات
           </div>
@@ -204,15 +204,15 @@ export function ReportsSection() {
       {/* Row 2: Monthly Trend Line Chart */}
       <div className="bg-[#111520] border border-white/[0.06] rounded-[14px] p-5">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2 text-[17px] font-semibold text-[#f0f2ff]">
+          <div className="flex items-center gap-2 text-[14px] font-semibold text-[#f0f2ff]">
             <BarChart3 size={17} className="text-[#00d4aa]" />
             اتجاه المبيعات الشهري
           </div>
           <div className="flex gap-3">
-            <div className="flex items-center gap-1.5 text-[13px] text-[#6c63ff]">
+            <div className="flex items-center gap-1.5 text-[11px] text-[#6c63ff]">
               <div className="w-2 h-2 rounded-full bg-[#6c63ff]" /> ليدز
             </div>
-            <div className="flex items-center gap-1.5 text-[13px] text-[#00d4aa]">
+            <div className="flex items-center gap-1.5 text-[11px] text-[#00d4aa]">
               <div className="w-2 h-2 rounded-full bg-[#00d4aa]" /> إيرادات
             </div>
           </div>
@@ -239,7 +239,7 @@ export function ReportsSection() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Management KPIs */}
         <div className="bg-[#111520] border border-white/[0.06] rounded-[14px] p-5">
-          <div className="flex items-center gap-2 text-[17px] font-semibold text-[#f0f2ff] mb-4">
+          <div className="flex items-center gap-2 text-[14px] font-semibold text-[#f0f2ff] mb-4">
             <TrendingUp size={17} className="text-[#00d4aa]" />
             KPIs الإدارة
           </div>
@@ -247,7 +247,7 @@ export function ReportsSection() {
             {kpiRows.map((row, i) => (
               <motion.div
                 key={i}
-                className="flex items-center justify-between py-3 border-b border-white/[0.06] last:border-0 text-[15px]"
+                className="flex items-center justify-between py-3 border-b border-white/[0.06] last:border-0 text-[13px]"
                 initial={{ opacity: 0, x: -6 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.2, delay: i * 0.05 }}
@@ -261,7 +261,7 @@ export function ReportsSection() {
 
         {/* Team Performance */}
         <div className="bg-[#111520] border border-white/[0.06] rounded-[14px] p-5">
-          <div className="flex items-center gap-2 text-[17px] font-semibold text-[#f0f2ff] mb-4">
+          <div className="flex items-center gap-2 text-[14px] font-semibold text-[#f0f2ff] mb-4">
             <UserCog size={17} className="text-[#6c63ff]" />
             أداء الفريق
           </div>
@@ -269,7 +269,7 @@ export function ReportsSection() {
             {teamRows.map((row, i) => (
               <motion.div
                 key={i}
-                className="flex items-center justify-between py-3 border-b border-white/[0.06] last:border-0 text-[15px]"
+                className="flex items-center justify-between py-3 border-b border-white/[0.06] last:border-0 text-[13px]"
                 initial={{ opacity: 0, x: -6 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.2, delay: i * 0.05 }}

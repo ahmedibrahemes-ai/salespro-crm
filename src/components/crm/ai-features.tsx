@@ -207,8 +207,8 @@ export function AIFeatures() {
           <Sparkles size={18} className="text-[#6c63ff]" />
         </div>
         <div>
-          <h2 className="text-[20px] font-bold text-[#f0f2ff]">ميزات الذكاء الاصطناعي</h2>
-          <p className="text-[14px] text-[#8892b0]">أدوات AI لتعزيز أداء المبيعات</p>
+          <h2 className="text-[17px] font-bold text-[#f0f2ff]">ميزات الذكاء الاصطناعي</h2>
+          <p className="text-[12px] text-[#8892b0]">أدوات AI لتعزيز أداء المبيعات</p>
         </div>
       </div>
 
@@ -256,15 +256,15 @@ export function AIFeatures() {
             </div>
 
             {/* Title */}
-            <div className="text-[17px] font-bold text-[#f0f2ff] mb-1.5">{feature.title}</div>
+            <div className="text-[14px] font-bold text-[#f0f2ff] mb-1.5">{feature.title}</div>
 
             {/* Description */}
-            <div className="text-[14px] text-[#8892b0] leading-relaxed">{feature.desc}</div>
+            <div className="text-[12px] text-[#8892b0] leading-relaxed">{feature.desc}</div>
 
             {/* Stat */}
             {feature.stat && (
               <div
-                className="text-[24px] font-extrabold mt-3"
+                className="text-[20px] font-extrabold mt-3"
                 style={{ color: feature.statColor, fontFamily: 'Cairo' }}
               >
                 {feature.stat}
@@ -273,7 +273,7 @@ export function AIFeatures() {
 
             {/* Clickable hint or Coming Soon */}
             {feature.clickable ? (
-              <div className="absolute bottom-3.5 left-3.5 text-[12px] text-[#6c63ff]/60 flex items-center gap-1">
+              <div className="absolute bottom-3.5 left-3.5 text-[11px] text-[#6c63ff]/60 flex items-center gap-1">
                 <Sparkles size={10} />
                 اضغط للتحليل
               </div>
@@ -307,10 +307,10 @@ export function AIFeatures() {
                     )}
                   </div>
                   <div>
-                    <div className="text-[15px] font-bold text-[#f0f2ff]">
+                    <div className="text-[13px] font-bold text-[#f0f2ff]">
                       {aiType === 'call-analysis' ? 'تحليل الأداء' : 'AI Coach'}
                     </div>
-                    <div className="text-[12px] text-[#6c63ff]/60">powered by AI</div>
+                    <div className="text-[11px] text-[#6c63ff]/60">powered by AI</div>
                   </div>
                 </div>
                 {aiResponse && (
@@ -327,11 +327,11 @@ export function AIFeatures() {
               {aiLoading ? (
                 <div className="flex items-center gap-3 py-6 justify-center">
                   <Loader2 size={20} className="text-[#6c63ff] animate-spin" />
-                  <span className="text-[15px] text-[#8892b0]">جاري التحليل بالذكاء الاصطناعي...</span>
+                  <span className="text-[13px] text-[#8892b0]">جاري التحليل بالذكاء الاصطناعي...</span>
                 </div>
               ) : (
                 <div className="bg-[#0d1017]/60 rounded-xl p-4 border border-white/[0.04]">
-                  <div className="text-[15px] text-[#c8cdea] leading-[1.85] whitespace-pre-wrap" dir="rtl">
+                  <div className="text-[13px] text-[#c8cdea] leading-[1.85] whitespace-pre-wrap" dir="rtl">
                     {aiResponse}
                   </div>
                 </div>
@@ -349,12 +349,12 @@ export function AIFeatures() {
               <History size={15} className="text-[#6c63ff]" />
             </div>
             <div>
-              <div className="text-[16px] font-bold text-[#f0f2ff]">آخر تحليلات AI</div>
-              <div className="text-[13px] text-[#8892b0]">تحليلات المكالمات الأخيرة</div>
+              <div className="text-[14px] font-bold text-[#f0f2ff]">آخر تحليلات AI</div>
+              <div className="text-[11px] text-[#8892b0]">تحليلات المكالمات الأخيرة</div>
             </div>
           </div>
           {recentAnalyses.length > 0 && (
-            <span className="text-[13px] text-[#6c63ff] bg-[#6c63ff]/10 px-2.5 py-1 rounded-lg">
+            <span className="text-[11px] text-[#6c63ff] bg-[#6c63ff]/10 px-2.5 py-1 rounded-lg">
               {recentAnalyses.length} تحليل
             </span>
           )}
@@ -384,13 +384,13 @@ export function AIFeatures() {
 
                 {/* Call Info */}
                 <div className="flex-1 min-w-0">
-                  <div className="text-[15px] font-semibold text-[#f0f2ff] truncate">
+                  <div className="text-[13px] font-semibold text-[#f0f2ff] truncate">
                     مكالمة — {analysis.leadName}
                   </div>
-                  <div className="text-[13px] text-[#8892b0] truncate mt-0.5">
+                  <div className="text-[11px] text-[#8892b0] truncate mt-0.5">
                     {analysis.text}
                   </div>
-                  <div className="text-[12px] text-[#4a5280] mt-0.5">
+                  <div className="text-[11px] text-[#4a5280] mt-0.5">
                     {new Date(analysis.createdAt).toLocaleDateString('ar-EG', {
                       day: 'numeric',
                       month: 'short',
@@ -406,7 +406,7 @@ export function AIFeatures() {
                   style={{ background: getScoreBg(analysis.score) }}
                 >
                   <div
-                    className="text-[22px] font-extrabold leading-tight"
+                    className="text-[19px] font-extrabold leading-tight"
                     style={{ color: getScoreColor(analysis.score), fontFamily: 'Cairo' }}
                   >
                     {analysis.score}
@@ -424,8 +424,8 @@ export function AIFeatures() {
         ) : (
           <div className="py-8 text-center">
             <Star size={28} className="text-[#4a5280] mx-auto mb-2" />
-            <div className="text-[14px] text-[#8892b0]">لا يوجد تحليلات بعد</div>
-            <div className="text-[13px] text-[#4a5280] mt-1">أضف بيانات تجريبية أولاً</div>
+            <div className="text-[12px] text-[#8892b0]">لا يوجد تحليلات بعد</div>
+            <div className="text-[11px] text-[#4a5280] mt-1">أضف بيانات تجريبية أولاً</div>
           </div>
         )}
       </div>

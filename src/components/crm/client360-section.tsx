@@ -85,7 +85,7 @@ export default function Client360Section() {
             <div className="flex items-center gap-3 flex-wrap">
               <h2 className="text-[#f0f2ff] text-lg font-bold">{lead.name}</h2>
               <span
-                className="text-[12px] font-bold px-2.5 py-0.5 rounded-full"
+                className="text-[11px] font-bold px-2.5 py-0.5 rounded-full"
                 style={{ backgroundColor: statusInfo.bg, color: statusInfo.color }}
               >
                 {stageLabel}
@@ -123,7 +123,7 @@ export default function Client360Section() {
             <div key={item.label} className="bg-[#111520] border border-white/[0.06] rounded-[14px] p-3">
               <div className="flex items-center gap-2 mb-1">
                 <Icon size={13} className="text-[#8892b0]" />
-                <span className="text-[#8892b0] text-[12px]">{item.label}</span>
+                <span className="text-[#8892b0] text-[11px]">{item.label}</span>
               </div>
               <p className="text-[#f0f2ff] text-sm font-medium truncate">{item.value}</p>
             </div>
@@ -156,7 +156,7 @@ export default function Client360Section() {
                 {/* Content */}
                 <div className="flex-1 pb-4 min-w-0">
                   <p className="text-[#f0f2ff] text-sm leading-relaxed">{activity.text}</p>
-                  <p className="text-[#4a5280] text-[12px] mt-1">
+                  <p className="text-[#4a5280] text-[11px] mt-1">
                     {activity.createdAt ? new Date(activity.createdAt).toLocaleDateString('ar-EG', {
                       day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
                     }) : ''}

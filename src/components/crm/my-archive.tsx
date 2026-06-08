@@ -130,16 +130,16 @@ export function MyArchive() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-[22px] font-extrabold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          <h2 className="text-[19px] font-extrabold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
             أرشيفي
           </h2>
-          <p className="text-[15px] font-semibold text-[#8892b0] mt-0.5">العملاء المؤرشفين — يمكنك استرجاعهم</p>
+          <p className="text-[13px] font-semibold text-[#8892b0] mt-0.5">العملاء المؤرشفين — يمكنك استرجاعهم</p>
         </div>
 
         {selectedIds.size > 0 && (
           <Button
             onClick={handleBulkUnarchive}
-            className="bg-[#00d4aa] hover:bg-[#00c09a] text-[#0a0d14] gap-1.5 text-[14px] h-9 cursor-pointer"
+            className="bg-[#00d4aa] hover:bg-[#00c09a] text-[#0a0d14] gap-1.5 text-[12px] h-9 cursor-pointer"
           >
             <ArchiveRestore size={14} />
             استرجاع ({selectedIds.size})
@@ -155,8 +155,8 @@ export function MyArchive() {
           { label: 'من السيلز', value: stats.fromSales, color: '#00d4aa' },
         ].map((s, i) => (
           <motion.div key={i} variants={itemVariants} className="bg-[#111520] border border-white/[0.06] rounded-xl p-3">
-            <div className="text-[15px] font-semibold text-[#8892b0]">{s.label}</div>
-            <div className="text-[22px] font-bold mt-0.5" style={{ color: s.color, fontFamily: 'Cairo, sans-serif' }}>
+            <div className="text-[13px] font-semibold text-[#8892b0]">{s.label}</div>
+            <div className="text-[19px] font-bold mt-0.5" style={{ color: s.color, fontFamily: 'Cairo, sans-serif' }}>
               {s.value}
             </div>
           </motion.div>
@@ -169,14 +169,14 @@ export function MyArchive() {
           <div className="flex flex-wrap items-center gap-2">
             {currentRole === 'admin' && (
               <Select value={filterRole} onValueChange={(v: 'all' | 'tele' | 'sales') => setFilterRole(v)}>
-                <SelectTrigger className="w-[120px] h-8 text-[15px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
+                <SelectTrigger className="w-[120px] h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
                   <Filter size={12} className="text-[#6c63ff]" />
                   <SelectValue placeholder="فلتر" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#111520] border-white/[0.08]">
-                  <SelectItem value="all" className="text-[15px]">الكل</SelectItem>
-                  <SelectItem value="tele" className="text-[15px]">التيلي</SelectItem>
-                  <SelectItem value="sales" className="text-[15px]">السيلز</SelectItem>
+                  <SelectItem value="all" className="text-[13px]">الكل</SelectItem>
+                  <SelectItem value="tele" className="text-[13px]">التيلي</SelectItem>
+                  <SelectItem value="sales" className="text-[13px]">السيلز</SelectItem>
                 </SelectContent>
               </Select>
             )}
@@ -187,11 +187,11 @@ export function MyArchive() {
                 placeholder="بحث في الأرشيف..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-8 text-[15px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] pr-8 placeholder:text-[#4a5280]"
+                className="h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] pr-8 placeholder:text-[#4a5280]"
               />
             </div>
 
-            <Badge className="bg-[#1c2234] text-[#8892b0] text-[13px] font-bold border-0">
+            <Badge className="bg-[#1c2234] text-[#8892b0] text-[11px] font-bold border-0">
               {filteredLeads.length} عميل
             </Badge>
           </div>
@@ -205,7 +205,7 @@ export function MyArchive() {
             <Table>
               <TableHeader>
                 <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
-                  <TableHead className="w-[40px] text-right text-[15px] font-bold text-[#4a5280]">
+                  <TableHead className="w-[40px] text-right text-[13px] font-bold text-[#4a5280]">
                     <input
                       type="checkbox"
                       checked={selectedIds.size === filteredLeads.length && filteredLeads.length > 0}
@@ -219,23 +219,23 @@ export function MyArchive() {
                       className="rounded border-white/20 accent-[#6c63ff]"
                     />
                   </TableHead>
-                  <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">العميل</TableHead>
-                  <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">الهاتف</TableHead>
-                  <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">التيلي</TableHead>
-                  <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">السيلز</TableHead>
-                  <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">الحالة</TableHead>
-                  <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">أرشفته</TableHead>
-                  <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">تاريخ الأرشفة</TableHead>
-                  <TableHead className="text-right text-[15px] font-bold text-[#4a5280] w-[80px]">استرجاع</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">العميل</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">الهاتف</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">التيلي</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">السيلز</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">الحالة</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">أرشفته</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">تاريخ الأرشفة</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[80px]">استرجاع</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredLeads.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-12 text-[#4a5280]">
-                      <div className="text-[34px] mb-2">📦</div>
-                      <div className="text-[16px] font-semibold">لا يعملاء مؤرشفين</div>
-                      <div className="text-[14px] font-medium mt-1">الأرشيف فارغ</div>
+                      <div className="text-[30px] mb-2">📦</div>
+                      <div className="text-[14px] font-semibold">لا يعملاء مؤرشفين</div>
+                      <div className="text-[12px] font-medium mt-1">الأرشيف فارغ</div>
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -257,9 +257,9 @@ export function MyArchive() {
                           />
                         </TableCell>
                         <TableCell>
-                          <div className="text-[15px] font-bold text-[#f0f2ff]">{lead.customerName || '—'}</div>
+                          <div className="text-[13px] font-bold text-[#f0f2ff]">{lead.customerName || '—'}</div>
                           {lead.storeUrl && (
-                            <div className="text-[13px] text-[#4a5280] truncate max-w-[120px]">{lead.storeUrl}</div>
+                            <div className="text-[11px] text-[#4a5280] truncate max-w-[120px]">{lead.storeUrl}</div>
                           )}
                         </TableCell>
                         <TableCell>
@@ -270,23 +270,23 @@ export function MyArchive() {
                             >
                               <Phone size={10} />
                             </a>
-                            <span className="text-[15px] font-medium text-[#8892b0]">{lead.phone || '—'}</span>
+                            <span className="text-[13px] font-medium text-[#8892b0]">{lead.phone || '—'}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-[15px] font-semibold text-[#a8a3ff]">{lead.tele || '—'}</TableCell>
-                        <TableCell className="text-[15px] font-semibold text-[#00d4aa]">{lead.sales || '—'}</TableCell>
+                        <TableCell className="text-[13px] font-semibold text-[#a8a3ff]">{lead.tele || '—'}</TableCell>
+                        <TableCell className="text-[13px] font-semibold text-[#00d4aa]">{lead.sales || '—'}</TableCell>
                         <TableCell>
-                          <Badge className="bg-[#1c2234] text-[#8892b0] text-[13px] font-bold border-0">
+                          <Badge className="bg-[#1c2234] text-[#8892b0] text-[11px] font-bold border-0">
                             {STATUSES.find((s) => s.key === lead.status)?.label || lead.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-[14px] font-medium text-[#4a5280]">{lead.archivedBy || '—'}</TableCell>
-                        <TableCell className="text-[14px] font-medium text-[#4a5280]">{formatDate(lead.archivedAt)}</TableCell>
+                        <TableCell className="text-[12px] font-medium text-[#4a5280]">{lead.archivedBy || '—'}</TableCell>
+                        <TableCell className="text-[12px] font-medium text-[#4a5280]">{formatDate(lead.archivedAt)}</TableCell>
                         <TableCell>
                           <Button
                             onClick={() => handleUnarchive(lead.id)}
                             size="sm"
-                            className="h-7 text-[15px] font-bold bg-[#00d4aa]/15 text-[#00d4aa] hover:bg-[#00d4aa]/25 border-0 gap-1 cursor-pointer"
+                            className="h-7 text-[13px] font-bold bg-[#00d4aa]/15 text-[#00d4aa] hover:bg-[#00d4aa]/25 border-0 gap-1 cursor-pointer"
                           >
                             <ChevronLeft size={12} />
                             استرجاع
@@ -301,7 +301,7 @@ export function MyArchive() {
           </div>
 
           {filteredLeads.length > 0 && (
-            <div className="border-t border-white/[0.06] px-4 py-2.5 flex items-center justify-between text-[14px] font-medium text-[#4a5280]">
+            <div className="border-t border-white/[0.06] px-4 py-2.5 flex items-center justify-between text-[12px] font-medium text-[#4a5280]">
               <span>عرض {filteredLeads.length} عميل مؤرشف</span>
               {selectedIds.size > 0 && (
                 <span className="text-[#6c63ff]">{selectedIds.size} محدد</span>

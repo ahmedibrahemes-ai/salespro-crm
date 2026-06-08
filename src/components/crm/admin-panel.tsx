@@ -104,8 +104,8 @@ function OverviewTab() {
           { label: 'نسبة التحويل', value: `${conversionRate}%`, color: '#ff6b6b' },
         ].map((k, i) => (
           <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-4 animate-in fade-in duration-300">
-            <div className="text-[11px] text-[#8892b0]">{k.label}</div>
-            <div className="text-[24px] font-bold mt-1" style={{ color: k.color, fontFamily: 'Cairo, sans-serif' }}>
+            <div className="text-[13px] text-[#8892b0]">{k.label}</div>
+            <div className="text-[26px] font-bold mt-1" style={{ color: k.color, fontFamily: 'Cairo, sans-serif' }}>
               {k.value}
             </div>
           </div>
@@ -115,7 +115,7 @@ function OverviewTab() {
       {/* Team Performance Table */}
       <Card className="bg-[#111520] border-white/[0.06]">
         <CardHeader className="pb-3">
-          <CardTitle className="text-[14px] text-[#f0f2ff] flex items-center gap-2">
+          <CardTitle className="text-[16px] text-[#f0f2ff] flex items-center gap-2">
             <Trophy size={16} className="text-[#ffd166]" />
             أداء الفريق
           </CardTitle>
@@ -124,12 +124,12 @@ function OverviewTab() {
           <Table>
             <TableHeader>
               <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
-                <TableHead className="text-right text-[11px] text-[#4a5280]">الاسم</TableHead>
-                <TableHead className="text-right text-[11px] text-[#4a5280]">الدور</TableHead>
-                <TableHead className="text-right text-[11px] text-[#4a5280]">عملاء</TableHead>
-                <TableHead className="text-right text-[11px] text-[#4a5280]">تواصل</TableHead>
-                <TableHead className="text-right text-[11px] text-[#4a5280]">اجتماعات</TableHead>
-                <TableHead className="text-right text-[11px] text-[#4a5280]">تقفيل</TableHead>
+                <TableHead className="text-right text-[13px] text-[#4a5280]">الاسم</TableHead>
+                <TableHead className="text-right text-[13px] text-[#4a5280]">الدور</TableHead>
+                <TableHead className="text-right text-[13px] text-[#4a5280]">عملاء</TableHead>
+                <TableHead className="text-right text-[13px] text-[#4a5280]">تواصل</TableHead>
+                <TableHead className="text-right text-[13px] text-[#4a5280]">اجتماعات</TableHead>
+                <TableHead className="text-right text-[13px] text-[#4a5280]">تقفيل</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -137,14 +137,14 @@ function OverviewTab() {
                 const s = teamStats[name] || { total: 0, contacted: 0, meetings: 0, closed: 0 }
                 return (
                   <TableRow key={name} className="border-b border-white/[0.04] hover:bg-[#1c2234]/50">
-                    <TableCell className="text-[12px] text-[#f0f2ff] font-medium">{name}</TableCell>
+                    <TableCell className="text-[14px] text-[#f0f2ff] font-medium">{name}</TableCell>
                     <TableCell>
-                      <Badge className="bg-[#6c63ff]/15 text-[#a8a3ff] text-[10px] border-0">تيلي</Badge>
+                      <Badge className="bg-[#6c63ff]/15 text-[#a8a3ff] text-[12px] border-0">تيلي</Badge>
                     </TableCell>
-                    <TableCell className="text-[12px] text-[#8892b0]">{s.total}</TableCell>
-                    <TableCell className="text-[12px] text-[#00d4aa]">{s.contacted}</TableCell>
-                    <TableCell className="text-[12px] text-[#ffd166]">{s.meetings}</TableCell>
-                    <TableCell className="text-[12px] text-[#00d4aa]">{s.closed}</TableCell>
+                    <TableCell className="text-[14px] text-[#8892b0]">{s.total}</TableCell>
+                    <TableCell className="text-[14px] text-[#00d4aa]">{s.contacted}</TableCell>
+                    <TableCell className="text-[14px] text-[#ffd166]">{s.meetings}</TableCell>
+                    <TableCell className="text-[14px] text-[#00d4aa]">{s.closed}</TableCell>
                   </TableRow>
                 )
               })}
@@ -152,14 +152,14 @@ function OverviewTab() {
                 const s = teamStats[name] || { total: 0, contacted: 0, meetings: 0, closed: 0 }
                 return (
                   <TableRow key={name} className="border-b border-white/[0.04] hover:bg-[#1c2234]/50">
-                    <TableCell className="text-[12px] text-[#f0f2ff] font-medium">{name}</TableCell>
+                    <TableCell className="text-[14px] text-[#f0f2ff] font-medium">{name}</TableCell>
                     <TableCell>
-                      <Badge className="bg-[#00d4aa]/15 text-[#00d4aa] text-[10px] border-0">سيلز</Badge>
+                      <Badge className="bg-[#00d4aa]/15 text-[#00d4aa] text-[12px] border-0">سيلز</Badge>
                     </TableCell>
-                    <TableCell className="text-[12px] text-[#8892b0]">{s.total}</TableCell>
-                    <TableCell className="text-[12px] text-[#00d4aa]">{s.contacted}</TableCell>
-                    <TableCell className="text-[12px] text-[#ffd166]">{s.meetings}</TableCell>
-                    <TableCell className="text-[12px] text-[#00d4aa]">{s.closed}</TableCell>
+                    <TableCell className="text-[14px] text-[#8892b0]">{s.total}</TableCell>
+                    <TableCell className="text-[14px] text-[#00d4aa]">{s.contacted}</TableCell>
+                    <TableCell className="text-[14px] text-[#ffd166]">{s.meetings}</TableCell>
+                    <TableCell className="text-[14px] text-[#00d4aa]">{s.closed}</TableCell>
                   </TableRow>
                 )
               })}
@@ -233,30 +233,30 @@ function AllLeadsTab() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
         <Select value={filterTele} onValueChange={setFilterTele}>
-          <SelectTrigger className="w-[120px] h-8 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
+          <SelectTrigger className="w-[120px] h-8 text-[14px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
             <SelectValue placeholder="التيلي" />
           </SelectTrigger>
           <SelectContent className="bg-[#111520] border-white/[0.08]">
-            <SelectItem value="all" className="text-[12px]">الكل</SelectItem>
-            {team.tele.map((n) => <SelectItem key={n} value={n} className="text-[12px]">{n}</SelectItem>)}
+            <SelectItem value="all" className="text-[14px]">الكل</SelectItem>
+            {team.tele.map((n) => <SelectItem key={n} value={n} className="text-[14px]">{n}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterSales} onValueChange={setFilterSales}>
-          <SelectTrigger className="w-[120px] h-8 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
+          <SelectTrigger className="w-[120px] h-8 text-[14px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
             <SelectValue placeholder="السيلز" />
           </SelectTrigger>
           <SelectContent className="bg-[#111520] border-white/[0.08]">
-            <SelectItem value="all" className="text-[12px]">الكل</SelectItem>
-            {team.sales.map((n) => <SelectItem key={n} value={n} className="text-[12px]">{n}</SelectItem>)}
+            <SelectItem value="all" className="text-[14px]">الكل</SelectItem>
+            {team.sales.map((n) => <SelectItem key={n} value={n} className="text-[14px]">{n}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-[120px] h-8 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
+          <SelectTrigger className="w-[120px] h-8 text-[14px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
             <SelectValue placeholder="الحالة" />
           </SelectTrigger>
           <SelectContent className="bg-[#111520] border-white/[0.08]">
-            <SelectItem value="all" className="text-[12px]">الكل</SelectItem>
-            {STATUSES.map((s) => <SelectItem key={s.key} value={s.key} className="text-[12px]">{s.label}</SelectItem>)}
+            <SelectItem value="all" className="text-[14px]">الكل</SelectItem>
+            {STATUSES.map((s) => <SelectItem key={s.key} value={s.key} className="text-[14px]">{s.label}</SelectItem>)}
           </SelectContent>
         </Select>
         <div className="relative flex-1 min-w-[180px]">
@@ -265,15 +265,15 @@ function AllLeadsTab() {
             placeholder="بحث..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(viewKey, e.target.value)}
-            className="h-8 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] pr-8"
+            className="h-8 text-[14px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] pr-8"
           />
         </div>
         {selected.length > 0 && (
           <div className="flex items-center gap-1.5">
-            <Button onClick={handleBulkArchive} size="sm" className="h-8 text-[11px] bg-amber-500/15 text-amber-400 border-0 gap-1 cursor-pointer">
+            <Button onClick={handleBulkArchive} size="sm" className="h-8 text-[13px] bg-amber-500/15 text-amber-400 border-0 gap-1 cursor-pointer">
               <Archive size={12} /> أرشفة ({selected.length})
             </Button>
-            <Button onClick={handleBulkDelete} size="sm" className="h-8 text-[11px] bg-red-500/15 text-red-400 border-0 gap-1 cursor-pointer">
+            <Button onClick={handleBulkDelete} size="sm" className="h-8 text-[13px] bg-red-500/15 text-red-400 border-0 gap-1 cursor-pointer">
               <Trash2 size={12} /> حذف ({selected.length})
             </Button>
           </div>
@@ -287,7 +287,7 @@ function AllLeadsTab() {
             <Table>
               <TableHeader>
                 <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
-                  <TableHead className="w-[40px] text-right text-[11px] text-[#4a5280]">
+                  <TableHead className="w-[40px] text-right text-[13px] text-[#4a5280]">
                     <Checkbox
                       checked={selected.length === filteredLeads.length && filteredLeads.length > 0}
                       onCheckedChange={(checked) => {
@@ -297,19 +297,19 @@ function AllLeadsTab() {
                       className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
                     />
                   </TableHead>
-                  <TableHead className="text-right text-[11px] text-[#4a5280]">العميل</TableHead>
-                  <TableHead className="text-right text-[11px] text-[#4a5280]">الهاتف</TableHead>
-                  <TableHead className="text-right text-[11px] text-[#4a5280]">التيلي</TableHead>
-                  <TableHead className="text-right text-[11px] text-[#4a5280]">السيلز</TableHead>
-                  <TableHead className="text-right text-[11px] text-[#4a5280]">الحالة</TableHead>
-                  <TableHead className="text-right text-[11px] text-[#4a5280]">حالة السيلز</TableHead>
-                  <TableHead className="text-right text-[11px] text-[#4a5280]">التاريخ</TableHead>
+                  <TableHead className="text-right text-[13px] text-[#4a5280]">العميل</TableHead>
+                  <TableHead className="text-right text-[13px] text-[#4a5280]">الهاتف</TableHead>
+                  <TableHead className="text-right text-[13px] text-[#4a5280]">التيلي</TableHead>
+                  <TableHead className="text-right text-[13px] text-[#4a5280]">السيلز</TableHead>
+                  <TableHead className="text-right text-[13px] text-[#4a5280]">الحالة</TableHead>
+                  <TableHead className="text-right text-[13px] text-[#4a5280]">حالة السيلز</TableHead>
+                  <TableHead className="text-right text-[13px] text-[#4a5280]">التاريخ</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredLeads.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-[#4a5280] text-[12px]">لا يوجد عملاء</TableCell>
+                    <TableCell colSpan={8} className="text-center py-8 text-[#4a5280] text-[14px]">لا يوجد عملاء</TableCell>
                   </TableRow>
                 ) : (
                   filteredLeads.map((lead) => (
@@ -321,21 +321,21 @@ function AllLeadsTab() {
                           className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
                         />
                       </TableCell>
-                      <TableCell className="text-[12px] text-[#f0f2ff]">{lead.customerName || '—'}</TableCell>
-                      <TableCell className="text-[12px] text-[#8892b0]">{lead.phone || '—'}</TableCell>
-                      <TableCell className="text-[12px] text-[#a8a3ff]">{lead.tele || '—'}</TableCell>
-                      <TableCell className="text-[12px] text-[#00d4aa]">{lead.sales || '—'}</TableCell>
+                      <TableCell className="text-[14px] text-[#f0f2ff]">{lead.customerName || '—'}</TableCell>
+                      <TableCell className="text-[14px] text-[#8892b0]">{lead.phone || '—'}</TableCell>
+                      <TableCell className="text-[14px] text-[#a8a3ff]">{lead.tele || '—'}</TableCell>
+                      <TableCell className="text-[14px] text-[#00d4aa]">{lead.sales || '—'}</TableCell>
                       <TableCell>
-                        <Badge className="bg-[#6c63ff]/15 text-[#a8a3ff] text-[10px] border-0">
+                        <Badge className="bg-[#6c63ff]/15 text-[#a8a3ff] text-[12px] border-0">
                           {STATUSES.find((s) => s.key === lead.status)?.label || lead.status}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge className="bg-[#00d4aa]/15 text-[#00d4aa] text-[10px] border-0">
+                        <Badge className="bg-[#00d4aa]/15 text-[#00d4aa] text-[12px] border-0">
                           {SALES_STATUSES.find((s) => s.key === lead.salesStatus)?.label || lead.salesStatus || '—'}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-[11px] text-[#4a5280]">{formatDate(lead.createdAt)}</TableCell>
+                      <TableCell className="text-[13px] text-[#4a5280]">{formatDate(lead.createdAt)}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -343,7 +343,7 @@ function AllLeadsTab() {
             </Table>
           </div>
           {filteredLeads.length > 0 && (
-            <div className="border-t border-white/[0.06] px-4 py-2 text-[11px] text-[#4a5280]">
+            <div className="border-t border-white/[0.06] px-4 py-2 text-[13px] text-[#4a5280]">
               عرض {filteredLeads.length} عميل
             </div>
           )}
@@ -389,10 +389,10 @@ function ArchiveTab() {
             placeholder="بحث في الأرشيف..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] pr-8"
+            className="h-8 text-[14px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] pr-8"
           />
         </div>
-        <Badge className="bg-[#1c2234] text-[#8892b0] text-[11px] border-0">{filtered.length} مؤرشف</Badge>
+        <Badge className="bg-[#1c2234] text-[#8892b0] text-[13px] border-0">{filtered.length} مؤرشف</Badge>
       </div>
 
       <Card className="bg-[#111520] border-white/[0.06]">
@@ -401,34 +401,34 @@ function ArchiveTab() {
             <Table>
               <TableHeader>
                 <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
-                  <TableHead className="text-right text-[11px] text-[#4a5280]">العميل</TableHead>
-                  <TableHead className="text-right text-[11px] text-[#4a5280]">الهاتف</TableHead>
-                  <TableHead className="text-right text-[11px] text-[#4a5280]">التيلي</TableHead>
-                  <TableHead className="text-right text-[11px] text-[#4a5280]">السيلز</TableHead>
-                  <TableHead className="text-right text-[11px] text-[#4a5280]">أرشفته</TableHead>
-                  <TableHead className="text-right text-[11px] text-[#4a5280]">التاريخ</TableHead>
-                  <TableHead className="text-right text-[11px] text-[#4a5280] w-[80px]">إجراء</TableHead>
+                  <TableHead className="text-right text-[13px] text-[#4a5280]">العميل</TableHead>
+                  <TableHead className="text-right text-[13px] text-[#4a5280]">الهاتف</TableHead>
+                  <TableHead className="text-right text-[13px] text-[#4a5280]">التيلي</TableHead>
+                  <TableHead className="text-right text-[13px] text-[#4a5280]">السيلز</TableHead>
+                  <TableHead className="text-right text-[13px] text-[#4a5280]">أرشفته</TableHead>
+                  <TableHead className="text-right text-[13px] text-[#4a5280]">التاريخ</TableHead>
+                  <TableHead className="text-right text-[13px] text-[#4a5280] w-[80px]">إجراء</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-[#4a5280] text-[12px]">لا يوجد عملاء مؤرشفين</TableCell>
+                    <TableCell colSpan={7} className="text-center py-8 text-[#4a5280] text-[14px]">لا يوجد عملاء مؤرشفين</TableCell>
                   </TableRow>
                 ) : (
                   filtered.map((lead) => (
                     <TableRow key={lead.id} className="border-b border-white/[0.04] hover:bg-[#1c2234]/50">
-                      <TableCell className="text-[12px] text-[#f0f2ff]">{lead.customerName || '—'}</TableCell>
-                      <TableCell className="text-[12px] text-[#8892b0]">{lead.phone || '—'}</TableCell>
-                      <TableCell className="text-[12px] text-[#a8a3ff]">{lead.tele || '—'}</TableCell>
-                      <TableCell className="text-[12px] text-[#00d4aa]">{lead.sales || '—'}</TableCell>
-                      <TableCell className="text-[12px] text-[#4a5280]">{lead.archivedBy || '—'}</TableCell>
-                      <TableCell className="text-[11px] text-[#4a5280]">{formatDate(lead.archivedAt)}</TableCell>
+                      <TableCell className="text-[14px] text-[#f0f2ff]">{lead.customerName || '—'}</TableCell>
+                      <TableCell className="text-[14px] text-[#8892b0]">{lead.phone || '—'}</TableCell>
+                      <TableCell className="text-[14px] text-[#a8a3ff]">{lead.tele || '—'}</TableCell>
+                      <TableCell className="text-[14px] text-[#00d4aa]">{lead.sales || '—'}</TableCell>
+                      <TableCell className="text-[14px] text-[#4a5280]">{lead.archivedBy || '—'}</TableCell>
+                      <TableCell className="text-[13px] text-[#4a5280]">{formatDate(lead.archivedAt)}</TableCell>
                       <TableCell>
                         <Button
                           onClick={() => handleUnarchive([lead.id])}
                           size="sm"
-                          className="h-7 text-[11px] bg-[#00d4aa]/15 text-[#00d4aa] hover:bg-[#00d4aa]/25 border-0 gap-1 cursor-pointer"
+                          className="h-7 text-[13px] bg-[#00d4aa]/15 text-[#00d4aa] hover:bg-[#00d4aa]/25 border-0 gap-1 cursor-pointer"
                         >
                           <ChevronLeft size={12} />
                           استرجاع
@@ -508,7 +508,7 @@ function TeamTab() {
       {/* Add member */}
       <Card className="bg-[#111520] border-white/[0.06]">
         <CardHeader className="pb-2">
-          <CardTitle className="text-[14px] text-[#f0f2ff] flex items-center gap-2">
+          <CardTitle className="text-[16px] text-[#f0f2ff] flex items-center gap-2">
             <UserPlus size={16} className="text-[#6c63ff]" />
             إضافة عضو جديد
           </CardTitle>
@@ -519,20 +519,20 @@ function TeamTab() {
               placeholder="الاسم"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              className="h-8 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] max-w-[200px]"
+              className="h-8 text-[14px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] max-w-[200px]"
             />
             <Select value={newRole} onValueChange={(v: 'tele' | 'sales') => setNewRole(v)}>
-              <SelectTrigger className="w-[100px] h-8 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
+              <SelectTrigger className="w-[100px] h-8 text-[14px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-[#111520] border-white/[0.08]">
-                <SelectItem value="tele" className="text-[12px]">تيلي</SelectItem>
-                <SelectItem value="sales" className="text-[12px]">سيلز</SelectItem>
+                <SelectItem value="tele" className="text-[14px]">تيلي</SelectItem>
+                <SelectItem value="sales" className="text-[14px]">سيلز</SelectItem>
               </SelectContent>
             </Select>
             <Button
               onClick={handleAdd}
-              className="h-8 text-[12px] bg-[#6c63ff] hover:bg-[#5b54e6] text-white gap-1 cursor-pointer"
+              className="h-8 text-[14px] bg-[#6c63ff] hover:bg-[#5b54e6] text-white gap-1 cursor-pointer"
             >
               <Plus size={12} />
               إضافة
@@ -544,7 +544,7 @@ function TeamTab() {
       {/* Tele Team */}
       <Card className="bg-[#111520] border-white/[0.06]">
         <CardHeader className="pb-2">
-          <CardTitle className="text-[13px] text-[#f0f2ff] flex items-center gap-2">
+          <CardTitle className="text-[15px] text-[#f0f2ff] flex items-center gap-2">
             <Phone size={14} className="text-[#6c63ff]" />
             فريق التيلي ({team.tele.length})
           </CardTitle>
@@ -558,7 +558,7 @@ function TeamTab() {
                     <Input
                       value={editDraft}
                       onChange={(e) => setEditDraft(e.target.value)}
-                      className="h-7 text-[12px] bg-[#0a0d14] border-[#6c63ff]/30 text-[#f0f2ff] max-w-[150px]"
+                      className="h-7 text-[14px] bg-[#0a0d14] border-[#6c63ff]/30 text-[#f0f2ff] max-w-[150px]"
                       autoFocus
                     />
                     <button onClick={() => handleRename(name)} className="w-6 h-6 rounded-md bg-[#00d4aa]/15 text-[#00d4aa] flex items-center justify-center cursor-pointer">
@@ -570,10 +570,10 @@ function TeamTab() {
                   </>
                 ) : (
                   <>
-                    <div className="w-7 h-7 rounded-full bg-[#6c63ff]/15 flex items-center justify-center text-[11px] text-[#a8a3ff] font-bold shrink-0">
+                    <div className="w-7 h-7 rounded-full bg-[#6c63ff]/15 flex items-center justify-center text-[13px] text-[#a8a3ff] font-bold shrink-0">
                       {name.slice(0, 2)}
                     </div>
-                    <span className="text-[12px] text-[#f0f2ff] flex-1">{name}</span>
+                    <span className="text-[14px] text-[#f0f2ff] flex-1">{name}</span>
                     <button
                       onClick={() => { setEditingName(name); setEditDraft(name) }}
                       className="w-6 h-6 rounded-md bg-[#1c2234] text-[#4a5280] flex items-center justify-center hover:text-[#6c63ff] cursor-pointer"
@@ -597,7 +597,7 @@ function TeamTab() {
       {/* Sales Team */}
       <Card className="bg-[#111520] border-white/[0.06]">
         <CardHeader className="pb-2">
-          <CardTitle className="text-[13px] text-[#f0f2ff] flex items-center gap-2">
+          <CardTitle className="text-[15px] text-[#f0f2ff] flex items-center gap-2">
             <Users size={14} className="text-[#00d4aa]" />
             فريق السيلز ({team.sales.length})
           </CardTitle>
@@ -611,7 +611,7 @@ function TeamTab() {
                     <Input
                       value={editDraft}
                       onChange={(e) => setEditDraft(e.target.value)}
-                      className="h-7 text-[12px] bg-[#0a0d14] border-[#6c63ff]/30 text-[#f0f2ff] max-w-[150px]"
+                      className="h-7 text-[14px] bg-[#0a0d14] border-[#6c63ff]/30 text-[#f0f2ff] max-w-[150px]"
                       autoFocus
                     />
                     <button onClick={() => handleRename(name)} className="w-6 h-6 rounded-md bg-[#00d4aa]/15 text-[#00d4aa] flex items-center justify-center cursor-pointer">
@@ -623,10 +623,10 @@ function TeamTab() {
                   </>
                 ) : (
                   <>
-                    <div className="w-7 h-7 rounded-full bg-[#00d4aa]/15 flex items-center justify-center text-[11px] text-[#00d4aa] font-bold shrink-0">
+                    <div className="w-7 h-7 rounded-full bg-[#00d4aa]/15 flex items-center justify-center text-[13px] text-[#00d4aa] font-bold shrink-0">
                       {name.slice(0, 2)}
                     </div>
-                    <span className="text-[12px] text-[#f0f2ff] flex-1">{name}</span>
+                    <span className="text-[14px] text-[#f0f2ff] flex-1">{name}</span>
                     <button
                       onClick={() => { setEditingName(name); setEditDraft(name) }}
                       className="w-6 h-6 rounded-md bg-[#1c2234] text-[#4a5280] flex items-center justify-center hover:text-[#6c63ff] cursor-pointer"
@@ -802,13 +802,13 @@ function UsersTab() {
       {/* Add User Button */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Badge className="bg-[#1c2234] text-[#8892b0] text-[11px] border-0">
+          <Badge className="bg-[#1c2234] text-[#8892b0] text-[13px] border-0">
             {users.length} مستخدم
           </Badge>
         </div>
         <Button
           onClick={() => setShowAddForm(!showAddForm)}
-          className="bg-[#6c63ff] hover:bg-[#5b54e6] text-white gap-1.5 text-[12px] h-9 cursor-pointer"
+          className="bg-[#6c63ff] hover:bg-[#5b54e6] text-white gap-1.5 text-[14px] h-9 cursor-pointer"
         >
           <UserPlus size={14} />
           إنشاء مستخدم
@@ -819,7 +819,7 @@ function UsersTab() {
       {showAddForm && (
         <Card className="bg-[#111520] border-[#6c63ff]/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[14px] text-[#f0f2ff] flex items-center gap-2">
+            <CardTitle className="text-[16px] text-[#f0f2ff] flex items-center gap-2">
               <Shield size={16} className="text-[#6c63ff]" />
               إنشاء مستخدم جديد
             </CardTitle>
@@ -827,24 +827,24 @@ function UsersTab() {
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-[11px] text-[#8892b0] mb-1 block">اسم المستخدم (للدخول)</label>
+                <label className="text-[13px] text-[#8892b0] mb-1 block">اسم المستخدم (للدخول)</label>
                 <Input
                   placeholder="مثال: amira2024"
                   value={newUser.username}
                   onChange={(e) => setNewUser((p) => ({ ...p, username: e.target.value }))}
-                  className="h-9 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]"
+                  className="h-9 text-[14px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]"
                   dir="ltr"
                 />
               </div>
               <div>
-                <label className="text-[11px] text-[#8892b0] mb-1 block">كلمة المرور</label>
+                <label className="text-[13px] text-[#8892b0] mb-1 block">كلمة المرور</label>
                 <div className="relative">
                   <Input
                     type={showPassword ? 'text' : 'password'}
                     placeholder="كلمة المرور"
                     value={newUser.password}
                     onChange={(e) => setNewUser((p) => ({ ...p, password: e.target.value }))}
-                    className="h-9 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] pr-3 pl-9"
+                    className="h-9 text-[14px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] pr-3 pl-9"
                     dir="ltr"
                   />
                   <button
@@ -857,24 +857,24 @@ function UsersTab() {
                 </div>
               </div>
               <div>
-                <label className="text-[11px] text-[#8892b0] mb-1 block">الاسم المعروض</label>
+                <label className="text-[13px] text-[#8892b0] mb-1 block">الاسم المعروض</label>
                 <Input
                   placeholder="مثال: أميرة"
                   value={newUser.displayName}
                   onChange={(e) => setNewUser((p) => ({ ...p, displayName: e.target.value }))}
-                  className="h-9 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]"
+                  className="h-9 text-[14px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]"
                 />
               </div>
               <div>
-                <label className="text-[11px] text-[#8892b0] mb-1 block">الدور</label>
+                <label className="text-[13px] text-[#8892b0] mb-1 block">الدور</label>
                 <Select value={newUser.role} onValueChange={(v: 'tele' | 'sales' | 'admin') => setNewUser((p) => ({ ...p, role: v }))}>
-                  <SelectTrigger className="h-9 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
+                  <SelectTrigger className="h-9 text-[14px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-[#111520] border-white/[0.08]">
-                    <SelectItem value="tele" className="text-[12px]">تيلي</SelectItem>
-                    <SelectItem value="sales" className="text-[12px]">سيلز</SelectItem>
-                    <SelectItem value="admin" className="text-[12px]">أدمن</SelectItem>
+                    <SelectItem value="tele" className="text-[14px]">تيلي</SelectItem>
+                    <SelectItem value="sales" className="text-[14px]">سيلز</SelectItem>
+                    <SelectItem value="admin" className="text-[14px]">أدمن</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -883,14 +883,14 @@ function UsersTab() {
               <Button
                 onClick={handleCreateUser}
                 disabled={saving}
-                className="bg-[#00d4aa] hover:bg-[#00b894] text-[#0a0d14] gap-1.5 text-[12px] h-9 font-semibold cursor-pointer"
+                className="bg-[#00d4aa] hover:bg-[#00b894] text-[#0a0d14] gap-1.5 text-[14px] h-9 font-semibold cursor-pointer"
               >
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                 إنشاء المستخدم
               </Button>
               <Button
                 onClick={() => { setShowAddForm(false); setNewUser({ username: '', password: '', displayName: '', role: 'tele' }) }}
-                className="bg-[#1c2234] text-[#8892b0] hover:text-[#f0f2ff] text-[12px] h-9 border-0 cursor-pointer"
+                className="bg-[#1c2234] text-[#8892b0] hover:text-[#f0f2ff] text-[14px] h-9 border-0 cursor-pointer"
               >
                 إلغاء
               </Button>
@@ -905,7 +905,7 @@ function UsersTab() {
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
               <KeyRound size={16} className="text-amber-400" />
-              <span className="text-[13px] text-[#f0f2ff] font-semibold">إعادة تعيين كلمة المرور</span>
+              <span className="text-[15px] text-[#f0f2ff] font-semibold">إعادة تعيين كلمة المرور</span>
             </div>
             <div className="flex items-center gap-2">
               <Input
@@ -913,20 +913,20 @@ function UsersTab() {
                 placeholder="كلمة المرور الجديدة"
                 value={resetPassword}
                 onChange={(e) => setResetPassword(e.target.value)}
-                className="h-9 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] max-w-[250px]"
+                className="h-9 text-[14px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] max-w-[250px]"
                 dir="ltr"
               />
               <Button
                 onClick={handleResetPassword}
                 disabled={resetSaving}
-                className="bg-amber-500 hover:bg-amber-600 text-[#0a0d14] gap-1.5 text-[12px] h-9 font-semibold cursor-pointer"
+                className="bg-amber-500 hover:bg-amber-600 text-[#0a0d14] gap-1.5 text-[14px] h-9 font-semibold cursor-pointer"
               >
                 {resetSaving ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />}
                 تحديث
               </Button>
               <Button
                 onClick={() => { setResetUserId(null); setResetPassword('') }}
-                className="bg-[#1c2234] text-[#8892b0] hover:text-[#f0f2ff] text-[12px] h-9 border-0 cursor-pointer"
+                className="bg-[#1c2234] text-[#8892b0] hover:text-[#f0f2ff] text-[14px] h-9 border-0 cursor-pointer"
               >
                 إلغاء
               </Button>
@@ -944,21 +944,21 @@ function UsersTab() {
             </div>
           ) : users.length === 0 ? (
             <div className="text-center py-12 text-[#4a5280]">
-              <div className="text-[32px] mb-2">👤</div>
-              <div className="text-[13px]">لا يوجد مستخدمين</div>
-              <div className="text-[11px] mt-1">اضغط &quot;إنشاء مستخدم&quot; لإضافة مستخدم جديد</div>
+              <div className="text-[34px] mb-2">👤</div>
+              <div className="text-[15px]">لا يوجد مستخدمين</div>
+              <div className="text-[13px] mt-1">اضغط &quot;إنشاء مستخدم&quot; لإضافة مستخدم جديد</div>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
-                    <TableHead className="text-right text-[11px] text-[#4a5280]">المستخدم</TableHead>
-                    <TableHead className="text-right text-[11px] text-[#4a5280]">اسم الدخول</TableHead>
-                    <TableHead className="text-right text-[11px] text-[#4a5280]">الدور</TableHead>
-                    <TableHead className="text-right text-[11px] text-[#4a5280]">الحالة</TableHead>
-                    <TableHead className="text-right text-[11px] text-[#4a5280]">آخر دخول</TableHead>
-                    <TableHead className="text-right text-[11px] text-[#4a5280] w-[120px]">إجراءات</TableHead>
+                    <TableHead className="text-right text-[13px] text-[#4a5280]">المستخدم</TableHead>
+                    <TableHead className="text-right text-[13px] text-[#4a5280]">اسم الدخول</TableHead>
+                    <TableHead className="text-right text-[13px] text-[#4a5280]">الدور</TableHead>
+                    <TableHead className="text-right text-[13px] text-[#4a5280]">الحالة</TableHead>
+                    <TableHead className="text-right text-[13px] text-[#4a5280]">آخر دخول</TableHead>
+                    <TableHead className="text-right text-[13px] text-[#4a5280] w-[120px]">إجراءات</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -966,27 +966,27 @@ function UsersTab() {
                     <TableRow key={user.id} className={`border-b border-white/[0.04] ${!user.is_active ? 'opacity-50' : ''}`}>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold shrink-0 ${user.role === 'admin' ? 'bg-amber-500/15 text-amber-400' : user.role === 'tele' ? 'bg-[#6c63ff]/15 text-[#a8a3ff]' : 'bg-[#00d4aa]/15 text-[#00d4aa]'}`}>
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[13px] font-bold shrink-0 ${user.role === 'admin' ? 'bg-amber-500/15 text-amber-400' : user.role === 'tele' ? 'bg-[#6c63ff]/15 text-[#a8a3ff]' : 'bg-[#00d4aa]/15 text-[#00d4aa]'}`}>
                             {(user.display_name || user.username).slice(0, 2).toUpperCase()}
                           </div>
                           <div>
-                            <div className="text-[12px] text-[#f0f2ff] font-medium">{user.display_name || '—'}</div>
-                            <div className="text-[10px] text-[#4a5280]">{user.created_at ? new Date(user.created_at).toLocaleDateString('ar-EG') : '—'}</div>
+                            <div className="text-[14px] text-[#f0f2ff] font-medium">{user.display_name || '—'}</div>
+                            <div className="text-[12px] text-[#4a5280]">{user.created_at ? new Date(user.created_at).toLocaleDateString('ar-EG') : '—'}</div>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-[12px] text-[#8892b0] font-mono" dir="ltr">{user.username}</TableCell>
+                      <TableCell className="text-[14px] text-[#8892b0] font-mono" dir="ltr">{user.username}</TableCell>
                       <TableCell>
-                        <Badge className={`text-[10px] border-0 ${roleColors[user.role] || 'bg-[#1c2234] text-[#8892b0]'}`}>
+                        <Badge className={`text-[12px] border-0 ${roleColors[user.role] || 'bg-[#1c2234] text-[#8892b0]'}`}>
                           {roleLabels[user.role] || user.role}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge className={`text-[10px] border-0 ${user.is_active ? 'bg-[#00d4aa]/15 text-[#00d4aa]' : 'bg-red-500/15 text-red-400'}`}>
+                        <Badge className={`text-[12px] border-0 ${user.is_active ? 'bg-[#00d4aa]/15 text-[#00d4aa]' : 'bg-red-500/15 text-red-400'}`}>
                           {user.is_active ? 'مفعّل' : 'معطّل'}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-[11px] text-[#4a5280]">
+                      <TableCell className="text-[13px] text-[#4a5280]">
                         {user.last_login_at ? new Date(user.last_login_at).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'لم يسجل دخول'}
                       </TableCell>
                       <TableCell>
@@ -1034,14 +1034,14 @@ function SettingsTab() {
     <div className="space-y-4">
       <Card className="bg-[#111520] border-white/[0.06]">
         <CardHeader>
-          <CardTitle className="text-[14px] text-[#f0f2ff] flex items-center gap-2">
+          <CardTitle className="text-[16px] text-[#f0f2ff] flex items-center gap-2">
             <Settings size={16} className="text-[#6c63ff]" />
             إعدادات التطبيق
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between py-2">
-            <span className="text-[12px] text-[#8892b0]">الوضع الداكن</span>
+            <span className="text-[14px] text-[#8892b0]">الوضع الداكن</span>
             <button
               onClick={toggleTheme}
               className={`w-10 h-6 rounded-full transition-colors cursor-pointer ${theme === 'dark' ? 'bg-[#6c63ff]' : 'bg-[#1c2234]'}`}
@@ -1050,12 +1050,12 @@ function SettingsTab() {
             </button>
           </div>
           <div className="flex items-center justify-between py-2">
-            <span className="text-[12px] text-[#8892b0]">الإشعارات</span>
-            <Badge className="bg-[#00d4aa]/15 text-[#00d4aa] text-[10px] border-0">مفعّلة</Badge>
+            <span className="text-[14px] text-[#8892b0]">الإشعارات</span>
+            <Badge className="bg-[#00d4aa]/15 text-[#00d4aa] text-[12px] border-0">مفعّلة</Badge>
           </div>
           <div className="flex items-center justify-between py-2">
-            <span className="text-[12px] text-[#8892b0]">المزامنة الفورية</span>
-            <Badge className="bg-[#00d4aa]/15 text-[#00d4aa] text-[10px] border-0">مفعّلة</Badge>
+            <span className="text-[14px] text-[#8892b0]">المزامنة الفورية</span>
+            <Badge className="bg-[#00d4aa]/15 text-[#00d4aa] text-[12px] border-0">مفعّلة</Badge>
           </div>
         </CardContent>
       </Card>
@@ -1074,10 +1074,10 @@ export function AdminPanel() {
     <div className="space-y-4 animate-in fade-in duration-300">
       {/* Header */}
       <div>
-        <h2 className="text-[18px] font-bold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+        <h2 className="text-[20px] font-bold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
           لوحة التحكم
         </h2>
-        <p className="text-[12px] text-[#8892b0] mt-0.5">إدارة شاملة للنظام والفريق والعملاء</p>
+        <p className="text-[14px] text-[#8892b0] mt-0.5">إدارة شاملة للنظام والفريق والعملاء</p>
       </div>
 
       {/* Tabs */}
@@ -1089,7 +1089,7 @@ export function AdminPanel() {
               <TabsTrigger
                 key={tab.key}
                 value={tab.key}
-                className="text-[11px] data-[state=active]:bg-[#6c63ff]/15 data-[state=active]:text-[#a8a3ff] text-[#8892b0] gap-1 px-3 py-1.5"
+                className="text-[13px] data-[state=active]:bg-[#6c63ff]/15 data-[state=active]:text-[#a8a3ff] text-[#8892b0] gap-1 px-3 py-1.5"
               >
                 <Icon size={12} />
                 <span className="hidden sm:inline">{tab.label}</span>
@@ -1103,14 +1103,14 @@ export function AdminPanel() {
         </TabsContent>
         <TabsContent value="tele" className="mt-4">
           <Card className="bg-[#111520] border-white/[0.06] p-4">
-            <p className="text-[12px] text-[#8892b0] text-center py-8">
+            <p className="text-[14px] text-[#8892b0] text-center py-8">
               شيت التيلي — استخدم &quot;شيت التيلي&quot; من القائمة الجانبية للعرض الكامل
             </p>
           </Card>
         </TabsContent>
         <TabsContent value="sales" className="mt-4">
           <Card className="bg-[#111520] border-white/[0.06] p-4">
-            <p className="text-[12px] text-[#8892b0] text-center py-8">
+            <p className="text-[14px] text-[#8892b0] text-center py-8">
               شيت السيلز — استخدم &quot;شيت السيلز&quot; من القائمة الجانبية للعرض الكامل
             </p>
           </Card>

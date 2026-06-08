@@ -53,7 +53,7 @@ function ReminderRow({ lead, onRefresh }: { lead: Lead; onRefresh: () => void })
     <div className="flex items-center gap-2.5 py-2.5 border-b border-white/[0.06] last:border-0 hover:bg-white/[0.02] rounded-lg px-2 transition-colors">
       {/* Avatar */}
       <div
-        className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
+        className="w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-bold shrink-0"
         style={{ background: temp.bg, color: temp.color, border: `1px solid ${temp.color}33` }}
       >
         {getInitials(lead.name)}
@@ -61,8 +61,8 @@ function ReminderRow({ lead, onRefresh }: { lead: Lead; onRefresh: () => void })
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <div className="text-[13px] font-semibold text-[#f0f2ff] truncate">{lead.name}</div>
-        <div className="text-[11px] text-[#8892b0] flex items-center gap-1.5">
+        <div className="text-[15px] font-semibold text-[#f0f2ff] truncate">{lead.name}</div>
+        <div className="text-[13px] text-[#8892b0] flex items-center gap-1.5">
           <Clock size={10} />
           <span>{timeStr}</span>
           {lead.company && (
@@ -77,7 +77,7 @@ function ReminderRow({ lead, onRefresh }: { lead: Lead; onRefresh: () => void })
       {/* Follow-up type badge */}
       {lead.followUpType && (
         <span
-          className="text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0"
+          className="text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0"
           style={{ background: `${temp.bg}`, color: temp.color }}
         >
           {FOLLOWUP_TYPES.find(t => t.key === lead.followUpType)?.label || lead.followUpType}
@@ -88,13 +88,13 @@ function ReminderRow({ lead, onRefresh }: { lead: Lead; onRefresh: () => void })
       <div className="flex gap-1.5 shrink-0">
         <button
           onClick={() => handleAction('call')}
-          className="bg-[#161b28] border border-white/[0.06] px-2.5 py-1.5 rounded-lg text-[11px] text-[#f0f2ff] flex items-center gap-1 hover:border-[#6c63ff] hover:bg-[#6c63ff]/10 transition-all cursor-pointer"
+          className="bg-[#161b28] border border-white/[0.06] px-2.5 py-1.5 rounded-lg text-[13px] text-[#f0f2ff] flex items-center gap-1 hover:border-[#6c63ff] hover:bg-[#6c63ff]/10 transition-all cursor-pointer"
         >
           <Phone size={11} className="text-[#6c63ff]" /> اتصل
         </button>
         <button
           onClick={() => handleAction('whatsapp')}
-          className="bg-[#161b28] border border-white/[0.06] px-2.5 py-1.5 rounded-lg text-[11px] text-[#f0f2ff] flex items-center gap-1 hover:border-[#25d366] hover:bg-[#25d366]/10 transition-all cursor-pointer"
+          className="bg-[#161b28] border border-white/[0.06] px-2.5 py-1.5 rounded-lg text-[13px] text-[#f0f2ff] flex items-center gap-1 hover:border-[#25d366] hover:bg-[#25d366]/10 transition-all cursor-pointer"
         >
           <MessageCircle size={11} className="text-[#25d366]" /> واتساب
         </button>
@@ -207,18 +207,18 @@ export function FollowupCenter() {
       {/* Header */}
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div>
-          <h2 className="text-[18px] font-bold text-[#f0f2ff]">Follow-up Center</h2>
-          <p className="text-[12px] text-[#4a5280] mt-0.5">متابعة العملاء والمهام اليومية</p>
+          <h2 className="text-[20px] font-bold text-[#f0f2ff]">Follow-up Center</h2>
+          <p className="text-[14px] text-[#4a5280] mt-0.5">متابعة العملاء والمهام اليومية</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="bg-[#111520] border border-white/[0.06] rounded-xl px-4 py-2.5">
-            <div className="text-[10px] text-[#4a5280] uppercase tracking-wider">Today</div>
-            <div className="text-[16px] font-bold text-[#ffd166] mt-0.5">{todayFollowups.length}</div>
+            <div className="text-[12px] text-[#4a5280] uppercase tracking-wider">Today</div>
+            <div className="text-[18px] font-bold text-[#ffd166] mt-0.5">{todayFollowups.length}</div>
           </div>
           {overdueFollowups.length > 0 && (
             <div className="bg-[#111520] border border-[#ff4d4d]/20 rounded-xl px-4 py-2.5">
-              <div className="text-[10px] text-[#ff4d4d] uppercase tracking-wider">Overdue</div>
-              <div className="text-[16px] font-bold text-[#ff4d4d] mt-0.5">{overdueFollowups.length}</div>
+              <div className="text-[12px] text-[#ff4d4d] uppercase tracking-wider">Overdue</div>
+              <div className="text-[18px] font-bold text-[#ff4d4d] mt-0.5">{overdueFollowups.length}</div>
             </div>
           )}
         </div>
@@ -242,7 +242,7 @@ export function FollowupCenter() {
             ) : (
               <div className="py-8 text-center">
                 <Bell size={28} className="text-[#4a5280] mx-auto mb-2" />
-                <p className="text-[12px] text-[#4a5280]">لا يوجد متابعات اليوم</p>
+                <p className="text-[14px] text-[#4a5280]">لا يوجد متابعات اليوم</p>
               </div>
             )}
 
@@ -250,7 +250,7 @@ export function FollowupCenter() {
             {overdueFollowups.length > 0 && (
               <>
                 <div className="flex items-center gap-1.5 mt-4 mb-2 pt-3 border-t border-[#ff4d4d]/20">
-                  <span className="text-[11px] font-bold text-[#ff4d4d]">⚠️ متأخر ({overdueFollowups.length})</span>
+                  <span className="text-[13px] font-bold text-[#ff4d4d]">⚠️ متأخر ({overdueFollowups.length})</span>
                 </div>
                 {overdueFollowups.map(lead => (
                   <ReminderRow key={lead.id} lead={lead} onRefresh={() => setRefreshKey(k => k + 1)} />
@@ -262,7 +262,7 @@ export function FollowupCenter() {
             {upcomingFollowups.length > 0 && todayFollowups.length === 0 && overdueFollowups.length === 0 && (
               <>
                 <div className="flex items-center gap-1.5 mt-3 mb-2 pt-2 border-t border-white/[0.06]">
-                  <span className="text-[11px] font-bold text-[#8892b0]">القادمة</span>
+                  <span className="text-[13px] font-bold text-[#8892b0]">القادمة</span>
                 </div>
                 {upcomingFollowups.map(lead => (
                   <ReminderRow key={lead.id} lead={lead} onRefresh={() => setRefreshKey(k => k + 1)} />
@@ -282,13 +282,13 @@ export function FollowupCenter() {
           <div className="flex flex-col gap-3">
             {/* Client name */}
             <div>
-              <label className="text-[11px] text-[#8892b0] mb-1 block">اسم العميل</label>
+              <label className="text-[13px] text-[#8892b0] mb-1 block">اسم العميل</label>
               <input
                 type="text"
                 placeholder="ابحث عن العميل..."
                 value={scheduleForm.clientName}
                 onChange={(e) => setScheduleForm(f => ({ ...f, clientName: e.target.value }))}
-                className="w-full px-3.5 py-2.5 bg-[#161b28] border border-white/[0.06] rounded-lg text-[13px] text-[#f0f2ff] outline-none focus:border-[#6c63ff]/30 transition-colors"
+                className="w-full px-3.5 py-2.5 bg-[#161b28] border border-white/[0.06] rounded-lg text-[15px] text-[#f0f2ff] outline-none focus:border-[#6c63ff]/30 transition-colors"
                 dir="rtl"
               />
               {/* Quick name suggestions */}
@@ -300,7 +300,7 @@ export function FollowupCenter() {
                     .map(l => (
                       <button
                         key={l.id}
-                        className="w-full text-right px-3 py-1.5 text-[11px] text-[#8892b0] hover:bg-white/[0.03] rounded-lg transition-colors cursor-pointer"
+                        className="w-full text-right px-3 py-1.5 text-[13px] text-[#8892b0] hover:bg-white/[0.03] rounded-lg transition-colors cursor-pointer"
                         onClick={() => setScheduleForm(f => ({ ...f, clientName: l.name }))}
                       >
                         {l.name} {l.company && <span className="text-[#4a5280]">· {l.company}</span>}
@@ -312,18 +312,18 @@ export function FollowupCenter() {
 
             {/* Date/Time */}
             <div>
-              <label className="text-[11px] text-[#8892b0] mb-1 block">التاريخ والوقت</label>
+              <label className="text-[13px] text-[#8892b0] mb-1 block">التاريخ والوقت</label>
               <input
                 type="datetime-local"
                 value={scheduleForm.dateTime}
                 onChange={(e) => setScheduleForm(f => ({ ...f, dateTime: e.target.value }))}
-                className="w-full px-3.5 py-2.5 bg-[#161b28] border border-white/[0.06] rounded-lg text-[13px] text-[#f0f2ff] outline-none focus:border-[#6c63ff]/30 transition-colors [color-scheme:dark]"
+                className="w-full px-3.5 py-2.5 bg-[#161b28] border border-white/[0.06] rounded-lg text-[15px] text-[#f0f2ff] outline-none focus:border-[#6c63ff]/30 transition-colors [color-scheme:dark]"
               />
             </div>
 
             {/* Follow-up type */}
             <div>
-              <label className="text-[11px] text-[#8892b0] mb-1 block">نوع المتابعة</label>
+              <label className="text-[13px] text-[#8892b0] mb-1 block">نوع المتابعة</label>
               <div className="grid grid-cols-2 gap-2">
                 {FOLLOWUP_TYPES.map(ft => {
                   const Icon = ft.icon
@@ -332,7 +332,7 @@ export function FollowupCenter() {
                     <button
                       key={ft.key}
                       onClick={() => setScheduleForm(f => ({ ...f, type: ft.key }))}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] transition-all cursor-pointer border ${
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[14px] transition-all cursor-pointer border ${
                         isActive
                           ? 'bg-white/[0.05] border-white/[0.15] text-[#f0f2ff]'
                           : 'bg-[#161b28] border-white/[0.06] text-[#8892b0] hover:border-white/[0.1]'
@@ -350,7 +350,7 @@ export function FollowupCenter() {
             <button
               onClick={handleSchedule}
               disabled={scheduleLoading || !scheduleForm.clientName || !scheduleForm.dateTime}
-              className="bg-gradient-to-br from-[#6c63ff] to-[#8b84ff] text-white px-4 py-2.5 rounded-lg text-[13px] font-medium flex items-center justify-center gap-1.5 hover:-translate-y-px hover:shadow-[0_4px_16px_rgba(108,99,255,0.4)] transition-all cursor-pointer disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
+              className="bg-gradient-to-br from-[#6c63ff] to-[#8b84ff] text-white px-4 py-2.5 rounded-lg text-[15px] font-medium flex items-center justify-center gap-1.5 hover:-translate-y-px hover:shadow-[0_4px_16px_rgba(108,99,255,0.4)] transition-all cursor-pointer disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
             >
               <CalendarPlus size={14} />
               {scheduleLoading ? 'جاري الجدولة...' : 'جدول الآن'}
@@ -369,7 +369,7 @@ export function FollowupCenter() {
           <button
             onClick={handleSmartReply}
             disabled={aiLoading || !message.trim()}
-            className="flex items-center gap-1.5 text-[12px] text-[#6c63ff] hover:text-[#8b84ff] transition-colors cursor-pointer disabled:opacity-50"
+            className="flex items-center gap-1.5 text-[14px] text-[#6c63ff] hover:text-[#8b84ff] transition-colors cursor-pointer disabled:opacity-50"
           >
             <Sparkles size={13} className={aiLoading ? 'animate-spin' : ''} />
             {aiLoading ? 'يفكر...' : 'اقتراح رد ذكي'}
@@ -378,13 +378,13 @@ export function FollowupCenter() {
 
         {/* Send buttons */}
         <div className="flex gap-2.5 flex-wrap mb-3">
-          <button className="flex-1 bg-[#161b28] border border-white/[0.06] px-3 py-2.5 rounded-lg text-[13px] text-[#f0f2ff] flex items-center justify-center gap-1.5 hover:border-[#25d366] hover:bg-[#25d366]/5 transition-all cursor-pointer min-w-[140px]">
+          <button className="flex-1 bg-[#161b28] border border-white/[0.06] px-3 py-2.5 rounded-lg text-[15px] text-[#f0f2ff] flex items-center justify-center gap-1.5 hover:border-[#25d366] hover:bg-[#25d366]/5 transition-all cursor-pointer min-w-[140px]">
             <MessageCircle size={14} className="text-[#25d366]" /> إرسال واتساب
           </button>
-          <button className="flex-1 bg-[#161b28] border border-white/[0.06] px-3 py-2.5 rounded-lg text-[13px] text-[#f0f2ff] flex items-center justify-center gap-1.5 hover:border-[#6c9fff] hover:bg-[#6c9fff]/5 transition-all cursor-pointer min-w-[140px]">
+          <button className="flex-1 bg-[#161b28] border border-white/[0.06] px-3 py-2.5 rounded-lg text-[15px] text-[#f0f2ff] flex items-center justify-center gap-1.5 hover:border-[#6c9fff] hover:bg-[#6c9fff]/5 transition-all cursor-pointer min-w-[140px]">
             <Mail size={14} className="text-[#6c9fff]" /> إرسال إيميل
           </button>
-          <button className="flex-1 bg-[#161b28] border border-white/[0.06] px-3 py-2.5 rounded-lg text-[13px] text-[#f0f2ff] flex items-center justify-center gap-1.5 hover:border-[#ffd166] hover:bg-[#ffd166]/5 transition-all cursor-pointer min-w-[140px]">
+          <button className="flex-1 bg-[#161b28] border border-white/[0.06] px-3 py-2.5 rounded-lg text-[15px] text-[#f0f2ff] flex items-center justify-center gap-1.5 hover:border-[#ffd166] hover:bg-[#ffd166]/5 transition-all cursor-pointer min-w-[140px]">
             <Smartphone size={14} className="text-[#ffd166]" /> إرسال SMS
           </button>
         </div>
@@ -393,17 +393,17 @@ export function FollowupCenter() {
         {aiSuggestion && (
           <div className="bg-[#6c63ff]/10 border border-[#6c63ff]/20 rounded-lg p-3 mb-3">
             <div className="flex items-center justify-between mb-1.5">
-              <div className="flex items-center gap-1.5 text-[11px] text-[#6c63ff] font-semibold">
+              <div className="flex items-center gap-1.5 text-[13px] text-[#6c63ff] font-semibold">
                 <Sparkles size={11} /> اقتراح AI
               </div>
               <button
                 onClick={applySuggestion}
-                className="text-[10px] text-[#6c63ff] hover:text-[#8b84ff] underline cursor-pointer"
+                className="text-[12px] text-[#6c63ff] hover:text-[#8b84ff] underline cursor-pointer"
               >
                 تطبيق
               </button>
             </div>
-            <p className="text-[12px] text-[#c4c8f0] leading-relaxed">{aiSuggestion}</p>
+            <p className="text-[14px] text-[#c4c8f0] leading-relaxed">{aiSuggestion}</p>
           </div>
         )}
 
@@ -413,7 +413,7 @@ export function FollowupCenter() {
           rows={4}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          className="w-full px-3 py-3 bg-[#161b28] border border-white/[0.06] rounded-lg text-[13px] text-[#f0f2ff] outline-none resize-y focus:border-[#6c63ff]/30 transition-colors"
+          className="w-full px-3 py-3 bg-[#161b28] border border-white/[0.06] rounded-lg text-[15px] text-[#f0f2ff] outline-none resize-y focus:border-[#6c63ff]/30 transition-colors"
           dir="rtl"
         />
       </div>

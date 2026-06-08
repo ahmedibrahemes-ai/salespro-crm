@@ -26,14 +26,14 @@ export function Topbar() {
     <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
       {/* Title section */}
       <div className="text-right mr-10 md:mr-0">
-        <h1 className="text-[20px] md:text-[22px] font-bold text-[#f0f2ff] leading-tight">{title}</h1>
-        <p className="text-[12px] md:text-[13px] text-[#8892b0] mt-0.5">{subtitle}</p>
+        <h1 className="text-[22px] md:text-[24px] font-bold text-[#f0f2ff] leading-tight">{title}</h1>
+        <p className="text-[14px] md:text-[15px] text-[#8892b0] mt-0.5">{subtitle}</p>
       </div>
 
       {/* Actions */}
       <div className="flex gap-2.5 items-center">
         {/* Date chip */}
-        <div className="hidden sm:flex px-3.5 py-2 bg-[#161b28] border border-white/[0.06] rounded-lg text-[12px] text-[#8892b0] items-center gap-2 select-none">
+        <div className="hidden sm:flex px-3.5 py-2 bg-[#161b28] border border-white/[0.06] rounded-lg text-[14px] text-[#8892b0] items-center gap-2 select-none">
           <Calendar size={14} className="text-[#6c63ff]" />
           {monthYearAr}
         </div>
@@ -41,7 +41,7 @@ export function Topbar() {
         {/* New Lead button */}
         <button
           onClick={() => setAddLeadDialogOpen(true)}
-          className="text-white px-4 py-2 rounded-lg text-[13px] font-medium flex items-center gap-1.5 hover:-translate-y-px hover:shadow-[0_4px_16px_rgba(108,99,255,0.4)] transition-all border-0 cursor-pointer active:translate-y-0"
+          className="text-white px-4 py-2 rounded-lg text-[15px] font-medium flex items-center gap-1.5 hover:-translate-y-px hover:shadow-[0_4px_16px_rgba(108,99,255,0.4)] transition-all border-0 cursor-pointer active:translate-y-0"
           style={{ background: 'linear-gradient(135deg, #6c63ff 0%, #8b84ff 100%)' }}
         >
           <Plus size={14} />

@@ -53,7 +53,7 @@ function LeadAvatar({ lead }: { lead: Lead }) {
   const temp = getTemperatureLabel(lead)
   return (
     <div
-      className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
+      className="w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-bold shrink-0"
       style={{
         background: temp.bg,
         color: temp.color,
@@ -85,7 +85,7 @@ function ActionBtn({
     <button
       onClick={onClick}
       title={label}
-      className="w-7 h-7 rounded-md border border-white/[0.06] flex items-center justify-center text-[12px] transition-all cursor-pointer hover:scale-105"
+      className="w-7 h-7 rounded-md border border-white/[0.06] flex items-center justify-center text-[14px] transition-all cursor-pointer hover:scale-105"
       style={{
         color,
       }}
@@ -108,7 +108,7 @@ function TempBadge({ lead }: { lead: Lead }) {
   const temp = getTemperatureLabel(lead)
   return (
     <span
-      className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
+      className="text-[12px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
       style={{ background: temp.bg, color: temp.color }}
     >
       {temp.label}
@@ -290,7 +290,7 @@ export function LeadsManagement() {
             setFormError('')
             setDialogOpen(true)
           }}
-          className="bg-gradient-to-br from-[#6c63ff] to-[#8b84ff] text-white px-4 py-2 rounded-lg text-[13px] font-medium flex items-center gap-1.5 hover:-translate-y-px hover:shadow-[0_4px_16px_rgba(108,99,255,0.4)] transition-all cursor-pointer"
+          className="bg-gradient-to-br from-[#6c63ff] to-[#8b84ff] text-white px-4 py-2 rounded-lg text-[15px] font-medium flex items-center gap-1.5 hover:-translate-y-px hover:shadow-[0_4px_16px_rgba(108,99,255,0.4)] transition-all cursor-pointer"
         >
           <UserPlus size={14} />
           إضافة Lead
@@ -299,7 +299,7 @@ export function LeadsManagement() {
         {/* Filter toggle */}
         <button
           onClick={() => setFilterOpen((v) => !v)}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium border cursor-pointer transition-all ${
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[15px] font-medium border cursor-pointer transition-all ${
             filterOpen
               ? 'bg-[#6c63ff]/15 border-[#6c63ff]/30 text-[#8b84ff]'
               : 'bg-[#161b28] border-white/[0.06] text-[#8892b0] hover:border-[#6c63ff]/20 hover:text-[#a0a8d0]'
@@ -320,7 +320,7 @@ export function LeadsManagement() {
             placeholder="بحث بالاسم أو الهاتف..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pr-9 pl-3 py-2 bg-[#161b28] border border-white/[0.06] rounded-lg text-[13px] text-[#f0f2ff] outline-none focus:border-[#6c63ff]/30 transition-colors"
+            className="w-full pr-9 pl-3 py-2 bg-[#161b28] border border-white/[0.06] rounded-lg text-[15px] text-[#f0f2ff] outline-none focus:border-[#6c63ff]/30 transition-colors"
             dir="rtl"
           />
           {searchQuery && (
@@ -346,7 +346,7 @@ export function LeadsManagement() {
               onClick={() =>
                 setLeadFilter(leadFilter === f.key ? 'all' : f.key)
               }
-              className={`${f.cls} text-[12px] font-bold px-3 py-1.5 rounded-full cursor-pointer transition-all ${
+              className={`${f.cls} text-[14px] font-bold px-3 py-1.5 rounded-full cursor-pointer transition-all ${
                 leadFilter === f.key ? `ring-1 ${f.ring} ring-offset-1 ring-offset-[#0a0d14]` : ''
               }`}
             >
@@ -377,7 +377,7 @@ export function LeadsManagement() {
                 <button
                   key={f.key}
                   onClick={() => setLeadFilter(f.key)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium border cursor-pointer transition-all ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[14px] font-medium border cursor-pointer transition-all ${
                     leadFilter === f.key
                       ? 'bg-[#6c63ff]/15 border-[#6c63ff]/30 text-[#8b84ff]'
                       : 'bg-[#161b28] border-white/[0.06] text-[#8892b0] hover:border-[#6c63ff]/20'
@@ -398,7 +398,7 @@ export function LeadsManagement() {
           <div className="flex items-center gap-2 text-sm font-semibold text-[#f0f2ff] mb-3.5">
             <Flame size={15} className="text-[#ff6b6b]" />
             عملاء متأخر عليهم متابعة
-            <span className="text-[11px] font-normal text-[#8892b0]">
+            <span className="text-[13px] font-normal text-[#8892b0]">
               ({overdueLeads.length})
             </span>
           </div>
@@ -415,15 +415,15 @@ export function LeadsManagement() {
                 >
                   <LeadAvatar lead={lead} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-semibold text-[#f0f2ff] truncate">
+                    <div className="text-[15px] font-semibold text-[#f0f2ff] truncate">
                       {lead.name}
                     </div>
-                    <div className="text-[11px] text-[#8892b0]">
+                    <div className="text-[13px] text-[#8892b0]">
                       {getSourceLabel(lead.source)}
                       {daysSince > 0 && ` · ${daysSince} يوم بدون تواصل`}
                     </div>
                   </div>
-                  <span className="bg-[#ff4d4d]/15 text-[#ff4d4d] text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
+                  <span className="bg-[#ff4d4d]/15 text-[#ff4d4d] text-[12px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
                     Overdue {lead.nextFollowUp ? `${getDaysSince(lead.nextFollowUp)}d` : ''}
                   </span>
                   <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -468,7 +468,7 @@ export function LeadsManagement() {
           <div className="flex items-center gap-2 text-sm font-semibold text-[#f0f2ff] mb-3.5">
             <Calendar size={15} className="text-[#00d4aa]" />
             متابعات اليوم
-            <span className="text-[11px] font-normal text-[#8892b0]">
+            <span className="text-[13px] font-normal text-[#8892b0]">
               ({todayLeads.length})
             </span>
           </div>
@@ -489,15 +489,15 @@ export function LeadsManagement() {
                 >
                   <LeadAvatar lead={lead} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-semibold text-[#f0f2ff] truncate">
+                    <div className="text-[15px] font-semibold text-[#f0f2ff] truncate">
                       {lead.name}
                     </div>
-                    <div className="text-[11px] text-[#8892b0]">
+                    <div className="text-[13px] text-[#8892b0]">
                       {temp.label}
                       {followUpTime && ` · مجدول ${followUpTime}`}
                     </div>
                   </div>
-                  <span className="bg-[#00d4aa]/15 text-[#00d4aa] text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
+                  <span className="bg-[#00d4aa]/15 text-[#00d4aa] text-[12px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
                     Today
                   </span>
                   <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -534,7 +534,7 @@ export function LeadsManagement() {
         <div className="flex items-center gap-2 text-sm font-semibold text-[#f0f2ff] mb-3.5">
           <UserCircle size={15} className="text-[#6c63ff]" />
           كل العملاء
-          <span className="text-[11px] font-normal text-[#8892b0]">
+          <span className="text-[13px] font-normal text-[#8892b0]">
             ({filteredLeads.length})
           </span>
         </div>
@@ -555,10 +555,10 @@ export function LeadsManagement() {
                 >
                   <LeadAvatar lead={lead} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-semibold text-[#f0f2ff] truncate">
+                    <div className="text-[15px] font-semibold text-[#f0f2ff] truncate">
                       {lead.name}
                     </div>
-                    <div className="text-[11px] text-[#8892b0]">
+                    <div className="text-[13px] text-[#8892b0]">
                       {getSourceLabel(lead.source)}
                       {daysSince > 0 ? ` · ${daysSince}d ago` : ''}
                       {lead.company ? ` · ${lead.company}` : ''}
@@ -566,7 +566,7 @@ export function LeadsManagement() {
                   </div>
                   <TempBadge lead={lead} />
                   {lead.value > 0 && (
-                    <span className="text-[11px] text-[#8892b0] font-medium">
+                    <span className="text-[13px] text-[#8892b0] font-medium">
                       {formatCurrency(lead.value)}
                     </span>
                   )}
@@ -598,8 +598,8 @@ export function LeadsManagement() {
           ) : (
             <div className="py-12 text-center">
               <UserCircle size={32} className="mx-auto text-[#2a3050] mb-2" />
-              <div className="text-[13px] text-[#8892b0]">لا يوجد عملاء</div>
-              <div className="text-[11px] text-[#4a5280] mt-1">
+              <div className="text-[15px] text-[#8892b0]">لا يوجد عملاء</div>
+              <div className="text-[13px] text-[#4a5280] mt-1">
                 جرّب تغيير الفلتر أو البحث
               </div>
             </div>
@@ -622,7 +622,7 @@ export function LeadsManagement() {
           <div className="grid gap-4 py-2" dir="rtl">
             {/* Name */}
             <div className="grid gap-1.5">
-              <Label className="text-[#c0c6e0] text-[12px]">
+              <Label className="text-[#c0c6e0] text-[14px]">
                 الاسم <span className="text-[#ff6b6b]">*</span>
               </Label>
               <Input
@@ -637,7 +637,7 @@ export function LeadsManagement() {
             {/* Phone & Email */}
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label className="text-[#c0c6e0] text-[12px]">الهاتف</Label>
+                <Label className="text-[#c0c6e0] text-[14px]">الهاتف</Label>
                 <Input
                   value={form.phone}
                   onChange={(e) => setField('phone', e.target.value)}
@@ -647,7 +647,7 @@ export function LeadsManagement() {
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label className="text-[#c0c6e0] text-[12px]">الإيميل</Label>
+                <Label className="text-[#c0c6e0] text-[14px]">الإيميل</Label>
                 <Input
                   type="email"
                   value={form.email}
@@ -661,7 +661,7 @@ export function LeadsManagement() {
 
             {/* Source */}
             <div className="grid gap-1.5">
-              <Label className="text-[#c0c6e0] text-[12px]">المصدر</Label>
+              <Label className="text-[#c0c6e0] text-[14px]">المصدر</Label>
               <Select
                 value={form.source}
                 onValueChange={(val) => setField('source', val)}
@@ -682,7 +682,7 @@ export function LeadsManagement() {
             {/* Company & Location */}
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label className="text-[#c0c6e0] text-[12px]">الشركة</Label>
+                <Label className="text-[#c0c6e0] text-[14px]">الشركة</Label>
                 <Input
                   value={form.company}
                   onChange={(e) => setField('company', e.target.value)}
@@ -692,7 +692,7 @@ export function LeadsManagement() {
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label className="text-[#c0c6e0] text-[12px]">الموقع</Label>
+                <Label className="text-[#c0c6e0] text-[14px]">الموقع</Label>
                 <Input
                   value={form.location}
                   onChange={(e) => setField('location', e.target.value)}
@@ -705,7 +705,7 @@ export function LeadsManagement() {
 
             {/* Value */}
             <div className="grid gap-1.5">
-              <Label className="text-[#c0c6e0] text-[12px]">القيمة (EGP)</Label>
+              <Label className="text-[#c0c6e0] text-[14px]">القيمة (EGP)</Label>
               <Input
                 type="number"
                 value={form.value}
@@ -718,7 +718,7 @@ export function LeadsManagement() {
 
             {/* Notes */}
             <div className="grid gap-1.5">
-              <Label className="text-[#c0c6e0] text-[12px]">ملاحظات</Label>
+              <Label className="text-[#c0c6e0] text-[14px]">ملاحظات</Label>
               <Textarea
                 value={form.notes}
                 onChange={(e) => setField('notes', e.target.value)}
@@ -730,7 +730,7 @@ export function LeadsManagement() {
 
             {/* Error */}
             {formError && (
-              <div className="bg-[#ff4d4d]/10 border border-[#ff4d4d]/20 rounded-lg px-3 py-2 text-[12px] text-[#ff6b6b]">
+              <div className="bg-[#ff4d4d]/10 border border-[#ff4d4d]/20 rounded-lg px-3 py-2 text-[14px] text-[#ff6b6b]">
                 {formError}
               </div>
             )}
@@ -739,14 +739,14 @@ export function LeadsManagement() {
           <DialogFooter className="gap-2 sm:gap-2">
             <button
               onClick={() => setDialogOpen(false)}
-              className="px-4 py-2 rounded-lg text-[13px] font-medium border border-white/[0.06] text-[#8892b0] hover:bg-white/[0.04] transition-all cursor-pointer"
+              className="px-4 py-2 rounded-lg text-[15px] font-medium border border-white/[0.06] text-[#8892b0] hover:bg-white/[0.04] transition-all cursor-pointer"
             >
               إلغاء
             </button>
             <button
               onClick={handleSubmit}
               disabled={submitting}
-              className="bg-gradient-to-br from-[#6c63ff] to-[#8b84ff] text-white px-5 py-2 rounded-lg text-[13px] font-medium flex items-center gap-1.5 hover:-translate-y-px hover:shadow-[0_4px_16px_rgba(108,99,255,0.4)] transition-all cursor-pointer disabled:opacity-60 disabled:pointer-events-none"
+              className="bg-gradient-to-br from-[#6c63ff] to-[#8b84ff] text-white px-5 py-2 rounded-lg text-[15px] font-medium flex items-center gap-1.5 hover:-translate-y-px hover:shadow-[0_4px_16px_rgba(108,99,255,0.4)] transition-all cursor-pointer disabled:opacity-60 disabled:pointer-events-none"
             >
               {submitting ? (
                 <>

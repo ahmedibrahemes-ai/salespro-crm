@@ -99,7 +99,7 @@ export function Sidebar() {
                 key={item.view}
                 onClick={() => handleNav(item.view)}
                 className={`
-                  relative w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium
+                  relative w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[15px] font-medium
                   transition-colors duration-200 whitespace-nowrap overflow-hidden cursor-pointer
                   ${isActive
                     ? 'bg-[#6c63ff]/15 text-[#a8a3ff]'
@@ -124,7 +124,7 @@ export function Sidebar() {
                 </span>
                 {item.badge !== undefined && (
                   <span
-                    className="mr-auto bg-[#ff6b6b] text-white text-[10px] min-w-[18px] h-[18px] flex items-center justify-center px-1 rounded-full font-bold transition-opacity duration-200"
+                    className="mr-auto bg-[#ff6b6b] text-white text-[12px] min-w-[18px] h-[18px] flex items-center justify-center px-1 rounded-full font-bold transition-opacity duration-200"
                     style={{ opacity: showLabel ? 1 : 0 }}
                   >
                     {item.badge}
@@ -139,7 +139,7 @@ export function Sidebar() {
         <div className="w-full px-2 mt-auto pt-4">
           <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer overflow-hidden hover:bg-[#1c2234] transition-colors">
             <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold text-white shrink-0"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-[14px] font-bold text-white shrink-0"
               style={{ background: 'linear-gradient(135deg, #6c63ff 0%, #00d4aa 100%)' }}
             >
               أح
@@ -148,8 +148,8 @@ export function Sidebar() {
               className="transition-opacity duration-200 overflow-hidden"
               style={{ opacity: expanded || mobileOpen ? 1 : 0 }}
             >
-              <div className="text-[12px] font-semibold text-[#f0f2ff] whitespace-nowrap">أحمد سالم</div>
-              <div className="text-[11px] text-[#8892b0] whitespace-nowrap">Senior Sales</div>
+              <div className="text-[14px] font-semibold text-[#f0f2ff] whitespace-nowrap">أحمد سالم</div>
+              <div className="text-[13px] text-[#8892b0] whitespace-nowrap">Senior Sales</div>
             </div>
           </div>
         </div>

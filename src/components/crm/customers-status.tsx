@@ -202,11 +202,11 @@ export function CustomersStatus() {
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-[22px] md:text-[26px] font-extrabold text-[#f0f2ff] flex items-center gap-2.5">
+            <h1 className="text-[24px] md:text-[28px] font-extrabold text-[#f0f2ff] flex items-center gap-2.5">
               <BarChart3 size={24} className="text-[#6c63ff]" />
               حالة العملاء
             </h1>
-            <p className="text-[13px] text-[#8892b0] mt-1">
+            <p className="text-[15px] text-[#8892b0] mt-1">
               نظرة شاملة على حالة جميع العملاء
             </p>
           </div>
@@ -223,7 +223,7 @@ export function CustomersStatus() {
                 placeholder="بحث بالاسم أو الهاتف..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-[#111520] border-white/[0.06] text-[#f0f2ff] placeholder:text-[#4a5280] pr-9 h-9 text-[13px] rounded-xl w-full sm:w-[200px]"
+                className="bg-[#111520] border-white/[0.06] text-[#f0f2ff] placeholder:text-[#4a5280] pr-9 h-9 text-[15px] rounded-xl w-full sm:w-[200px]"
                 style={{ fontFamily: 'Cairo, sans-serif' }}
               />
             </div>
@@ -231,7 +231,7 @@ export function CustomersStatus() {
             {/* Member Filter */}
             <Select value={memberFilter} onValueChange={setMemberFilter}>
               <SelectTrigger
-                className="bg-[#111520] border-white/[0.06] text-[#f0f2ff] h-9 text-[13px] rounded-xl w-full sm:w-[180px]"
+                className="bg-[#111520] border-white/[0.06] text-[#f0f2ff] h-9 text-[15px] rounded-xl w-full sm:w-[180px]"
                 style={{ fontFamily: 'Cairo, sans-serif' }}
               >
                 <Filter size={14} className="text-[#4a5280] ml-1" />
@@ -285,14 +285,14 @@ export function CustomersStatus() {
 
               {/* Value */}
               <div
-                className="text-[24px] md:text-[26px] font-extrabold leading-tight"
+                className="text-[26px] md:text-[28px] font-extrabold leading-tight"
                 style={{ color: kpi.color }}
               >
                 {value}
               </div>
 
               {/* Label */}
-              <div className="text-[12px] text-[#8892b0] mt-0.5">{kpi.label}</div>
+              <div className="text-[14px] text-[#8892b0] mt-0.5">{kpi.label}</div>
             </div>
           )
         })}
@@ -303,7 +303,7 @@ export function CustomersStatus() {
           ══════════════════════════════════════════════════ */}
       <Card className="bg-[#111520] border-white/[0.06] rounded-2xl overflow-hidden">
         <CardHeader className="pb-3">
-          <CardTitle className="text-[15px] font-bold text-[#f0f2ff] flex items-center gap-2">
+          <CardTitle className="text-[17px] font-bold text-[#f0f2ff] flex items-center gap-2">
             <BarChart3 size={16} className="text-[#6c63ff]" />
             تفصيل الحالات
           </CardTitle>
@@ -321,8 +321,8 @@ export function CustomersStatus() {
               <div key={status.key} className="group">
                 <div className="flex items-center gap-3">
                   {/* Label */}
-                  <div className="w-32 md:w-40 text-[13px] text-[#f0f2ff] shrink-0 flex items-center gap-1.5">
-                    <span className="text-[14px]">{status.label.split(' ')[0]}</span>
+                  <div className="w-32 md:w-40 text-[15px] text-[#f0f2ff] shrink-0 flex items-center gap-1.5">
+                    <span className="text-[16px]">{status.label.split(' ')[0]}</span>
                     <span className="truncate">{status.label.split(' ').slice(1).join(' ')}</span>
                   </div>
 
@@ -335,7 +335,7 @@ export function CustomersStatus() {
                     {/* Count inside bar */}
                     {status.count > 0 && (
                       <div className="absolute inset-0 flex items-center justify-end px-2.5">
-                        <span className="text-[12px] font-bold text-[#f0f2ff]">
+                        <span className="text-[14px] font-bold text-[#f0f2ff]">
                           {status.count}
                         </span>
                       </div>
@@ -344,7 +344,7 @@ export function CustomersStatus() {
 
                   {/* Percentage */}
                   <div
-                    className="w-14 text-left text-[12px] font-bold shrink-0"
+                    className="w-14 text-left text-[14px] font-bold shrink-0"
                     style={{ color: status.color }}
                   >
                     {pct}%
@@ -356,8 +356,8 @@ export function CustomersStatus() {
 
           {/* Total */}
           <div className="mt-3 pt-3 border-t border-white/[0.06] flex items-center justify-between">
-            <span className="text-[12px] text-[#8892b0]">إجمالي العملاء النشطين</span>
-            <span className="text-[14px] font-bold text-[#6c63ff]">
+            <span className="text-[14px] text-[#8892b0]">إجمالي العملاء النشطين</span>
+            <span className="text-[16px] font-bold text-[#6c63ff]">
               {filteredLeads.length}
             </span>
           </div>
@@ -369,7 +369,7 @@ export function CustomersStatus() {
           ══════════════════════════════════════════════════ */}
       <Card className="bg-[#111520] border-white/[0.06] rounded-2xl overflow-hidden">
         <CardHeader className="pb-3">
-          <CardTitle className="text-[15px] font-bold text-[#f0f2ff] flex items-center gap-2">
+          <CardTitle className="text-[17px] font-bold text-[#f0f2ff] flex items-center gap-2">
             <Users size={16} className="text-[#6c63ff]" />
             أداء الفريق
           </CardTitle>
@@ -379,22 +379,22 @@ export function CustomersStatus() {
             <Table>
               <TableHeader>
                 <TableRow className="border-white/[0.06] hover:bg-transparent">
-                  <TableHead className="text-[#8892b0] text-[12px] font-semibold text-right">
+                  <TableHead className="text-[#8892b0] text-[14px] font-semibold text-right">
                     العضو
                   </TableHead>
-                  <TableHead className="text-[#8892b0] text-[12px] font-semibold text-right">
+                  <TableHead className="text-[#8892b0] text-[14px] font-semibold text-right">
                     الدور
                   </TableHead>
-                  <TableHead className="text-[#8892b0] text-[12px] font-semibold text-center">
+                  <TableHead className="text-[#8892b0] text-[14px] font-semibold text-center">
                     إجمالي
                   </TableHead>
-                  <TableHead className="text-[#8892b0] text-[12px] font-semibold text-center">
+                  <TableHead className="text-[#8892b0] text-[14px] font-semibold text-center">
                     تم التواصل
                   </TableHead>
-                  <TableHead className="text-[#8892b0] text-[12px] font-semibold text-center">
+                  <TableHead className="text-[#8892b0] text-[14px] font-semibold text-center">
                     اجتماعات
                   </TableHead>
-                  <TableHead className="text-[#8892b0] text-[12px] font-semibold text-center">
+                  <TableHead className="text-[#8892b0] text-[14px] font-semibold text-center">
                     تقفيل
                   </TableHead>
                 </TableRow>
@@ -409,7 +409,7 @@ export function CustomersStatus() {
                       <TableCell className="text-right">
                         <div className="flex items-center gap-2">
                           <div
-                            className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-[13px] font-bold shrink-0"
                             style={{
                               background: member.role === 'tele'
                                 ? 'rgba(108,99,255,0.15)'
@@ -419,14 +419,14 @@ export function CustomersStatus() {
                           >
                             {member.name.slice(0, 2)}
                           </div>
-                          <span className="text-[13px] font-semibold text-[#f0f2ff]">
+                          <span className="text-[15px] font-semibold text-[#f0f2ff]">
                             {member.name}
                           </span>
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <Badge
-                          className="text-[10px] font-bold px-2 py-0.5 rounded-full border-0"
+                          className="text-[12px] font-bold px-2 py-0.5 rounded-full border-0"
                           style={{
                             background: member.role === 'tele'
                               ? 'rgba(108,99,255,0.15)'
@@ -438,22 +438,22 @@ export function CustomersStatus() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className="text-[13px] font-bold text-[#f0f2ff]">
+                        <span className="text-[15px] font-bold text-[#f0f2ff]">
                           {member.total}
                         </span>
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className="text-[13px] font-bold" style={{ color: '#00d4aa' }}>
+                        <span className="text-[15px] font-bold" style={{ color: '#00d4aa' }}>
                           {member.contacted}
                         </span>
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className="text-[13px] font-bold" style={{ color: '#ffd166' }}>
+                        <span className="text-[15px] font-bold" style={{ color: '#ffd166' }}>
                           {member.meetings}
                         </span>
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className="text-[13px] font-bold" style={{ color: '#00d4aa' }}>
+                        <span className="text-[15px] font-bold" style={{ color: '#00d4aa' }}>
                           {member.closedWon}
                         </span>
                       </TableCell>
@@ -462,7 +462,7 @@ export function CustomersStatus() {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8">
-                      <div className="text-[13px] text-[#4a5280]">
+                      <div className="text-[15px] text-[#4a5280]">
                         لا توجد بيانات للعرض
                       </div>
                     </TableCell>
@@ -475,10 +475,10 @@ export function CustomersStatus() {
           {/* Team Summary */}
           {filteredTeamPerf.length > 0 && (
             <div className="px-5 py-3 border-t border-white/[0.06] flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[12px] text-[#8892b0]">
+              <span className="text-[14px] text-[#8892b0]">
                 {filteredTeamPerf.length} عضو
               </span>
-              <div className="flex items-center gap-4 text-[12px]">
+              <div className="flex items-center gap-4 text-[14px]">
                 <span className="text-[#8892b0]">
                   إجمالي:{' '}
                   <span className="font-bold text-[#f0f2ff]">

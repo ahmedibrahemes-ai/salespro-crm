@@ -218,7 +218,7 @@ export function EmployeeProfile() {
           <div className="flex items-center gap-4">
             {/* Avatar with gradient */}
             <div
-              className="w-16 h-16 rounded-2xl flex items-center justify-center text-[22px] font-bold text-white shrink-0 shadow-lg"
+              className="w-16 h-16 rounded-2xl flex items-center justify-center text-[24px] font-bold text-white shrink-0 shadow-lg"
               style={{ background: 'linear-gradient(135deg, #6c63ff 0%, #00d4aa 100%)' }}
             >
               {currentUser.slice(0, 2).toUpperCase()}
@@ -230,20 +230,20 @@ export function EmployeeProfile() {
                   const GIcon = greetingIcon
                   return <GIcon size={16} className="text-[#ffd166]" />
                 })()}
-                <span className="text-[14px] text-[#8892b0] font-medium">{greeting}،</span>
+                <span className="text-[16px] text-[#8892b0] font-medium">{greeting}،</span>
               </div>
               {/* Name */}
-              <h2 className="text-[22px] font-bold text-[#f0f2ff] leading-tight">{currentUser}</h2>
+              <h2 className="text-[24px] font-bold text-[#f0f2ff] leading-tight">{currentUser}</h2>
               {/* Role badge + leads count */}
               <div className="flex items-center gap-2 mt-1.5">
-                <Badge className={`text-[11px] border-0 font-bold ${currentRole === 'tele' ? 'bg-[#6c63ff]/20 text-[#a8a3ff]' : currentRole === 'sales' ? 'bg-[#00d4aa]/20 text-[#00d4aa]' : 'bg-amber-500/20 text-amber-400'}`}>
+                <Badge className={`text-[13px] border-0 font-bold ${currentRole === 'tele' ? 'bg-[#6c63ff]/20 text-[#a8a3ff]' : currentRole === 'sales' ? 'bg-[#00d4aa]/20 text-[#00d4aa]' : 'bg-amber-500/20 text-amber-400'}`}>
                   {currentRole === 'tele' ? 'تيلي' : currentRole === 'sales' ? 'سيلز' : 'أدمن'}
                 </Badge>
-                <span className="text-[12px] text-[#8892b0]">
+                <span className="text-[14px] text-[#8892b0]">
                   {myLeads.length} عميل مسند
                 </span>
-                <span className="text-[10px] text-[#4a5280]">•</span>
-                <span className="text-[11px] text-[#4a5280]">
+                <span className="text-[12px] text-[#4a5280]">•</span>
+                <span className="text-[13px] text-[#4a5280]">
                   آخر نشاط: {lastLoginText}
                 </span>
               </div>
@@ -260,21 +260,21 @@ export function EmployeeProfile() {
           <>
             <button
               onClick={() => handleQuickAction('bulk-add')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#6c63ff]/15 border border-[#6c63ff]/20 text-[#a8a3ff] text-[12px] font-semibold hover:bg-[#6c63ff]/25 transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#6c63ff]/15 border border-[#6c63ff]/20 text-[#a8a3ff] text-[14px] font-semibold hover:bg-[#6c63ff]/25 transition-colors cursor-pointer"
             >
               <UserPlus size={15} />
               إضافة عميل
             </button>
             <button
               onClick={() => handleQuickAction('my-sheet')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#00d4aa]/10 border border-[#00d4aa]/20 text-[#00d4aa] text-[12px] font-semibold hover:bg-[#00d4aa]/20 transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#00d4aa]/10 border border-[#00d4aa]/20 text-[#00d4aa] text-[14px] font-semibold hover:bg-[#00d4aa]/20 transition-colors cursor-pointer"
             >
               <FileSpreadsheet size={15} />
               شيت التيلي
             </button>
             <button
               onClick={() => handleQuickAction('my-meetings')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#ffd166]/10 border border-[#ffd166]/20 text-[#ffd166] text-[12px] font-semibold hover:bg-[#ffd166]/20 transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#ffd166]/10 border border-[#ffd166]/20 text-[#ffd166] text-[14px] font-semibold hover:bg-[#ffd166]/20 transition-colors cursor-pointer"
             >
               <Calendar size={15} />
               اجتماعاتي
@@ -285,21 +285,21 @@ export function EmployeeProfile() {
           <>
             <button
               onClick={() => handleQuickAction('sales-sheet')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#00d4aa]/10 border border-[#00d4aa]/20 text-[#00d4aa] text-[12px] font-semibold hover:bg-[#00d4aa]/20 transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#00d4aa]/10 border border-[#00d4aa]/20 text-[#00d4aa] text-[14px] font-semibold hover:bg-[#00d4aa]/20 transition-colors cursor-pointer"
             >
               <FileSpreadsheet size={15} />
               شيت السيلز
             </button>
             <button
               onClick={() => handleQuickAction('my-meetings')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#ffd166]/10 border border-[#ffd166]/20 text-[#ffd166] text-[12px] font-semibold hover:bg-[#ffd166]/20 transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#ffd166]/10 border border-[#ffd166]/20 text-[#ffd166] text-[14px] font-semibold hover:bg-[#ffd166]/20 transition-colors cursor-pointer"
             >
               <Calendar size={15} />
               اجتماعاتي
             </button>
             <button
               onClick={() => handleQuickAction('my-archive')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#4a5280]/15 border border-[#4a5280]/20 text-[#8892b0] text-[12px] font-semibold hover:bg-[#4a5280]/25 transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#4a5280]/15 border border-[#4a5280]/20 text-[#8892b0] text-[14px] font-semibold hover:bg-[#4a5280]/25 transition-colors cursor-pointer"
             >
               <Archive size={15} />
               أرشيفي
@@ -310,14 +310,14 @@ export function EmployeeProfile() {
           <>
             <button
               onClick={() => handleQuickAction('admin')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#6c63ff]/15 border border-[#6c63ff]/20 text-[#a8a3ff] text-[12px] font-semibold hover:bg-[#6c63ff]/25 transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#6c63ff]/15 border border-[#6c63ff]/20 text-[#a8a3ff] text-[14px] font-semibold hover:bg-[#6c63ff]/25 transition-colors cursor-pointer"
             >
               <Briefcase size={15} />
               لوحة التحكم
             </button>
             <button
               onClick={() => handleQuickAction('meetings')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#ffd166]/10 border border-[#ffd166]/20 text-[#ffd166] text-[12px] font-semibold hover:bg-[#ffd166]/20 transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#ffd166]/10 border border-[#ffd166]/20 text-[#ffd166] text-[14px] font-semibold hover:bg-[#ffd166]/20 transition-colors cursor-pointer"
             >
               <Calendar size={15} />
               الاجتماعات
@@ -341,12 +341,12 @@ export function EmployeeProfile() {
             return (
               <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] text-[#8892b0] font-semibold">{k.label}</span>
+                  <span className="text-[13px] text-[#8892b0] font-semibold">{k.label}</span>
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${k.color}15` }}>
                     <Icon size={16} style={{ color: k.color }} />
                   </div>
                 </div>
-                <div className="text-[26px] font-bold" style={{ color: k.color }}>
+                <div className="text-[28px] font-bold" style={{ color: k.color }}>
                   {k.value}
                 </div>
               </div>
@@ -367,12 +367,12 @@ export function EmployeeProfile() {
             return (
               <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] text-[#8892b0] font-semibold">{k.label}</span>
+                  <span className="text-[13px] text-[#8892b0] font-semibold">{k.label}</span>
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${k.color}15` }}>
                     <Icon size={16} style={{ color: k.color }} />
                   </div>
                 </div>
-                <div className="text-[26px] font-bold" style={{ color: k.color }}>
+                <div className="text-[28px] font-bold" style={{ color: k.color }}>
                   {k.value}
                 </div>
               </div>
@@ -398,12 +398,12 @@ export function EmployeeProfile() {
             return (
               <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] text-[#8892b0] font-semibold">{k.label}</span>
+                  <span className="text-[12px] text-[#8892b0] font-semibold">{k.label}</span>
                   <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${k.color}12` }}>
                     <Icon size={14} style={{ color: k.color }} />
                   </div>
                 </div>
-                <div className="text-[22px] font-bold mb-2" style={{ color: k.color }}>
+                <div className="text-[24px] font-bold mb-2" style={{ color: k.color }}>
                   {k.value}
                 </div>
                 <div className="h-1.5 rounded-full bg-[#1c2234] overflow-hidden">
@@ -412,7 +412,7 @@ export function EmployeeProfile() {
                     style={{ width: `${Math.min(progressVal, 100)}%`, backgroundColor: k.color }}
                   />
                 </div>
-                <div className="text-[9px] text-[#4a5280] mt-1">{k.progressLabel} {progressVal}%</div>
+                <div className="text-[11px] text-[#4a5280] mt-1">{k.progressLabel} {progressVal}%</div>
               </div>
             )
           })}
@@ -433,12 +433,12 @@ export function EmployeeProfile() {
             return (
               <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] text-[#8892b0] font-semibold">{k.label}</span>
+                  <span className="text-[12px] text-[#8892b0] font-semibold">{k.label}</span>
                   <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${k.color}12` }}>
                     <Icon size={14} style={{ color: k.color }} />
                   </div>
                 </div>
-                <div className="text-[22px] font-bold mb-2" style={{ color: k.color }}>
+                <div className="text-[24px] font-bold mb-2" style={{ color: k.color }}>
                   {k.value}
                 </div>
                 <div className="h-1.5 rounded-full bg-[#1c2234] overflow-hidden">
@@ -447,7 +447,7 @@ export function EmployeeProfile() {
                     style={{ width: `${Math.min(progressVal, 100)}%`, backgroundColor: k.color }}
                   />
                 </div>
-                <div className="text-[9px] text-[#4a5280] mt-1">{k.progressLabel} {progressVal}%</div>
+                <div className="text-[11px] text-[#4a5280] mt-1">{k.progressLabel} {progressVal}%</div>
               </div>
             )
           })}
@@ -460,7 +460,7 @@ export function EmployeeProfile() {
       {recentTransfers.length > 0 && (
         <Card className="bg-[#111520] border-white/[0.06]">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[14px] text-[#f0f2ff] flex items-center gap-2">
+            <CardTitle className="text-[16px] text-[#f0f2ff] flex items-center gap-2">
               <ArrowRightLeft size={16} className="text-[#a8a3ff]" />
               التحويلات الأخيرة
             </CardTitle>
@@ -470,13 +470,13 @@ export function EmployeeProfile() {
               {recentTransfers.map((lead) => (
                 <div key={lead.id} className="flex items-center gap-3 py-2.5 px-3 rounded-lg bg-[#0a0d14] border border-white/[0.04]">
                   {/* Customer initials */}
-                  <div className="w-9 h-9 rounded-lg bg-[#6c63ff]/12 flex items-center justify-center text-[#a8a3ff] shrink-0 text-[11px] font-bold">
+                  <div className="w-9 h-9 rounded-lg bg-[#6c63ff]/12 flex items-center justify-center text-[#a8a3ff] shrink-0 text-[13px] font-bold">
                     {lead.customerName?.slice(0, 2) || '؟'}
                   </div>
                   {/* Details */}
                   <div className="flex-1 min-w-0">
-                    <div className="text-[12px] text-[#f0f2ff] font-medium truncate">{lead.customerName || 'عميل'}</div>
-                    <div className="text-[10px] text-[#4a5280] mt-0.5">
+                    <div className="text-[14px] text-[#f0f2ff] font-medium truncate">{lead.customerName || 'عميل'}</div>
+                    <div className="text-[12px] text-[#4a5280] mt-0.5">
                       {currentRole === 'tele' ? (
                         <>حوّل إلى <span className="text-[#00d4aa]">{lead.sales}</span></>
                       ) : (
@@ -486,11 +486,11 @@ export function EmployeeProfile() {
                   </div>
                   {/* Date/Time info */}
                   <div className="text-left shrink-0">
-                    <div className="text-[10px] text-[#8892b0]">
+                    <div className="text-[12px] text-[#8892b0]">
                       {lead.assignedAt ? formatRelativeTime(lead.assignedAt) : '—'}
                     </div>
                     {lead.meetingDate && (
-                      <div className="text-[9px] text-[#4a5280] mt-0.5">
+                      <div className="text-[11px] text-[#4a5280] mt-0.5">
                         اجتماع: {lead.meetingDate}
                       </div>
                     )}
@@ -508,10 +508,10 @@ export function EmployeeProfile() {
       {todayMeetings.length > 0 && (
         <Card className="bg-[#111520] border-white/[0.06]">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[14px] text-[#f0f2ff] flex items-center gap-2">
+            <CardTitle className="text-[16px] text-[#f0f2ff] flex items-center gap-2">
               <Calendar size={16} className="text-[#ffd166]" />
               اجتماعات اليوم
-              <Badge className="bg-[#ffd166]/15 text-[#ffd166] text-[10px] border-0 mr-2">
+              <Badge className="bg-[#ffd166]/15 text-[#ffd166] text-[12px] border-0 mr-2">
                 {todayMeetings.length}
               </Badge>
             </CardTitle>
@@ -521,17 +521,17 @@ export function EmployeeProfile() {
               {todayMeetings.map((lead) => (
                 <div key={lead.id} className="flex items-center gap-3 py-2.5 px-3 rounded-lg bg-[#0a0d14] border border-white/[0.04]">
                   {/* Customer initials */}
-                  <div className="w-9 h-9 rounded-lg bg-[#ffd166]/10 flex items-center justify-center text-[#ffd166] shrink-0 text-[11px] font-bold">
+                  <div className="w-9 h-9 rounded-lg bg-[#ffd166]/10 flex items-center justify-center text-[#ffd166] shrink-0 text-[13px] font-bold">
                     {lead.customerName?.slice(0, 2) || '؟'}
                   </div>
                   {/* Details */}
                   <div className="flex-1 min-w-0">
-                    <div className="text-[12px] text-[#f0f2ff] font-medium truncate">{lead.customerName || 'عميل'}</div>
+                    <div className="text-[14px] text-[#f0f2ff] font-medium truncate">{lead.customerName || 'عميل'}</div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] text-[#8892b0]">{lead.meetingTime || '—'}</span>
+                      <span className="text-[12px] text-[#8892b0]">{lead.meetingTime || '—'}</span>
                       {/* Meeting type badge */}
                       {lead.meetingType && (
-                        <Badge className="text-[8px] border-0 bg-[#1c2234] text-[#8892b0] px-1.5 py-0">
+                        <Badge className="text-[10px] border-0 bg-[#1c2234] text-[#8892b0] px-1.5 py-0">
                           {lead.meetingType === 'online' ? (
                             <span className="flex items-center gap-1"><Video size={8} /> أونلاين</span>
                           ) : lead.meetingType === 'offline' ? (
@@ -563,7 +563,7 @@ export function EmployeeProfile() {
                         </button>
                       </div>
                     ) : (
-                      <Badge className={`text-[9px] border-0 ${lead.attended === 'attended' ? 'bg-[#00d4aa]/15 text-[#00d4aa]' : lead.attended === 'no-show' ? 'bg-[#ff6b6b]/15 text-[#ff6b6b]' : 'bg-[#ffd166]/15 text-[#ffd166]'}`}>
+                      <Badge className={`text-[11px] border-0 ${lead.attended === 'attended' ? 'bg-[#00d4aa]/15 text-[#00d4aa]' : lead.attended === 'no-show' ? 'bg-[#ff6b6b]/15 text-[#ff6b6b]' : 'bg-[#ffd166]/15 text-[#ffd166]'}`}>
                         {lead.attended === 'attended' ? 'حضر ✓' : lead.attended === 'no-show' ? 'لم يحضر ✗' : 'انتظار'}
                       </Badge>
                     )}
@@ -581,7 +581,7 @@ export function EmployeeProfile() {
       {statusDistribution.length > 0 && (
         <Card className="bg-[#111520] border-white/[0.06]">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[14px] text-[#f0f2ff] flex items-center gap-2">
+            <CardTitle className="text-[16px] text-[#f0f2ff] flex items-center gap-2">
               <BarChart3 size={16} className="text-[#6c63ff]" />
               توزيع الحالات
             </CardTitle>
@@ -593,13 +593,13 @@ export function EmployeeProfile() {
                 const barWidth = maxStatusCount > 0 ? (s.count / maxStatusCount) * 100 : 0
                 return (
                   <div key={i} className="flex items-center gap-3">
-                    <span className="text-[12px] text-[#f0f2ff] min-w-[100px] truncate">{s.label}</span>
+                    <span className="text-[14px] text-[#f0f2ff] min-w-[100px] truncate">{s.label}</span>
                     <div className="flex-1 h-6 rounded-lg bg-[#1c2234] overflow-hidden relative">
                       <div
                         className="h-full rounded-lg transition-all duration-500"
                         style={{ width: `${barWidth}%`, backgroundColor: barColor, opacity: 0.7 }}
                       />
-                      <span className="absolute inset-0 flex items-center justify-start pr-2 text-[9px] font-bold text-[#f0f2ff]/70">
+                      <span className="absolute inset-0 flex items-center justify-start pr-2 text-[11px] font-bold text-[#f0f2ff]/70">
                         {s.count} ({s.percentage}%)
                       </span>
                     </div>
@@ -616,14 +616,14 @@ export function EmployeeProfile() {
          ═══════════════════════════════════════════ */}
       <Card className="bg-[#111520] border-white/[0.06]">
         <CardHeader className="pb-2">
-          <CardTitle className="text-[14px] text-[#f0f2ff] flex items-center gap-2">
+          <CardTitle className="text-[16px] text-[#f0f2ff] flex items-center gap-2">
             <Clock size={16} className="text-[#6c63ff]" />
             آخر العملاء
           </CardTitle>
         </CardHeader>
         <CardContent>
           {recentLeads.length === 0 ? (
-            <div className="text-center py-8 text-[#4a5280] text-[12px]">لا يوجد عملاء بعد</div>
+            <div className="text-center py-8 text-[#4a5280] text-[14px]">لا يوجد عملاء بعد</div>
           ) : (
             <div className="space-y-1.5 max-h-96 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#1c2234 transparent' }}>
               {recentLeads.map((lead) => {
@@ -633,20 +633,20 @@ export function EmployeeProfile() {
                   : SALES_STATUSES.find((s) => s.key === statusKey)
                 return (
                   <div key={lead.id} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-[#1c2234]/50 transition-colors">
-                    <div className="w-7 h-7 rounded-full bg-[#6c63ff]/15 flex items-center justify-center text-[10px] text-[#a8a3ff] font-bold shrink-0">
+                    <div className="w-7 h-7 rounded-full bg-[#6c63ff]/15 flex items-center justify-center text-[12px] text-[#a8a3ff] font-bold shrink-0">
                       {lead.customerName?.slice(0, 2) || '؟'}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-[12px] text-[#f0f2ff] font-medium truncate">{lead.customerName || 'عميل'}</div>
-                      <div className="text-[10px] text-[#4a5280]">{formatDate(lead.createdAt)}</div>
+                      <div className="text-[14px] text-[#f0f2ff] font-medium truncate">{lead.customerName || 'عميل'}</div>
+                      <div className="text-[12px] text-[#4a5280]">{formatDate(lead.createdAt)}</div>
                     </div>
                     {statusObj && (
-                      <Badge className="text-[9px] border-0 bg-[#1c2234] text-[#8892b0]">
+                      <Badge className="text-[11px] border-0 bg-[#1c2234] text-[#8892b0]">
                         {statusObj.label}
                       </Badge>
                     )}
                     {lead.meetingDate && (
-                      <Badge className="bg-[#ffd166]/15 text-[#ffd166] text-[9px] border-0">
+                      <Badge className="bg-[#ffd166]/15 text-[#ffd166] text-[11px] border-0">
                         📅 {lead.meetingDate}
                       </Badge>
                     )}

@@ -41,7 +41,7 @@ function getAttentionBadge(lead: {
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-[#161b28] border border-white/[0.08] rounded-lg px-3 py-2 text-[12px] shadow-xl">
+    <div className="bg-[#161b28] border border-white/[0.08] rounded-lg px-3 py-2 text-[14px] shadow-xl">
       <div className="text-[#8892b0]">{label}</div>
       <div className="text-[#f0f2ff] font-bold">{payload[0].value} مكالمة</div>
     </div>
@@ -164,10 +164,10 @@ export function DashboardOverview() {
         </div>
 
         <div className="flex-1 min-w-0">
-          <div className="text-[14px] font-bold text-[#f0f2ff]">
+          <div className="text-[16px] font-bold text-[#f0f2ff]">
             {overdueCount > 0 ? overdueCount : 3} عملاء يحتاجون اهتمامك الآن!
           </div>
-          <div className="text-[12px] text-[#8892b0] mt-0.5 truncate">
+          <div className="text-[14px] text-[#8892b0] mt-0.5 truncate">
             {attentionLeads.length > 0
               ? attentionLeads.map(l => l.name).join(' · ')
               : 'لا يوجد عملاء بحاجة لاهتمام فوري'}
@@ -176,7 +176,7 @@ export function DashboardOverview() {
 
         <button
           onClick={() => setCurrentView('followup')}
-          className="bg-[#161b28] border border-[#ff6b6b]/40 text-[#ff6b6b] px-4 py-2 rounded-xl text-[12px] font-semibold hover:bg-[#ff6b6b]/10 transition-all cursor-pointer shrink-0 hidden sm:flex"
+          className="bg-[#161b28] border border-[#ff6b6b]/40 text-[#ff6b6b] px-4 py-2 rounded-xl text-[14px] font-semibold hover:bg-[#ff6b6b]/10 transition-all cursor-pointer shrink-0 hidden sm:flex"
         >
           عرض الكل
         </button>
@@ -206,13 +206,13 @@ export function DashboardOverview() {
               {kpi.icon}
             </div>
             <div
-              className="text-[24px] md:text-[26px] font-extrabold leading-tight"
+              className="text-[26px] md:text-[28px] font-extrabold leading-tight"
               style={{ color: kpi.color, fontFamily: 'Cairo, sans-serif' }}
             >
               {kpi.value}
             </div>
-            <div className="text-[12px] text-[#8892b0] mt-0.5">{kpi.label}</div>
-            <div className={`text-[11px] mt-2 flex items-center gap-1 ${kpi.up ? 'text-[#00d4aa]' : 'text-[#ff6b6b]'}`}>
+            <div className="text-[14px] text-[#8892b0] mt-0.5">{kpi.label}</div>
+            <div className={`text-[13px] mt-2 flex items-center gap-1 ${kpi.up ? 'text-[#00d4aa]' : 'text-[#ff6b6b]'}`}>
               {kpi.up ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
               {kpi.delta}
             </div>
@@ -224,15 +224,15 @@ export function DashboardOverview() {
       <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5">
         <div className="flex justify-between items-center mb-3.5">
           <div>
-            <div className="text-[14px] font-semibold text-[#f0f2ff]">
+            <div className="text-[16px] font-semibold text-[#f0f2ff]">
               Target vs Achievement — {monthAr} {new Date().getFullYear()}
             </div>
-            <div className="text-[12px] text-[#8892b0] mt-0.5">
+            <div className="text-[14px] text-[#8892b0] mt-0.5">
               {formatCurrencyFull(stats?.achievedAmount ?? 0)} من أصل {formatCurrencyFull(stats?.targetAmount ?? 0)} EGP
             </div>
           </div>
           <div
-            className="text-[28px] font-extrabold text-[#6c63ff]"
+            className="text-[30px] font-extrabold text-[#6c63ff]"
             style={{ fontFamily: 'Cairo, sans-serif' }}
           >
             {targetPct}%
@@ -246,7 +246,7 @@ export function DashboardOverview() {
             transition={{ duration: 1.4, ease: [0.4, 0, 0.2, 1] }}
           />
         </div>
-        <div className="flex items-center justify-between text-[12px] text-[#8892b0]">
+        <div className="flex items-center justify-between text-[14px] text-[#8892b0]">
           <span>تبقى {formatCurrency(remaining > 0 ? remaining : 0)} EGP للوصول للـ Target</span>
           <span>{daysLeft} يوم متبقي</span>
         </div>
@@ -256,7 +256,7 @@ export function DashboardOverview() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Weekly Calls Bar Chart */}
         <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5">
-          <div className="flex items-center gap-2 text-[14px] font-semibold text-[#f0f2ff] mb-4">
+          <div className="flex items-center gap-2 text-[16px] font-semibold text-[#f0f2ff] mb-4">
             <BarChart3 size={16} className="text-[#6c63ff]" />
             أداء الأسبوع (مكالمات)
           </div>
@@ -288,8 +288,8 @@ export function DashboardOverview() {
             </ResponsiveContainer>
           </div>
           <div className="mt-3 pt-3 border-t border-white/[0.06] flex items-center justify-between">
-            <span className="text-[12px] text-[#8892b0]">إجمالي الأسبوع</span>
-            <span className="text-[14px] font-bold text-[#6c63ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            <span className="text-[14px] text-[#8892b0]">إجمالي الأسبوع</span>
+            <span className="text-[16px] font-bold text-[#6c63ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
               {weeklyCallsData.reduce((s, d) => s + d.count, 0)} مكالمة
             </span>
           </div>
@@ -297,7 +297,7 @@ export function DashboardOverview() {
 
         {/* Source Pie Chart */}
         <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5">
-          <div className="flex items-center gap-2 text-[14px] font-semibold text-[#f0f2ff] mb-4">
+          <div className="flex items-center gap-2 text-[16px] font-semibold text-[#f0f2ff] mb-4">
             <Flame size={16} className="text-[#ff6b6b]" />
             يحتاجون اهتمامك الآن
           </div>
@@ -313,7 +313,7 @@ export function DashboardOverview() {
                     className="flex items-center gap-3 py-2.5 px-3 border border-white/[0.04] rounded-xl hover:bg-white/[0.02] transition-colors"
                   >
                     <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-bold shrink-0"
                       style={{
                         background: badge.bg,
                         color: badge.color,
@@ -323,13 +323,13 @@ export function DashboardOverview() {
                       {initials}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-[13px] font-semibold text-[#f0f2ff] truncate">{lead.name}</div>
-                      <div className="text-[11px] text-[#8892b0] truncate">
+                      <div className="text-[15px] font-semibold text-[#f0f2ff] truncate">{lead.name}</div>
+                      <div className="text-[13px] text-[#8892b0] truncate">
                         {lead.company || getSourceLabel(lead.source)} · {lead.phone}
                       </div>
                     </div>
                     <span
-                      className="text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0"
+                      className="text-[12px] font-bold px-2.5 py-1 rounded-full shrink-0"
                       style={{ background: badge.bg, color: badge.color }}
                     >
                       {badge.label}
@@ -357,7 +357,7 @@ export function DashboardOverview() {
               })}
             </div>
           ) : (
-            <div className="text-[12px] text-[#8892b0] py-6 text-center">
+            <div className="text-[14px] text-[#8892b0] py-6 text-center">
               لا يوجد عملاء بحاجة لاهتمام فوري 🎉
             </div>
           )}
@@ -368,13 +368,13 @@ export function DashboardOverview() {
       {/* Pipeline mini chart */}
       <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2 text-[14px] font-semibold text-[#f0f2ff]">
+          <div className="flex items-center gap-2 text-[16px] font-semibold text-[#f0f2ff]">
             <BarChart3 size={16} className="text-[#00d4aa]" />
             توزيع Pipeline بالمراحل
           </div>
           <button
             onClick={() => setCurrentView('pipeline')}
-            className="text-[12px] text-[#6c63ff] hover:text-[#8b84ff] transition-colors cursor-pointer"
+            className="text-[14px] text-[#6c63ff] hover:text-[#8b84ff] transition-colors cursor-pointer"
           >
             عرض Pipeline ←
           </button>
@@ -385,7 +385,7 @@ export function DashboardOverview() {
             const pct = (stage.count / maxCount) * 100
             return (
               <div key={stage.key} className="flex-1 flex flex-col items-center gap-2">
-                <span className="text-[11px] text-[#8892b0]">{stage.count}</span>
+                <span className="text-[13px] text-[#8892b0]">{stage.count}</span>
                 <motion.div
                   className="w-full rounded-t-lg min-h-[8px]"
                   style={{ background: stage.color }}
@@ -393,7 +393,7 @@ export function DashboardOverview() {
                   animate={{ height: `${Math.max(pct, 10)}%` }}
                   transition={{ duration: 0.8, delay: i * 0.1, ease: 'easeOut' }}
                 />
-                <span className="text-[10px] text-[#4a5280] whitespace-nowrap">{stage.label}</span>
+                <span className="text-[12px] text-[#4a5280] whitespace-nowrap">{stage.label}</span>
               </div>
             )
           })}
@@ -404,39 +404,39 @@ export function DashboardOverview() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Call Analytics */}
         <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 text-center">
-          <div className="flex items-center justify-center gap-2 text-[14px] font-semibold text-[#f0f2ff] mb-4">
+          <div className="flex items-center justify-center gap-2 text-[16px] font-semibold text-[#f0f2ff] mb-4">
             <Phone size={16} className="text-[#6c63ff]" />
             Call Analytics
           </div>
-          <div className="text-[32px] font-extrabold text-[#00d4aa]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          <div className="text-[34px] font-extrabold text-[#00d4aa]" style={{ fontFamily: 'Cairo, sans-serif' }}>
             {totalCallHours} ساعة
           </div>
-          <div className="text-[12px] text-[#8892b0] mt-1">إجمالي وقت المكالمات</div>
+          <div className="text-[14px] text-[#8892b0] mt-1">إجمالي وقت المكالمات</div>
           <div className="flex justify-center gap-5 mt-4 pt-3 border-t border-white/[0.06]">
             <div>
-              <div className="text-[18px] font-bold text-[#00d4aa]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              <div className="text-[20px] font-bold text-[#00d4aa]" style={{ fontFamily: 'Cairo, sans-serif' }}>
                 {callAnalytics.successCount}
               </div>
-              <div className="text-[11px] text-[#8892b0]">ناجحة</div>
+              <div className="text-[13px] text-[#8892b0]">ناجحة</div>
             </div>
             <div>
-              <div className="text-[18px] font-bold text-[#ff6b6b]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              <div className="text-[20px] font-bold text-[#ff6b6b]" style={{ fontFamily: 'Cairo, sans-serif' }}>
                 {callAnalytics.failCount}
               </div>
-              <div className="text-[11px] text-[#8892b0]">فاشلة</div>
+              <div className="text-[13px] text-[#8892b0]">فاشلة</div>
             </div>
             <div>
-              <div className="text-[18px] font-bold text-[#6c63ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              <div className="text-[20px] font-bold text-[#6c63ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
                 {callAnalytics.avgDuration}
               </div>
-              <div className="text-[11px] text-[#8892b0]">متوسط</div>
+              <div className="text-[13px] text-[#8892b0]">متوسط</div>
             </div>
           </div>
         </div>
 
         {/* AI Score */}
         <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 text-center">
-          <div className="flex items-center justify-center gap-2 text-[14px] font-semibold text-[#f0f2ff] mb-4">
+          <div className="flex items-center justify-center gap-2 text-[16px] font-semibold text-[#f0f2ff] mb-4">
             <Bot size={16} className="text-[#6c63ff]" />
             AI Score اليوم
           </div>
@@ -458,34 +458,34 @@ export function DashboardOverview() {
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-[32px] font-black text-[#6c63ff] leading-none" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              <span className="text-[34px] font-black text-[#6c63ff] leading-none" style={{ fontFamily: 'Cairo, sans-serif' }}>
                 {aiScore.toFixed(1)}
               </span>
-              <span className="text-[12px] text-[#8892b0]">/10</span>
+              <span className="text-[14px] text-[#8892b0]">/10</span>
             </div>
           </div>
-          <div className="text-[12px] text-[#8892b0] mt-3">متوسط جودة المكالمات</div>
-          <div className={`text-[12px] mt-1.5 font-medium ${aiScore >= 8 ? 'text-[#00d4aa]' : aiScore >= 6 ? 'text-[#ffd166]' : 'text-[#ff6b6b]'}`}>
+          <div className="text-[14px] text-[#8892b0] mt-3">متوسط جودة المكالمات</div>
+          <div className={`text-[14px] mt-1.5 font-medium ${aiScore >= 8 ? 'text-[#00d4aa]' : aiScore >= 6 ? 'text-[#ffd166]' : 'text-[#ff6b6b]'}`}>
             {aiQualityLabel}
           </div>
         </div>
 
         {/* Ranking */}
         <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 text-center">
-          <div className="flex items-center justify-center gap-2 text-[14px] font-semibold text-[#f0f2ff] mb-4">
+          <div className="flex items-center justify-center gap-2 text-[16px] font-semibold text-[#f0f2ff] mb-4">
             <Trophy size={16} className="text-[#ffd166]" />
             مركزك
           </div>
-          <div className="text-[52px] leading-none">🏆</div>
-          <div className="text-[20px] font-bold text-[#ffd166] mt-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          <div className="text-[54px] leading-none">🏆</div>
+          <div className="text-[22px] font-bold text-[#ffd166] mt-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
             المركز الأول
           </div>
-          <div className="text-[12px] text-[#8892b0] mt-1">
+          <div className="text-[14px] text-[#8892b0] mt-1">
             1,240 نقطة — {monthAr} {new Date().getFullYear()}
           </div>
           <div className="mt-3 pt-3 border-t border-white/[0.06] flex items-center justify-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-[#00d4aa]" />
-            <span className="text-[11px] text-[#00d4aa]">أعلى من الفريق بـ 18%</span>
+            <span className="text-[13px] text-[#00d4aa]">أعلى من الفريق بـ 18%</span>
           </div>
         </div>
       </div>

@@ -103,20 +103,20 @@ function ActivityItem({ icon, iconColor, title, subtitle, time }: ActivityItemPr
       </div>
       <div className="flex-1 min-w-0">
         <div
-          className="text-[15px] font-semibold text-[#f0f2ff] truncate"
+          className="text-[16px] font-bold text-[#f0f2ff] truncate"
           style={{ fontFamily: 'Cairo, sans-serif' }}
         >
           {title}
         </div>
         <div
-          className="text-[13px] text-[#8892b0] truncate"
+          className="text-[14px] font-medium text-[#8892b0] truncate"
           style={{ fontFamily: 'Cairo, sans-serif' }}
         >
           {subtitle}
         </div>
       </div>
       <div
-        className="text-[12px] text-[#4a5280] shrink-0"
+        className="text-[13px] font-medium text-[#4a5280] shrink-0"
         style={{ fontFamily: 'Cairo, sans-serif' }}
       >
         {time}
@@ -380,7 +380,7 @@ export function DailyReport() {
             <h1 className="text-[24px] md:text-[28px] font-extrabold text-[#f0f2ff]">
               📊 تقرير يومي
             </h1>
-            <p className="text-[15px] text-[#8892b0] mt-1">ملخص أنشطة اليوم</p>
+            <p className="text-[16px] font-semibold text-[#8892b0] mt-1">ملخص أنشطة اليوم</p>
           </div>
 
           {/* Date Selector */}
@@ -399,7 +399,7 @@ export function DailyReport() {
               className="flex items-center gap-2 px-3 py-1 rounded-lg hover:bg-white/[0.05] transition-colors cursor-pointer"
             >
               <Calendar size={14} className="text-[#6c63ff]" />
-              <span className="text-[15px] font-semibold text-[#f0f2ff] min-w-[120px] text-center">
+              <span className="text-[16px] font-bold text-[#f0f2ff] min-w-[120px] text-center">
                 {formatDayLabel(selectedDate)}
               </span>
             </button>
@@ -450,7 +450,7 @@ export function DailyReport() {
             </div>
             {/* Label */}
             <div
-              className="text-[14px] text-[#8892b0] mt-0.5"
+              className="text-[16px] font-bold text-[#8892b0] mt-0.5"
               style={{ fontFamily: 'Cairo, sans-serif' }}
             >
               {kpi.label}
@@ -465,7 +465,7 @@ export function DailyReport() {
       <Card className="bg-[#111520] border-white/[0.06] rounded-2xl shadow-none">
         <CardHeader className="pb-2">
           <CardTitle
-            className="text-[16px] font-semibold text-[#f0f2ff] flex items-center gap-2"
+            className="text-[19px] font-extrabold text-[#f0f2ff] flex items-center gap-2"
             style={{ fontFamily: 'Cairo, sans-serif' }}
           >
             <Users size={16} className="text-[#6c63ff]" />
@@ -477,14 +477,14 @@ export function DailyReport() {
             <Table>
               <TableHeader>
                 <TableRow className="border-white/[0.06] hover:bg-transparent">
-                  <TableHead className="text-[#8892b0] text-[14px] font-semibold text-right">العضو</TableHead>
-                  <TableHead className="text-[#8892b0] text-[14px] font-semibold text-center">الدور</TableHead>
-                  <TableHead className="text-[#6c63ff] text-[14px] font-semibold text-center">ليدز</TableHead>
-                  <TableHead className="text-[#00d4aa] text-[14px] font-semibold text-center">مكالمات</TableHead>
-                  <TableHead className="text-[#ffd166] text-[14px] font-semibold text-center">اجتماعات</TableHead>
-                  <TableHead className="text-[#00d4aa] text-[14px] font-semibold text-center">حضور</TableHead>
-                  <TableHead className="text-[#ffd166] text-[14px] font-semibold text-center">تقفيلات</TableHead>
-                  <TableHead className="text-[#8892b0] text-[14px] font-semibold text-center">المجموع</TableHead>
+                  <TableHead className="text-[#8892b0] text-[15px] font-bold text-right">العضو</TableHead>
+                  <TableHead className="text-[#8892b0] text-[15px] font-bold text-center">الدور</TableHead>
+                  <TableHead className="text-[#6c63ff] text-[15px] font-bold text-center">ليدز</TableHead>
+                  <TableHead className="text-[#00d4aa] text-[15px] font-bold text-center">مكالمات</TableHead>
+                  <TableHead className="text-[#ffd166] text-[15px] font-bold text-center">اجتماعات</TableHead>
+                  <TableHead className="text-[#00d4aa] text-[15px] font-bold text-center">حضور</TableHead>
+                  <TableHead className="text-[#ffd166] text-[15px] font-bold text-center">تقفيلات</TableHead>
+                  <TableHead className="text-[#8892b0] text-[15px] font-bold text-center">المجموع</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -499,7 +499,7 @@ export function DailyReport() {
                         <TableCell className="text-right">
                           <div className="flex items-center gap-2 justify-end">
                             <span
-                              className={`text-[15px] font-semibold ${isTop ? 'text-[#6c63ff]' : 'text-[#f0f2ff]'}`}
+                              className={`text-[16px] font-bold ${isTop ? 'text-[#6c63ff]' : 'text-[#f0f2ff]'}`}
                               style={{ fontFamily: 'Cairo, sans-serif' }}
                             >
                               {member.name}
@@ -510,7 +510,7 @@ export function DailyReport() {
                         <TableCell className="text-center">
                           <Badge
                             variant="outline"
-                            className={`text-[12px] font-medium ${
+                            className={`text-[13px] font-bold ${
                               member.role === 'tele'
                                 ? 'border-[#6c63ff]/30 text-[#6c63ff] bg-[#6c63ff]/10'
                                 : 'border-[#ffd166]/30 text-[#ffd166] bg-[#ffd166]/10'
@@ -521,19 +521,19 @@ export function DailyReport() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-center">
-                          <span className="text-[15px] font-semibold text-[#6c63ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>{member.newLeads}</span>
+                          <span className="text-[16px] font-bold text-[#6c63ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>{member.newLeads}</span>
                         </TableCell>
                         <TableCell className="text-center">
-                          <span className="text-[15px] font-semibold text-[#00d4aa]" style={{ fontFamily: 'Cairo, sans-serif' }}>{member.calls}</span>
+                          <span className="text-[16px] font-bold text-[#00d4aa]" style={{ fontFamily: 'Cairo, sans-serif' }}>{member.calls}</span>
                         </TableCell>
                         <TableCell className="text-center">
-                          <span className="text-[15px] font-semibold text-[#ffd166]" style={{ fontFamily: 'Cairo, sans-serif' }}>{member.meetings}</span>
+                          <span className="text-[16px] font-bold text-[#ffd166]" style={{ fontFamily: 'Cairo, sans-serif' }}>{member.meetings}</span>
                         </TableCell>
                         <TableCell className="text-center">
-                          <span className="text-[15px] font-semibold text-[#00d4aa]" style={{ fontFamily: 'Cairo, sans-serif' }}>{member.attended}</span>
+                          <span className="text-[16px] font-bold text-[#00d4aa]" style={{ fontFamily: 'Cairo, sans-serif' }}>{member.attended}</span>
                         </TableCell>
                         <TableCell className="text-center">
-                          <span className="text-[15px] font-semibold text-[#ffd166]" style={{ fontFamily: 'Cairo, sans-serif' }}>{member.closed}</span>
+                          <span className="text-[16px] font-bold text-[#ffd166]" style={{ fontFamily: 'Cairo, sans-serif' }}>{member.closed}</span>
                         </TableCell>
                         <TableCell className="text-center">
                           <span
@@ -568,14 +568,14 @@ export function DailyReport() {
           <Card className="bg-[#111520] border-white/[0.06] rounded-2xl shadow-none h-full">
             <CardHeader className="pb-2">
               <CardTitle
-                className="text-[15px] font-semibold text-[#f0f2ff] flex items-center gap-2"
+                className="text-[17px] font-bold text-[#f0f2ff] flex items-center gap-2"
                 style={{ fontFamily: 'Cairo, sans-serif' }}
               >
                 <UserPlus size={14} className="text-[#6c63ff]" />
                 ليدز جديدة
                 <Badge
                   variant="outline"
-                  className="text-[12px] border-[#6c63ff]/30 text-[#6c63ff] bg-[#6c63ff]/10 mr-auto"
+                  className="text-[13px] font-bold border-[#6c63ff]/30 text-[#6c63ff] bg-[#6c63ff]/10 mr-auto"
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 >
                   {computed.kpiData.newLeadsCount}
@@ -596,7 +596,7 @@ export function DailyReport() {
                     />
                   ))
                 ) : (
-                  <div className="text-[14px] text-[#4a5280] py-6 text-center">
+                  <div className="text-[15px] font-semibold text-[#4a5280] py-6 text-center">
                     لا توجد ليدز جديدة لهذا اليوم
                   </div>
                 )}
@@ -610,14 +610,14 @@ export function DailyReport() {
           <Card className="bg-[#111520] border-white/[0.06] rounded-2xl shadow-none h-full">
             <CardHeader className="pb-2">
               <CardTitle
-                className="text-[15px] font-semibold text-[#f0f2ff] flex items-center gap-2"
+                className="text-[17px] font-bold text-[#f0f2ff] flex items-center gap-2"
                 style={{ fontFamily: 'Cairo, sans-serif' }}
               >
                 <Phone size={14} className="text-[#00d4aa]" />
                 تغييرات الحالة
                 <Badge
                   variant="outline"
-                  className="text-[12px] border-[#00d4aa]/30 text-[#00d4aa] bg-[#00d4aa]/10 mr-auto"
+                  className="text-[13px] font-bold border-[#00d4aa]/30 text-[#00d4aa] bg-[#00d4aa]/10 mr-auto"
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 >
                   {computed.statusChangeActivities.length}
@@ -638,7 +638,7 @@ export function DailyReport() {
                     />
                   ))
                 ) : (
-                  <div className="text-[14px] text-[#4a5280] py-6 text-center">
+                  <div className="text-[15px] font-semibold text-[#4a5280] py-6 text-center">
                     لا توجد تغييرات حالة لهذا اليوم
                   </div>
                 )}
@@ -652,14 +652,14 @@ export function DailyReport() {
           <Card className="bg-[#111520] border-white/[0.06] rounded-2xl shadow-none h-full">
             <CardHeader className="pb-2">
               <CardTitle
-                className="text-[15px] font-semibold text-[#f0f2ff] flex items-center gap-2"
+                className="text-[17px] font-bold text-[#f0f2ff] flex items-center gap-2"
                 style={{ fontFamily: 'Cairo, sans-serif' }}
               >
                 <Calendar size={14} className="text-[#ffd166]" />
                 اجتماعات اليوم
                 <Badge
                   variant="outline"
-                  className="text-[12px] border-[#ffd166]/30 text-[#ffd166] bg-[#ffd166]/10 mr-auto"
+                  className="text-[13px] font-bold border-[#ffd166]/30 text-[#ffd166] bg-[#ffd166]/10 mr-auto"
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 >
                   {computed.kpiData.meetingsCount}
@@ -680,7 +680,7 @@ export function DailyReport() {
                     />
                   ))
                 ) : (
-                  <div className="text-[14px] text-[#4a5280] py-6 text-center">
+                  <div className="text-[15px] font-semibold text-[#4a5280] py-6 text-center">
                     لا توجد اجتماعات لهذا اليوم
                   </div>
                 )}
@@ -717,21 +717,21 @@ export function DailyReport() {
         {/* Text */}
         <div className="flex-1 min-w-0 relative z-10">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[18px] font-bold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            <span className="text-[20px] font-extrabold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
               تقييم الأداء:
             </span>
             <span
-              className="text-[20px] font-extrabold"
+              className="text-[22px] font-extrabold"
               style={{ color: performanceRating.color, fontFamily: 'Cairo, sans-serif' }}
             >
               {performanceRating.label}
             </span>
           </div>
-          <div className="text-[14px] text-[#8892b0] mt-1" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          <div className="text-[15px] font-semibold text-[#8892b0] mt-1" style={{ fontFamily: 'Cairo, sans-serif' }}>
             {performanceRating.description}
           </div>
           <div className="flex items-center gap-4 mt-2 flex-wrap">
-            <span className="text-[13px] text-[#4a5280]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            <span className="text-[14px] font-medium text-[#4a5280]" style={{ fontFamily: 'Cairo, sans-serif' }}>
               ليدز: {computed.kpiData.newLeadsCount} • مكالمات: {computed.kpiData.callsMadeCount} • اجتماعات: {computed.kpiData.meetingsCount} • تقفيلات: {computed.kpiData.closedWonCount}
             </span>
           </div>
@@ -743,7 +743,7 @@ export function DailyReport() {
           style={{ color: performanceRating.color }}
         >
           <TrendingUp size={18} />
-          <span className="text-[15px] font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          <span className="text-[16px] font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>
             {computed.kpiData.newLeadsCount + computed.kpiData.callsMadeCount + computed.kpiData.meetingsCount + computed.kpiData.closedWonCount > 0 ? 'نشط' : 'هادئ'}
           </span>
         </div>

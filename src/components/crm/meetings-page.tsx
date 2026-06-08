@@ -117,35 +117,35 @@ function MeetingCard({
 
             {/* Info */}
             <div className="flex-1 min-w-0">
-              <div className="text-[15px] font-semibold text-[#f0f2ff] truncate">
+              <div className="text-[16px] font-bold text-[#f0f2ff] truncate">
                 {lead.customerName || 'عميل'}
               </div>
 
               {lead.phone && (
-                <div className="text-[13px] text-[#8892b0] mt-0.5 font-mono" dir="ltr">
+                <div className="text-[14px] font-medium text-[#8892b0] mt-0.5 font-mono" dir="ltr">
                   {lead.phone}
                 </div>
               )}
 
               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <span className="flex items-center gap-1 text-[13px] text-[#8892b0]">
+                <span className="flex items-center gap-1 text-[15px] font-medium text-[#8892b0]">
                   <Calendar size={10} />
                   {formatMeetingDate(lead.meetingDate)}
                 </span>
-                <span className="flex items-center gap-1 text-[13px] text-[#8892b0]">
+                <span className="flex items-center gap-1 text-[15px] font-medium text-[#8892b0]">
                   <Clock size={10} />
                   {formatMeetingTime(lead.meetingTime)}
                 </span>
               </div>
 
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                <Badge className={`text-[11px] border ${
+                <Badge className={`text-[13px] font-bold border ${
                   isOnline ? 'bg-[#6c63ff]/10 text-[#a8a3ff] border-[#6c63ff]/20' : 'bg-[#00d4aa]/10 text-[#00d4aa] border-[#00d4aa]/20'
                 }`}>
                   {isOnline ? 'أونلاين' : 'حضوري'}
                 </Badge>
                 {isMeetingToday && (
-                  <Badge className="bg-[#ffd166]/10 text-[#ffd166] border border-[#ffd166]/20 text-[11px]">
+                  <Badge className="bg-[#ffd166]/10 text-[#ffd166] border border-[#ffd166]/20 text-[13px] font-bold">
                     اليوم
                   </Badge>
                 )}
@@ -153,13 +153,13 @@ function MeetingCard({
 
               <div className="flex items-center gap-3 mt-2">
                 {lead.tele && (
-                  <span className="flex items-center gap-1 text-[12px] text-[#6c63ff]">
+                  <span className="flex items-center gap-1 text-[14px] font-medium text-[#6c63ff]">
                     <Users size={9} />
                     تيلي: {lead.tele}
                   </span>
                 )}
                 {lead.sales && (
-                  <span className="flex items-center gap-1 text-[12px] text-[#00d4aa]">
+                  <span className="flex items-center gap-1 text-[14px] font-medium text-[#00d4aa]">
                     <Users size={9} />
                     مبيعات: {lead.sales}
                   </span>
@@ -170,7 +170,7 @@ function MeetingCard({
 
           {/* Left section (RTL - actions) */}
           <div className="flex flex-col items-end gap-2 shrink-0">
-            <Badge className={`${attendanceColor} text-[11px] border`}>
+            <Badge className={`${attendanceColor} text-[13px] font-bold border`}>
               {ATTENDANCE_STATUSES.find((a) => a.key === lead.attended)?.label || '⏳ انتظار'}
             </Badge>
 
@@ -327,10 +327,10 @@ export function MeetingsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-[20px] font-bold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          <h2 className="text-[22px] font-extrabold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
             الاجتماعات
           </h2>
-          <p className="text-[14px] text-[#8892b0] mt-0.5">متابعة جميع اجتماعات الفريق</p>
+          <p className="text-[15px] font-semibold text-[#8892b0] mt-0.5">متابعة جميع اجتماعات الفريق</p>
         </div>
 
         {/* Time filter tabs */}
@@ -346,7 +346,7 @@ export function MeetingsPage() {
               <button
                 key={f.key}
                 onClick={() => setTimeFilter(f.key)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[15px] font-bold transition-colors cursor-pointer ${
                   timeFilter === f.key
                     ? 'bg-[#6c63ff]/15 text-[#a8a3ff]'
                     : 'text-[#8892b0] hover:bg-[#1c2234] hover:text-[#f0f2ff]'
@@ -369,7 +369,7 @@ export function MeetingsPage() {
           { label: 'في الانتظار', value: stats.pendingCount, color: '#6c63ff' },
         ].map((s, i) => (
           <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-3">
-            <div className="text-[13px] text-[#8892b0]">{s.label}</div>
+            <div className="text-[15px] font-semibold text-[#8892b0]">{s.label}</div>
             <div className="text-[22px] font-bold mt-0.5" style={{ color: s.color, fontFamily: 'Cairo, sans-serif' }}>
               {s.value}
             </div>
@@ -382,23 +382,23 @@ export function MeetingsPage() {
         <div className="flex items-center gap-2 shrink-0">
           <Filter size={14} className="text-[#4a5280]" />
           <Select value={memberFilter} onValueChange={setMemberFilter}>
-            <SelectTrigger className="w-[180px] h-8 bg-[#111520] border-white/[0.06] text-[14px] text-[#f0f2ff]">
+            <SelectTrigger className="w-[180px] h-8 bg-[#111520] border-white/[0.06] text-[15px] text-[#f0f2ff]">
               <SelectValue placeholder="كل الفريق" />
             </SelectTrigger>
             <SelectContent className="bg-[#111520] border-white/[0.06] max-h-64 overflow-y-auto">
-              <SelectItem value="all" className="text-[14px] text-[#8892b0] focus:text-[#f0f2ff] focus:bg-[#1c2234]">
+              <SelectItem value="all" className="text-[15px] text-[#8892b0] focus:text-[#f0f2ff] focus:bg-[#1c2234]">
                 كل الفريق
               </SelectItem>
               {allMembers.map((m) => (
                 <SelectItem
                   key={m.name}
                   value={m.name}
-                  className="text-[14px] text-[#8892b0] focus:text-[#f0f2ff] focus:bg-[#1c2234]"
+                  className="text-[15px] text-[#8892b0] focus:text-[#f0f2ff] focus:bg-[#1c2234]"
                 >
                   <span className="flex items-center gap-2">
                     <span className={`w-2 h-2 rounded-full ${m.role === 'تيلي' ? 'bg-[#6c63ff]' : 'bg-[#00d4aa]'}`} />
                     {m.name}
-                    <span className="text-[12px] text-[#4a5280]">({m.role})</span>
+                    <span className="text-[14px] font-medium text-[#4a5280]">({m.role})</span>
                   </span>
                 </SelectItem>
               ))}
@@ -412,7 +412,7 @@ export function MeetingsPage() {
             placeholder="بحث بالاسم أو رقم الهاتف..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 bg-[#111520] border-white/[0.06] text-[14px] text-[#f0f2ff] placeholder:text-[#4a5280] pr-9"
+            className="h-8 bg-[#111520] border-white/[0.06] text-[15px] text-[#f0f2ff] placeholder:text-[#4a5280] pr-9"
           />
         </div>
       </div>
@@ -422,8 +422,8 @@ export function MeetingsPage() {
         <Card className="bg-[#111520] border-white/[0.06]">
           <CardContent className="py-16 text-center">
             <div className="text-[42px] mb-3">📅</div>
-            <div className="text-[16px] text-[#8892b0] mb-1">لا يوجد اجتماعات</div>
-            <div className="text-[14px] text-[#4a5280]">{emptyMessage}</div>
+            <div className="text-[18px] font-bold text-[#8892b0] mb-1">لا يوجد اجتماعات</div>
+            <div className="text-[15px] font-medium text-[#4a5280]">{emptyMessage}</div>
           </CardContent>
         </Card>
       ) : (

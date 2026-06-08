@@ -56,7 +56,7 @@ function EditableCell({
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => e.key === 'Enter' && commit()}
-        className="bg-[#0a0d14] border border-[#6c63ff]/40 rounded px-2 py-1 text-[14px] text-[#f0f2ff] w-full outline-none focus:border-[#6c63ff]"
+        className="bg-[#0a0d14] border border-[#6c63ff]/40 rounded px-2 py-1 text-[15px] text-[#f0f2ff] w-full outline-none focus:border-[#6c63ff]"
         autoFocus
       />
     )
@@ -65,7 +65,7 @@ function EditableCell({
   return (
     <span
       onClick={() => { setDraft(value); setEditing(true) }}
-      className="cursor-pointer hover:bg-[#1c2234] rounded px-1.5 py-0.5 transition-colors text-[14px] min-h-[28px] inline-flex items-center"
+      className="cursor-pointer hover:bg-[#1c2234] rounded px-1.5 py-0.5 transition-colors text-[15px] font-medium min-h-[28px] inline-flex items-center"
     >
       {value || <span className="text-[#4a5280]">{placeholder}</span>}
     </span>
@@ -97,7 +97,7 @@ function LazySelectCell({
     return (
       <button
         onClick={() => setOpen(true)}
-        className={`h-7 text-[13px] px-2 rounded border border-white/[0.06] bg-[#0a0d14] text-[#f0f2ff] hover:border-[#6c63ff]/30 transition-colors cursor-pointer text-right w-full ${className}`}
+        className={`h-7 text-[15px] font-medium px-2 rounded border border-white/[0.06] bg-[#0a0d14] text-[#f0f2ff] hover:border-[#6c63ff]/30 transition-colors cursor-pointer text-right w-full ${className}`}
       >
         {displayLabel}
       </button>
@@ -116,12 +116,12 @@ function LazySelectCell({
         if (!o) setOpen(false)
       }}
     >
-      <SelectTrigger className={`h-7 text-[13px] bg-[#0a0d14] border-[#6c63ff]/40 text-[#f0f2ff] ${className}`}>
+      <SelectTrigger className={`h-7 text-[15px] bg-[#0a0d14] border-[#6c63ff]/40 text-[#f0f2ff] ${className}`}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent className="bg-[#111520] border-white/[0.08]">
         {options.map((opt) => (
-          <SelectItem key={opt.key} value={opt.key} className="text-[13px] text-[#f0f2ff]">
+          <SelectItem key={opt.key} value={opt.key} className="text-[15px] text-[#f0f2ff]">
             {opt.label}
           </SelectItem>
         ))}
@@ -305,10 +305,10 @@ export function SalesSheet() {
       {/* ─── Header ─── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-[20px] font-bold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          <h2 className="text-[22px] font-extrabold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
             شيت السيلز
           </h2>
-          <p className="text-[14px] text-[#8892b0] mt-0.5">إدارة اجتماعات ومتابعة العملاء</p>
+          <p className="text-[15px] font-semibold text-[#8892b0] mt-0.5">إدارة اجتماعات ومتابعة العملاء</p>
         </div>
       </div>
 
@@ -325,7 +325,7 @@ export function SalesSheet() {
             key={i}
             className="bg-[#111520] border border-white/[0.06] rounded-xl p-3"
           >
-            <div className="text-[13px] text-[#8892b0]">{s.label}</div>
+            <div className="text-[15px] font-semibold text-[#8892b0]">{s.label}</div>
             <div className="text-[22px] font-bold mt-0.5" style={{ color: s.color, fontFamily: 'Cairo, sans-serif' }}>
               {s.value}
             </div>
@@ -339,20 +339,20 @@ export function SalesSheet() {
           <div className="flex flex-wrap items-center gap-2">
             {/* Sales filter — locked for sales users, selectable for admin */}
             {isLockedToSelf ? (
-              <div className="h-8 px-3 rounded-md border border-white/[0.08] bg-[#0a0d14] flex items-center gap-2 text-[14px] text-[#f0f2ff] w-[140px]">
+              <div className="h-8 px-3 rounded-md border border-white/[0.08] bg-[#0a0d14] flex items-center gap-2 text-[15px] font-medium text-[#f0f2ff] w-[140px]">
                 <Filter size={12} className="text-[#6c63ff]" />
                 <span>{currentUser}</span>
               </div>
             ) : (
               <Select value={selectedSales} onValueChange={setSelectedSales}>
-                <SelectTrigger className="w-[140px] h-8 text-[14px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
+                <SelectTrigger className="w-[140px] h-8 text-[15px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
                   <Filter size={12} className="text-[#6c63ff]" />
                   <SelectValue placeholder="فلتر السيلز" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#111520] border-white/[0.08]">
-                  <SelectItem value="all" className="text-[14px] text-[#f0f2ff]">الكل</SelectItem>
+                  <SelectItem value="all" className="text-[15px] text-[#f0f2ff]">الكل</SelectItem>
                   {team.sales.map((name) => (
-                    <SelectItem key={name} value={name} className="text-[14px] text-[#f0f2ff]">{name}</SelectItem>
+                    <SelectItem key={name} value={name} className="text-[15px] text-[#f0f2ff]">{name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -364,21 +364,21 @@ export function SalesSheet() {
                 placeholder="بحث بالاسم أو الرقم..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(viewKey, e.target.value)}
-                className="h-8 text-[14px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] pr-8 placeholder:text-[#4a5280]"
+                className="h-8 text-[15px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] pr-8 placeholder:text-[#4a5280]"
               />
             </div>
 
             <Select value={dateFilter.preset} onValueChange={(v) => setDateRangeFilter(viewKey, { preset: v })}>
-              <SelectTrigger className="w-[120px] h-8 text-[14px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
+              <SelectTrigger className="w-[120px] h-8 text-[15px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
                 <Calendar size={12} className="text-[#6c63ff]" />
                 <SelectValue placeholder="التاريخ" />
               </SelectTrigger>
               <SelectContent className="bg-[#111520] border-white/[0.08]">
-                <SelectItem value="all" className="text-[14px] text-[#f0f2ff]">الكل</SelectItem>
-                <SelectItem value="today" className="text-[14px] text-[#f0f2ff]">اليوم</SelectItem>
-                <SelectItem value="yesterday" className="text-[14px] text-[#f0f2ff]">أمس</SelectItem>
-                <SelectItem value="week" className="text-[14px] text-[#f0f2ff]">هذا الأسبوع</SelectItem>
-                <SelectItem value="month" className="text-[14px] text-[#f0f2ff]">هذا الشهر</SelectItem>
+                <SelectItem value="all" className="text-[15px] text-[#f0f2ff]">الكل</SelectItem>
+                <SelectItem value="today" className="text-[15px] text-[#f0f2ff]">اليوم</SelectItem>
+                <SelectItem value="yesterday" className="text-[15px] text-[#f0f2ff]">أمس</SelectItem>
+                <SelectItem value="week" className="text-[15px] text-[#f0f2ff]">هذا الأسبوع</SelectItem>
+                <SelectItem value="month" className="text-[15px] text-[#f0f2ff]">هذا الشهر</SelectItem>
               </SelectContent>
             </Select>
 
@@ -387,7 +387,7 @@ export function SalesSheet() {
                 <Button
                   onClick={handleBulkArchive}
                   size="sm"
-                  className="h-8 text-[13px] bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 border-0 gap-1 cursor-pointer"
+                  className="h-8 text-[15px] font-bold bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 border-0 gap-1 cursor-pointer"
                 >
                   <Archive size={12} />
                   أرشفة ({selected.length})
@@ -395,7 +395,7 @@ export function SalesSheet() {
                 <Button
                   onClick={handleBulkDelete}
                   size="sm"
-                  className="h-8 text-[13px] bg-red-500/15 text-red-400 hover:bg-red-500/25 border-0 gap-1 cursor-pointer"
+                  className="h-8 text-[15px] font-bold bg-red-500/15 text-red-400 hover:bg-red-500/25 border-0 gap-1 cursor-pointer"
                 >
                   <Trash2 size={12} />
                   حذف ({selected.length})
@@ -403,7 +403,7 @@ export function SalesSheet() {
                 <Button
                   onClick={() => clearSelectedLeadIds(viewKey)}
                   size="sm"
-                  className="h-8 text-[13px] bg-[#1c2234] text-[#8892b0] hover:text-[#f0f2ff] border-0 cursor-pointer"
+                  className="h-8 text-[15px] font-bold bg-[#1c2234] text-[#8892b0] hover:text-[#f0f2ff] border-0 cursor-pointer"
                 >
                   <X size={12} />
                 </Button>
@@ -420,7 +420,7 @@ export function SalesSheet() {
             <Table>
               <TableHeader>
                 <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
-                  <TableHead className="w-[40px] text-right text-[13px] text-[#4a5280]">
+                  <TableHead className="w-[40px] text-right text-[15px] font-bold text-[#4a5280]">
                     <Checkbox
                       checked={selected.length === paginatedLeads.length && paginatedLeads.length > 0}
                       onCheckedChange={(checked) => {
@@ -430,13 +430,13 @@ export function SalesSheet() {
                       className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
                     />
                   </TableHead>
-                  <TableHead className="text-right text-[13px] text-[#4a5280]">اسم العميل</TableHead>
-                  <TableHead className="text-right text-[13px] text-[#4a5280]">رقم التليفون</TableHead>
-                  <TableHead className="text-right text-[13px] text-[#4a5280]">حالة السيلز</TableHead>
-                  <TableHead className="text-right text-[13px] text-[#4a5280]">تاريخ الاجتماع</TableHead>
-                  <TableHead className="text-right text-[13px] text-[#4a5280]">الوقت</TableHead>
-                  <TableHead className="text-right text-[13px] text-[#4a5280]">الحضور</TableHead>
-                  <TableHead className="text-right text-[13px] text-[#4a5280] w-[50px]">حذف</TableHead>
+                  <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">اسم العميل</TableHead>
+                  <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">رقم التليفون</TableHead>
+                  <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">حالة السيلز</TableHead>
+                  <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">تاريخ الاجتماع</TableHead>
+                  <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">الوقت</TableHead>
+                  <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">الحضور</TableHead>
+                  <TableHead className="text-right text-[15px] font-bold text-[#4a5280] w-[50px]">حذف</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -444,7 +444,7 @@ export function SalesSheet() {
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-12 text-[#4a5280]">
                       <div className="text-[34px] mb-2">📊</div>
-                      <div className="text-[15px]">لا يوجد عملاء مسندين للسيلز</div>
+                      <div className="text-[16px] font-semibold">لا يوجد عملاء مسندين للسيلز</div>
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -472,7 +472,7 @@ export function SalesSheet() {
                               placeholder="اسم العميل"
                             />
                             {lead.brief && (
-                              <div className="text-[12px] text-[#4a5280] mt-0.5 truncate max-w-[140px]">
+                              <div className="text-[13px] text-[#4a5280] mt-0.5 truncate max-w-[140px]">
                                 {lead.brief}
                               </div>
                             )}
@@ -522,7 +522,7 @@ export function SalesSheet() {
                           <div className="flex gap-1">
                             <button
                               onClick={() => handleMarkAttendance(lead.id, 'attended')}
-                              className={`w-6 h-6 rounded-md flex items-center justify-center text-[12px] transition-colors cursor-pointer ${
+                              className={`w-6 h-6 rounded-md flex items-center justify-center text-[14px] transition-colors cursor-pointer ${
                                 lead.attended === 'attended'
                                   ? 'bg-[#00d4aa]/25 text-[#00d4aa]'
                                   : 'bg-[#1c2234] text-[#4a5280] hover:bg-[#00d4aa]/10 hover:text-[#00d4aa]'
@@ -533,7 +533,7 @@ export function SalesSheet() {
                             </button>
                             <button
                               onClick={() => handleMarkAttendance(lead.id, 'pending')}
-                              className={`w-6 h-6 rounded-md flex items-center justify-center text-[12px] transition-colors cursor-pointer ${
+                              className={`w-6 h-6 rounded-md flex items-center justify-center text-[14px] transition-colors cursor-pointer ${
                                 lead.attended === 'pending'
                                   ? 'bg-[#ffd166]/25 text-[#ffd166]'
                                   : 'bg-[#1c2234] text-[#4a5280] hover:bg-[#ffd166]/10 hover:text-[#ffd166]'
@@ -544,7 +544,7 @@ export function SalesSheet() {
                             </button>
                             <button
                               onClick={() => handleMarkAttendance(lead.id, 'no-show')}
-                              className={`w-6 h-6 rounded-md flex items-center justify-center text-[12px] transition-colors cursor-pointer ${
+                              className={`w-6 h-6 rounded-md flex items-center justify-center text-[14px] transition-colors cursor-pointer ${
                                 lead.attended === 'no-show'
                                   ? 'bg-red-500/25 text-red-400'
                                   : 'bg-[#1c2234] text-[#4a5280] hover:bg-red-500/10 hover:text-red-400'
@@ -573,7 +573,7 @@ export function SalesSheet() {
           </div>
 
           {filteredLeads.length > 0 && (
-            <div className="border-t border-white/[0.06] px-4 py-2.5 flex items-center justify-between text-[13px] text-[#4a5280]">
+            <div className="border-t border-white/[0.06] px-4 py-2.5 flex items-center justify-between text-[14px] font-medium text-[#4a5280]">
               <span>عرض {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, filteredLeads.length)} من {filteredLeads.length} عميل</span>
               <div className="flex items-center gap-2">
                 {selected.length > 0 && (
@@ -588,7 +588,7 @@ export function SalesSheet() {
                     >
                       <ChevronRight size={12} />
                     </button>
-                    <span className="text-[#f0f2ff] font-medium px-2">
+                    <span className="text-[#f0f2ff] font-bold px-2">
                       {currentPage} / {totalPages}
                     </span>
                     <button

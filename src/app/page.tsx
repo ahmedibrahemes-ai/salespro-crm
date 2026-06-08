@@ -56,13 +56,13 @@ class ViewErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
           <div className="text-center max-w-md">
             <div className="text-[50px] mb-3">⚠️</div>
             <h2
-              className="text-[20px] font-bold text-[#f0f2ff] mb-2"
+              className="text-[22px] font-extrabold text-[#f0f2ff] mb-2"
               style={{ fontFamily: 'Cairo, sans-serif' }}
             >
               حدث خطأ في هذه الصفحة
             </h2>
             <p
-              className="text-[15px] text-[#8892b0] mb-4"
+              className="text-[16px] font-medium text-[#8892b0] mb-4"
               style={{ fontFamily: 'Cairo, sans-serif' }}
             >
               {this.state.error?.message || 'خطأ غير معروف'}
@@ -92,13 +92,13 @@ function FallbackView({ view }: { view: string }) {
       <div className="text-center">
         <div className="text-[50px] mb-3">🔍</div>
         <h2
-          className="text-[20px] font-bold text-[#f0f2ff] mb-1"
+          className="text-[22px] font-extrabold text-[#f0f2ff] mb-1"
           style={{ fontFamily: 'Cairo, sans-serif' }}
         >
           الصفحة غير موجودة
         </h2>
         <p
-          className="text-[15px] text-[#8892b0]"
+          className="text-[16px] font-medium text-[#8892b0]"
           style={{ fontFamily: 'Cairo, sans-serif' }}
         >
           عرض غير معروف: {view}
@@ -116,7 +116,7 @@ function ViewLoadingFallback() {
     <div className="flex-1 flex items-center justify-center min-h-[40vh]">
       <div className="text-center">
         <Loader2 size={28} className="animate-spin text-[#6c63ff] mx-auto mb-3" />
-        <p className="text-[15px] text-[#8892b0]" style={{ fontFamily: 'Cairo, sans-serif' }}>جاري تحميل الصفحة...</p>
+        <p className="text-[16px] font-semibold text-[#8892b0]" style={{ fontFamily: 'Cairo, sans-serif' }}>جاري تحميل الصفحة...</p>
       </div>
     </div>
   )
@@ -208,7 +208,7 @@ function ToastContainer() {
             className={`flex items-center gap-3 min-w-[280px] max-w-[400px] border rounded-lg px-4 py-3 shadow-lg animate-in slide-in-from-bottom-2 duration-200 ${colors[t.type]}`}
             style={{ fontFamily: 'Cairo, sans-serif' }}
           >
-            <span className="text-sm flex-1">{t.message}</span>
+            <span className="text-[15px] font-medium flex-1">{t.message}</span>
             <button onClick={() => removeToast(t.id)} className="opacity-60 hover:opacity-100 shrink-0">
               ✕
             </button>
@@ -380,7 +380,7 @@ export default function Home() {
 
         {/* Footer - sticky to bottom */}
         <footer className="mt-auto border-t border-white/[0.06] bg-[#111520] px-4 md:px-6 py-3">
-          <div className="flex items-center justify-between text-[13px] md:text-[14px] text-[#4a5280]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          <div className="flex items-center justify-between text-[14px] md:text-[15px] font-semibold text-[#4a5280]" style={{ fontFamily: 'Cairo, sans-serif' }}>
             <span>Venom CRM &copy; 2025 — منصة المبيعات الذكية</span>
             <span className="hidden sm:inline">مدعوم بالذكاء الاصطناعي 🤖</span>
           </div>

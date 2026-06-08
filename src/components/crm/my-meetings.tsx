@@ -108,27 +108,27 @@ function MeetingCard({
 
             {/* Info */}
             <div className="flex-1 min-w-0">
-              <div className="text-[15px] font-semibold text-[#f0f2ff] truncate">
+              <div className="text-[16px] font-bold text-[#f0f2ff] truncate">
                 {lead.customerName || 'عميل'}
               </div>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <span className="flex items-center gap-1 text-[13px] text-[#8892b0]">
+                <span className="flex items-center gap-1 text-[15px] font-medium text-[#8892b0]">
                   <Calendar size={10} />
                   {formatMeetingDate(lead.meetingDate)}
                 </span>
-                <span className="flex items-center gap-1 text-[13px] text-[#8892b0]">
+                <span className="flex items-center gap-1 text-[15px] font-medium text-[#8892b0]">
                   <Clock size={10} />
                   {formatMeetingTime(lead.meetingTime)}
                 </span>
               </div>
               <div className="flex items-center gap-2 mt-1.5">
-                <Badge className={`text-[11px] border ${
+                <Badge className={`text-[13px] font-bold border ${
                   isOnline ? 'bg-[#6c63ff]/10 text-[#a8a3ff] border-[#6c63ff]/20' : 'bg-[#00d4aa]/10 text-[#00d4aa] border-[#00d4aa]/20'
                 }`}>
                   {isOnline ? 'أونلاين' : 'حضوري'}
                 </Badge>
                 {isMeetingToday && (
-                  <Badge className="bg-[#ffd166]/10 text-[#ffd166] border border-[#ffd166]/20 text-[11px]">
+                  <Badge className="bg-[#ffd166]/10 text-[#ffd166] border border-[#ffd166]/20 text-[13px] font-bold">
                     اليوم
                   </Badge>
                 )}
@@ -140,7 +140,7 @@ function MeetingCard({
                   href={lead.meetingLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 mt-2 text-[13px] text-[#6c63ff] hover:text-[#a8a3ff] transition-colors"
+                  className="inline-flex items-center gap-1 mt-2 text-[14px] font-medium text-[#6c63ff] hover:text-[#a8a3ff] transition-colors"
                 >
                   <ExternalLink size={10} />
                   رابط الاجتماع
@@ -149,7 +149,7 @@ function MeetingCard({
 
               {/* Brief */}
               {lead.brief && (
-                <div className="text-[13px] text-[#4a5280] mt-1.5 truncate max-w-[250px]">
+                <div className="text-[14px] font-medium text-[#4a5280] mt-1.5 truncate max-w-[250px]">
                   {lead.brief}
                 </div>
               )}
@@ -159,7 +159,7 @@ function MeetingCard({
           {/* Right section - Actions */}
           <div className="flex flex-col items-end gap-2 shrink-0">
             {/* Attendance badge */}
-            <Badge className={`${attendanceColor} text-[11px] border`}>
+            <Badge className={`${attendanceColor} text-[13px] font-bold border`}>
               {ATTENDANCE_STATUSES.find((a) => a.key === lead.attended)?.label || '⏳ انتظار'}
             </Badge>
 
@@ -288,10 +288,10 @@ export function MyMeetings() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-[20px] font-bold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          <h2 className="text-[22px] font-extrabold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
             اجتماعاتي
           </h2>
-          <p className="text-[14px] text-[#8892b0] mt-0.5">متابعة الاجتماعات والحضور</p>
+          <p className="text-[15px] font-semibold text-[#8892b0] mt-0.5">متابعة الاجتماعات والحضور</p>
         </div>
 
         {/* Time filter */}
@@ -306,7 +306,7 @@ export function MyMeetings() {
               <button
                 key={f.key}
                 onClick={() => setTimeFilter(f.key)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[15px] font-bold transition-colors cursor-pointer ${
                   timeFilter === f.key
                     ? 'bg-[#6c63ff]/15 text-[#a8a3ff]'
                     : 'text-[#8892b0] hover:bg-[#1c2234] hover:text-[#f0f2ff]'
@@ -329,7 +329,7 @@ export function MyMeetings() {
           { label: 'في الانتظار', value: stats.pendingCount, color: '#6c63ff' },
         ].map((s, i) => (
           <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-3">
-            <div className="text-[13px] text-[#8892b0]">{s.label}</div>
+            <div className="text-[15px] font-semibold text-[#8892b0]">{s.label}</div>
             <div className="text-[22px] font-bold mt-0.5" style={{ color: s.color, fontFamily: 'Cairo, sans-serif' }}>
               {s.value}
             </div>
@@ -342,8 +342,8 @@ export function MyMeetings() {
         <Card className="bg-[#111520] border-white/[0.06]">
           <CardContent className="py-16 text-center">
             <div className="text-[42px] mb-3">📅</div>
-            <div className="text-[16px] text-[#8892b0] mb-1">لا يوجد اجتماعات</div>
-            <div className="text-[14px] text-[#4a5280]">
+            <div className="text-[18px] font-bold text-[#8892b0] mb-1">لا يوجد اجتماعات</div>
+            <div className="text-[15px] font-medium text-[#4a5280]">
               {timeFilter === 'today' ? 'لا يوجد اجتماعات اليوم' : timeFilter === 'week' ? 'لا يوجد اجتماعات هذا الأسبوع' : 'لا يوجد اجتماعات قادمة'}
             </div>
           </CardContent>

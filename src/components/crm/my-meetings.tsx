@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, useCallback } from 'react'
-import { useCrmStore, ATTENDANCE_STATUSES, formatDate } from '@/lib/store'
+import { useCrmStore, ATTENDANCE_STATUSES, SALES_STATUSES, formatDate } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import { apiUpdateLead } from '@/lib/supabase'
 import { isTodayDateString, isThisWeek } from '@/lib/crm-utils'
@@ -59,12 +59,15 @@ function MeetingCard({
   lead,
   onMarkAttendance,
   currentUser,
+  currentRole,
 }: {
   lead: Lead
   onMarkAttendance: (id: string, value: string) => void
   currentUser: string | null
+  currentRole: string | null
 }) {
   const isOnline = lead.meetingType === 'online'
+  const isTele = currentRole === 'tele'
   const todayStr = new Date().toISOString().split('T')[0]
   const isMeetingToday = lead.meetingDate === todayStr
   const isPastMeeting = lead.meetingDate ? new Date(lead.meetingDate) < new Date(todayStr) : false
@@ -74,6 +77,9 @@ function MeetingCard({
     : lead.attended === 'no-show'
     ? 'bg-red-500/15 text-red-400 border-red-500/20'
     : 'bg-amber-500/15 text-amber-400 border-amber-500/20'
+
+  // Sales status badge for tele users
+  const salesStatusObj = SALES_STATUSES.find((s) => s.key === lead.salesStatus)
 
   return (
     <Card className="bg-[#111520] border border-white/[0.06] hover:border-[#6c63ff]/20 transition-all group">
@@ -140,7 +146,29 @@ function MeetingCard({
 
           {/* Right section - Actions */}
           <div className="flex flex-col items-end gap-2 shrink-0">
-            {/* Attendance badge */}
+            {/* Tele user: show sales status + sales person */}
+            {isTele && (
+              <>
+                {/* Sales status badge */}
+                {salesStatusObj ? (
+                  <Badge className={`${salesStatusObj.cls} text-[11px] font-bold border-0`}>
+                    {salesStatusObj.label}
+                  </Badge>
+                ) : (
+                  <Badge className="bg-[#1c2234] text-[#4a5280] text-[11px] font-bold border-0">
+                    —
+                  </Badge>
+                )}
+                {/* Sales person */}
+                {lead.sales && (
+                  <div className="text-[11px] font-bold text-[#6c63ff] flex items-center gap-1">
+                    <span className="text-[#8892b0]">السيلز:</span> {lead.sales}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Attendance badge (read-only for tele, interactive for sales) */}
             <Badge className={`${attendanceColor} text-[11px] font-bold border`}>
               {ATTENDANCE_STATUSES.find((a) => a.key === lead.attended)?.label || '⏳ انتظار'}
             </Badge>
@@ -153,8 +181,8 @@ function MeetingCard({
               <Phone size={12} />
             </a>
 
-            {/* Attendance buttons */}
-            {(isMeetingToday || isPastMeeting) && lead.attended !== 'attended' && lead.attended !== 'no-show' && (
+            {/* Attendance buttons — only for sales users */}
+            {!isTele && (isMeetingToday || isPastMeeting) && lead.attended !== 'attended' && lead.attended !== 'no-show' && (
               <div className="flex gap-1">
                 <button
                   onClick={() => onMarkAttendance(lead.id, 'attended')}
@@ -194,13 +222,16 @@ export function MyMeetings() {
 
   const [timeFilter, setTimeFilter] = useState<'today' | 'week' | 'all'>('today')
 
+  const isTele = currentRole === 'tele'
+
   /* ─── Filtered meetings ─── */
   const meetingLeads = useMemo(() => {
     let result = leads.filter((l) => !l.isArchived && l.meetingDate && l.meetingDate !== '')
 
     // Filter by current user role
+    // For tele: show only transferred leads (has sales assigned)
     if (currentRole === 'tele' && currentUser) {
-      result = result.filter((l) => l.tele === currentUser)
+      result = result.filter((l) => l.tele === currentUser && l.sales)
     } else if (currentRole === 'sales' && currentUser) {
       result = result.filter((l) => l.sales === currentUser)
     }
@@ -211,8 +242,9 @@ export function MyMeetings() {
     } else if (timeFilter === 'week') {
       result = result.filter((l) => isThisWeek(l.meetingDate))
     }
-    // 'all' shows upcoming meetings
-    if (timeFilter === 'all') {
+    // For tele users: 'all' shows ALL meetings (past + future)
+    // For sales users: 'all' shows upcoming meetings only
+    if (timeFilter === 'all' && !isTele) {
       result = result.filter((l) => isUpcoming(l.meetingDate))
     }
 
@@ -224,13 +256,14 @@ export function MyMeetings() {
     })
 
     return result
-  }, [leads, currentUser, currentRole, timeFilter])
+  }, [leads, currentUser, currentRole, timeFilter, isTele])
 
   /* ─── Stats ─── */
   const stats = useMemo(() => {
     const allMyMeetings = leads.filter((l) => {
       if (l.isArchived || !l.meetingDate) return false
-      if (currentRole === 'tele' && currentUser) return l.tele === currentUser
+      // For tele: only transferred leads (has sales assigned)
+      if (currentRole === 'tele' && currentUser) return l.tele === currentUser && l.sales
       if (currentRole === 'sales' && currentUser) return l.sales === currentUser
       return true
     })
@@ -239,12 +272,15 @@ export function MyMeetings() {
     const attended = allMyMeetings.filter((l) => l.attended === 'attended')
     const noShow = allMyMeetings.filter((l) => l.attended === 'no-show')
     const pending = allMyMeetings.filter((l) => !l.attended || l.attended === 'pending')
+    const closedWon = allMyMeetings.filter((l) => l.salesStatus === 'closed-won')
 
     return {
       todayCount: today.length,
       attendedCount: attended.length,
       noShowCount: noShow.length,
       pendingCount: pending.length,
+      closedWonCount: closedWon.length,
+      totalCount: allMyMeetings.length,
     }
   }, [leads, currentUser, currentRole])
 
@@ -273,7 +309,7 @@ export function MyMeetings() {
           <h2 className="text-[19px] font-extrabold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
             اجتماعاتي
           </h2>
-          <p className="text-[13px] font-semibold text-[#8892b0] mt-0.5">متابعة الاجتماعات والحضور</p>
+          <p className="text-[13px] font-semibold text-[#8892b0] mt-0.5">{isTele ? 'العملاء المحولين للسيلز وحالتهم' : 'متابعة الاجتماعات والحضور'}</p>
         </div>
 
         {/* Time filter */}
@@ -281,7 +317,7 @@ export function MyMeetings() {
           {[
             { key: 'today' as const, label: 'اليوم', icon: CalendarDays },
             { key: 'week' as const, label: 'هذا الأسبوع', icon: CalendarRange },
-            { key: 'all' as const, label: 'القادمة', icon: Calendar },
+            { key: 'all' as const, label: isTele ? 'الكل' : 'القادمة', icon: Calendar },
           ].map((f) => {
             const Icon = f.icon
             return (
@@ -303,12 +339,13 @@ export function MyMeetings() {
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className={`grid gap-3 ${isTele ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-2 sm:grid-cols-4'}`}>
         {[
+          ...(isTele ? [{ label: 'إجمالي التحويلات', value: stats.totalCount, color: '#a8a3ff' }] : []),
           { label: 'اجتماعات اليوم', value: stats.todayCount, color: '#ffd166' },
           { label: 'حضر', value: stats.attendedCount, color: '#00d4aa' },
           { label: 'لم يحضر', value: stats.noShowCount, color: '#ff6b6b' },
-          { label: 'في الانتظار', value: stats.pendingCount, color: '#6c63ff' },
+          ...(isTele ? [{ label: 'تم التقفيل', value: stats.closedWonCount, color: '#10b981' }] : [{ label: 'في الانتظار', value: stats.pendingCount, color: '#6c63ff' }]),
         ].map((s, i) => (
           <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-3">
             <div className="text-[13px] font-semibold text-[#8892b0]">{s.label}</div>
@@ -326,7 +363,10 @@ export function MyMeetings() {
             <div className="text-[36px] mb-3">📅</div>
             <div className="text-[15px] font-bold text-[#8892b0] mb-1">لا يوجد اجتماعات</div>
             <div className="text-[13px] font-medium text-[#4a5280]">
-              {timeFilter === 'today' ? 'لا يوجد اجتماعات اليوم' : timeFilter === 'week' ? 'لا يوجد اجتماعات هذا الأسبوع' : 'لا يوجد اجتماعات قادمة'}
+              {isTele
+                ? (timeFilter === 'today' ? 'لا يوجد اجتماعات اليوم' : timeFilter === 'week' ? 'لا يوجد اجتماعات هذا الأسبوع' : 'لا يوجد تحويلات')
+                : (timeFilter === 'today' ? 'لا يوجد اجتماعات اليوم' : timeFilter === 'week' ? 'لا يوجد اجتماعات هذا الأسبوع' : 'لا يوجد اجتماعات قادمة')
+              }
             </div>
           </CardContent>
         </Card>
@@ -338,6 +378,7 @@ export function MyMeetings() {
               lead={lead}
               onMarkAttendance={handleMarkAttendance}
               currentUser={currentUser}
+              currentRole={currentRole}
             />
           ))}
         </div>

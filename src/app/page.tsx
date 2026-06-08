@@ -22,6 +22,7 @@ const DailyReport = lazy(() => import('@/components/crm/daily-report').then(m =>
 const MeetingsPage = lazy(() => import('@/components/crm/meetings-page').then(m => ({ default: m.MeetingsPage })))
 const CustomersStatus = lazy(() => import('@/components/crm/customers-status').then(m => ({ default: m.CustomersStatus })))
 const EmployeeProfile = lazy(() => import('@/components/crm/employee-profile').then(m => ({ default: m.EmployeeProfile })))
+const TransfersPage = lazy(() => import('@/components/crm/transfers-page').then(m => ({ default: m.TransfersPage })))
 
 /* ------------------------------------------------------------------ */
 /*  Error Boundary to prevent component crashes from hanging the app   */
@@ -149,6 +150,8 @@ function ViewRouter({ currentView }: { currentView: ViewName }) {
         return <MeetingsPage />
       case 'customers-status':
         return <CustomersStatus />
+      case 'transfers':
+        return <TransfersPage />
       case 'employee-profile':
         return <EmployeeProfile />
       default:

@@ -4,11 +4,10 @@ import { useState, useCallback, useMemo } from 'react'
 import { useCrmStore, STATUSES, CONTACT_RESULTS } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import { apiBulkCreateLeads } from '@/lib/supabase'
-import { motion } from 'framer-motion'
 import {
-  Plus, Trash2, Upload, Loader2, AlertTriangle, Check, FileSpreadsheet,
+  Plus, Trash2, Upload, Loader2, AlertTriangle, Check,
 } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -36,23 +35,12 @@ interface BulkRow {
 }
 
 /* ═══════════════════════════════════════════════════════
-   Animation variants
-   ═══════════════════════════════════════════════════════ */
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.03 } },
-}
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 10 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.3 } },
-}
-
-/* ═══════════════════════════════════════════════════════
    Bulk Add Component
    ═══════════════════════════════════════════════════════ */
 export function BulkAdd() {
   const { team, currentUser, currentRole, addToast, batchAddLeadsToCache, leads } = useCrmStore()
+
+  const isTele = currentRole === 'tele'
 
   /* ─── State ─── */
   const [rows, setRows] = useState<BulkRow[]>([
@@ -68,9 +56,9 @@ export function BulkAdd() {
       storeUrl: '',
       phone: '',
       customerName: '',
-      customerType: '',
+      customerType: isTele ? '' : 'business',
       brief: '',
-      tele: currentRole === 'tele' && currentUser ? currentUser : team.tele[0] || '',
+      tele: currentUser || team.tele[0] || '',
       sales: currentRole === 'sales' && currentUser ? currentUser : '',
       status: 'new',
       errors: [],
@@ -127,7 +115,7 @@ export function BulkAdd() {
   /* ─── Add new row ─── */
   const handleAddRow = useCallback(() => {
     setRows((prev) => [...prev, createEmptyRow()])
-  }, [])
+  }, [currentUser, currentRole])
 
   /* ─── Remove row ─── */
   const handleRemoveRow = useCallback((rowId: string) => {
@@ -166,7 +154,7 @@ export function BulkAdd() {
         customerName: r.customerName,
         customerType: r.customerType,
         brief: r.brief,
-        tele: r.tele,
+        tele: isTele ? currentUser! : r.tele,
         sales: r.sales || null,
         status: r.status || 'new',
         contactResult: '',
@@ -185,7 +173,7 @@ export function BulkAdd() {
     } finally {
       setSubmitting(false)
     }
-  }, [rows, addToast, batchAddLeadsToCache])
+  }, [rows, addToast, batchAddLeadsToCache, isTele, currentUser])
 
   /* ─── Valid rows count ─── */
   const validCount = useMemo(
@@ -195,14 +183,16 @@ export function BulkAdd() {
 
   /* ═══════════════ RENDER ═══════════════ */
   return (
-    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-4">
+    <div className="space-y-4 animate-in fade-in duration-300">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-[19px] font-extrabold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
             إضافة مجموعة عملاء
           </h2>
-          <p className="text-[13px] font-semibold text-[#8892b0] mt-0.5">إضافة عدة عملاء دفعة واحدة</p>
+          <p className="text-[13px] font-semibold text-[#8892b0] mt-0.5">
+            {isTele ? 'أضف أرقام عملاء أو لينكات متاجر وهتنزل في شيتك مباشرة' : 'إضافة عدة عملاء دفعة واحدة'}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {submittedCount > 0 && (
@@ -224,17 +214,15 @@ export function BulkAdd() {
 
       {/* Duplicate warning */}
       {duplicatePhones.size > 0 && (
-        <motion.div variants={itemVariants}>
-          <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
-            <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
-            <div>
-              <div className="text-[14px] font-bold text-amber-400">أرقام مكررة</div>
-              <div className="text-[12px] font-medium text-amber-400/80 mt-0.5">
-                الأرقام التالية مكررة: {Array.from(duplicatePhones).join('، ')}
-              </div>
+        <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 transition-all duration-300">
+          <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <div className="text-[14px] font-bold text-amber-400">أرقام مكررة</div>
+            <div className="text-[12px] font-medium text-amber-400/80 mt-0.5">
+              الأرقام التالية مكررة: {Array.from(duplicatePhones).join('، ')}
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* Main Table */}
@@ -248,17 +236,25 @@ export function BulkAdd() {
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">رابط المتجر</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">رقم التليفون *</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">اسم العميل *</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">نوع العميل</TableHead>
+                  {!isTele && (
+                    <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">نوع العميل</TableHead>
+                  )}
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">نبذة</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">التيلي</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">السيلز</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">الحالة</TableHead>
+                  {!isTele && (
+                    <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">التيلي</TableHead>
+                  )}
+                  {!isTele && (
+                    <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">السيلز</TableHead>
+                  )}
+                  {!isTele && (
+                    <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">الحالة</TableHead>
+                  )}
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[40px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map((row, idx) => (
-                  <TableRow key={row.id} className={`border-b border-white/[0.04] ${
+                  <TableRow key={row.id} className={`border-b border-white/[0.04] transition-colors duration-200 ${
                     row.errors.length > 0 ? 'bg-red-500/5' : duplicatePhones.has(row.phone.trim()) ? 'bg-amber-500/5' : 'hover:bg-[#1c2234]/30'
                   }`}>
                     <TableCell className="w-[40px] text-[12px] text-[#4a5280]">{idx + 1}</TableCell>
@@ -268,6 +264,7 @@ export function BulkAdd() {
                         value={row.storeUrl}
                         onChange={(e) => updateRow(row.id, 'storeUrl', e.target.value)}
                         className="h-7 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] w-[130px]"
+                        dir="ltr"
                       />
                     </TableCell>
                     <TableCell>
@@ -278,7 +275,8 @@ export function BulkAdd() {
                           onChange={(e) => updateRow(row.id, 'phone', e.target.value)}
                           className={`h-7 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] w-[130px] ${
                             duplicatePhones.has(row.phone.trim()) ? 'border-amber-500/40' : ''
-                          }`}
+                          } ${row.errors.includes('الرقم مطلوب') || row.errors.includes('رقم قصير') ? 'border-red-500/40' : ''}`}
+                          dir="ltr"
                         />
                         {duplicatePhones.has(row.phone.trim()) && (
                           <AlertTriangle size={10} className="absolute left-1.5 top-1/2 -translate-y-1/2 text-amber-400" />
@@ -290,21 +288,25 @@ export function BulkAdd() {
                         placeholder="اسم العميل"
                         value={row.customerName}
                         onChange={(e) => updateRow(row.id, 'customerName', e.target.value)}
-                        className="h-7 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] w-[130px]"
+                        className={`h-7 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] w-[130px] ${
+                          row.errors.includes('الاسم مطلوب') ? 'border-red-500/40' : ''
+                        }`}
                       />
                     </TableCell>
-                    <TableCell>
-                      <Select value={row.customerType || 'business'} onValueChange={(v) => updateRow(row.id, 'customerType', v)}>
-                        <SelectTrigger className="h-7 text-[13px] w-[100px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#111520] border-white/[0.08]">
-                          <SelectItem value="business" className="text-[13px]">تجاري</SelectItem>
-                          <SelectItem value="individual" className="text-[13px]">فرد</SelectItem>
-                          <SelectItem value="enterprise" className="text-[13px]">مؤسسة</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
+                    {!isTele && (
+                      <TableCell>
+                        <Select value={row.customerType || 'business'} onValueChange={(v) => updateRow(row.id, 'customerType', v)}>
+                          <SelectTrigger className="h-7 text-[13px] w-[100px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#111520] border-white/[0.08]">
+                            <SelectItem value="business" className="text-[13px]">تجاري</SelectItem>
+                            <SelectItem value="individual" className="text-[13px]">فرد</SelectItem>
+                            <SelectItem value="enterprise" className="text-[13px]">مؤسسة</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                    )}
                     <TableCell>
                       <Input
                         placeholder="نبذة"
@@ -313,43 +315,49 @@ export function BulkAdd() {
                         className="h-7 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] w-[100px]"
                       />
                     </TableCell>
-                    <TableCell>
-                      <Select value={row.tele} onValueChange={(v) => updateRow(row.id, 'tele', v)}>
-                        <SelectTrigger className="h-7 text-[13px] w-[90px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#111520] border-white/[0.08]">
-                          {team.tele.map((n) => (
-                            <SelectItem key={n} value={n} className="text-[13px]">{n}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <Select value={row.sales || 'none'} onValueChange={(v) => updateRow(row.id, 'sales', v === 'none' ? '' : v)}>
-                        <SelectTrigger className="h-7 text-[13px] w-[90px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#111520] border-white/[0.08]">
-                          <SelectItem value="none" className="text-[13px]">—</SelectItem>
-                          {team.sales.map((n) => (
-                            <SelectItem key={n} value={n} className="text-[13px]">{n}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <Select value={row.status} onValueChange={(v) => updateRow(row.id, 'status', v)}>
-                        <SelectTrigger className="h-7 text-[13px] w-[90px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#111520] border-white/[0.08]">
-                          {STATUSES.slice(0, 5).map((s) => (
-                            <SelectItem key={s.key} value={s.key} className="text-[13px]">{s.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
+                    {!isTele && (
+                      <TableCell>
+                        <Select value={row.tele} onValueChange={(v) => updateRow(row.id, 'tele', v)}>
+                          <SelectTrigger className="h-7 text-[13px] w-[90px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#111520] border-white/[0.08]">
+                            {team.tele.map((n) => (
+                              <SelectItem key={n} value={n} className="text-[13px]">{n}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                    )}
+                    {!isTele && (
+                      <TableCell>
+                        <Select value={row.sales || 'none'} onValueChange={(v) => updateRow(row.id, 'sales', v === 'none' ? '' : v)}>
+                          <SelectTrigger className="h-7 text-[13px] w-[90px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#111520] border-white/[0.08]">
+                            <SelectItem value="none" className="text-[13px]">—</SelectItem>
+                            {team.sales.map((n) => (
+                              <SelectItem key={n} value={n} className="text-[13px]">{n}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                    )}
+                    {!isTele && (
+                      <TableCell>
+                        <Select value={row.status} onValueChange={(v) => updateRow(row.id, 'status', v)}>
+                          <SelectTrigger className="h-7 text-[13px] w-[90px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#111520] border-white/[0.08]">
+                            {STATUSES.slice(0, 5).map((s) => (
+                              <SelectItem key={s.key} value={s.key} className="text-[13px]">{s.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                    )}
                     <TableCell>
                       <button
                         onClick={() => handleRemoveRow(row.id)}
@@ -369,6 +377,7 @@ export function BulkAdd() {
           <div className="border-t border-white/[0.06] px-4 py-3 flex items-center justify-between">
             <span className="text-[12px] font-medium text-[#4a5280]">
               {rows.length} صف · {validCount} صالح للإضافة
+              {isTele && currentUser && <span className="text-[#6c63ff] mr-2">→ شيت: {currentUser}</span>}
             </span>
             <Button
               onClick={handleAddRow}
@@ -381,6 +390,6 @@ export function BulkAdd() {
           </div>
         </CardContent>
       </Card>
-    </motion.div>
+    </div>
   )
 }

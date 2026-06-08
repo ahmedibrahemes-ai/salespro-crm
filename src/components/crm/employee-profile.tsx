@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useCallback, useState } from 'react'
-import { useCrmStore, STATUSES, SALES_STATUSES, ATTENDANCE_STATUSES, formatDate, formatRelativeTime } from '@/lib/store'
+import { useCrmStore, STATUSES, SALES_STATUSES, ATTENDANCE_STATUSES, CONTACT_RESULTS, formatDate, formatRelativeTime } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import { apiUpdateLead } from '@/lib/supabase'
 import {
@@ -10,7 +10,8 @@ import {
   PhoneCall, UserCheck, ArrowRightLeft, Sun, Moon,
   UserPlus, FileSpreadsheet, MeetingRoom, Archive,
   Video, MapPin, Zap, Award, BarChart3, Activity,
-  KeyRound, Eye, EyeOff,
+  KeyRound, Eye, EyeOff, ChevronLeft, ChevronRight,
+  PhoneOff, UserX, RefreshCw,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -33,6 +34,62 @@ export function EmployeeProfile() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [changingPassword, setChangingPassword] = useState(false)
+
+  /* ─── Date filter for tele stats ─── */
+  const [teleFilterDate, setTeleFilterDate] = useState(new Date())
+
+  const goToPrevDay = useCallback(() => {
+    setTeleFilterDate((prev) => {
+      const d = new Date(prev)
+      d.setDate(d.getDate() - 1)
+      return d
+    })
+  }, [])
+
+  const goToNextDay = useCallback(() => {
+    setTeleFilterDate((prev) => {
+      const d = new Date(prev)
+      d.setDate(d.getDate() + 1)
+      const today = new Date()
+      if (d > today) return prev
+      return d
+    })
+  }, [])
+
+  const goToToday = useCallback(() => {
+    setTeleFilterDate(new Date())
+  }, [])
+
+  const isTeleFilterToday = useMemo(() => {
+    const now = new Date()
+    return (
+      teleFilterDate.getFullYear() === now.getFullYear() &&
+      teleFilterDate.getMonth() === now.getMonth() &&
+      teleFilterDate.getDate() === now.getDate()
+    )
+  }, [teleFilterDate])
+
+  const teleFilterDateStr = useMemo(() => {
+    const d = teleFilterDate
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }, [teleFilterDate])
+
+  const teleFilterDayLabel = useMemo(() => {
+    const today = new Date()
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    if (
+      teleFilterDate.getFullYear() === today.getFullYear() &&
+      teleFilterDate.getMonth() === today.getMonth() &&
+      teleFilterDate.getDate() === today.getDate()
+    ) return 'اليوم'
+    if (
+      teleFilterDate.getFullYear() === yesterday.getFullYear() &&
+      teleFilterDate.getMonth() === yesterday.getMonth() &&
+      teleFilterDate.getDate() === yesterday.getDate()
+    ) return 'أمس'
+    return teleFilterDate.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })
+  }, [teleFilterDate])
 
   /* ─── Time-of-day greeting ─── */
   const greeting = useMemo(() => {
@@ -79,26 +136,72 @@ export function EmployeeProfile() {
     return formatRelativeTime(latestActivity)
   }, [myLeads])
 
-  /* ─── Tele Stats ─── */
+  /* ─── Tele Stats (comprehensive, date-filtered) ─── */
   const teleStats = useMemo(() => {
     if (currentRole !== 'tele') return null
-    const total = myLeads.length
-    const contacted = myLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length
-    const meetings = myLeads.filter((l) => l.meetingDate).length
-    const transferred = myLeads.filter((l) => l.sales && l.meetingDate).length
-    const closedWon = myLeads.filter((l) => l.status === 'closed-won').length
-    const meetingRate = contacted > 0 ? Math.round((meetings / contacted) * 100) : 0
+
+    // Helper: check if a timestamp falls on the selected filter date
+    const isOnFilterDay = (ts: number | undefined | null) => {
+      if (!ts) return false
+      const d = new Date(ts)
+      return (
+        d.getFullYear() === teleFilterDate.getFullYear() &&
+        d.getMonth() === teleFilterDate.getMonth() &&
+        d.getDate() === teleFilterDate.getDate()
+      )
+    }
+
+    // Filter leads: created on filter date OR had activity on filter date
+    const filteredLeads = myLeads.filter((l) => {
+      return isOnFilterDay(l.createdAt) || isOnFilterDay(l.contactResultAt) || l.meetingDate === teleFilterDateStr || isOnFilterDay(l.assignedAt)
+    })
+
+    // All-time stats (non-filtered, for overall KPIs)
+    const totalAll = myLeads.length
+    const contactedAll = myLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length
+
+    // Filtered-date stats
+    const total = filteredLeads.length
+    const contacted = filteredLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length
+
+    // Call stats
+    const totalCalls = filteredLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length
+    const answeredCalls = filteredLeads.filter((l) => l.contactResult === 'replied').length
+    const unansweredCalls = filteredLeads.filter((l) => l.contactResult === 'no-reply').length
+
+    // Meeting stats
+    const meetings = filteredLeads.filter((l) => l.meetingDate).length
+    const attended = filteredLeads.filter((l) => l.attended === 'attended').length
+    const waiting = filteredLeads.filter((l) => !l.attended || l.attended === 'pending' || l.attended === '').length
+    const noShow = filteredLeads.filter((l) => l.attended === 'no-show').length
+
+    // Client stats
+    const totalClients = filteredLeads.length
+    const contactedClients = filteredLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length
+    const noReplyClients = filteredLeads.filter((l) => l.contactResult === 'no-reply').length
+    const notInterested = filteredLeads.filter((l) => l.status === 'not-interested').length
+    const followup1 = filteredLeads.filter((l) => l.status === 'followup-1').length
+    const followup2 = filteredLeads.filter((l) => l.status === 'followup-2').length
+    const followup3 = filteredLeads.filter((l) => l.status === 'followup-3').length
+
+    // Transferred
+    const transferred = filteredLeads.filter((l) => l.sales && l.meetingDate).length
+
+    // Rates
+    const contactRate = totalClients > 0 ? Math.round((contactedClients / totalClients) * 100) : 0
+    const answeredRate = totalCalls > 0 ? Math.round((answeredCalls / totalCalls) * 100) : 0
+    const meetingRate = contactedClients > 0 ? Math.round((meetings / contactedClients) * 100) : 0
+    const attendanceRate = (attended + noShow) > 0 ? Math.round((attended / (attended + noShow)) * 100) : 0
     const transferRate = meetings > 0 ? Math.round((transferred / meetings) * 100) : 0
-    const contactRate = total > 0 ? Math.round((contacted / total) * 100) : 0
 
-    // Today's stats
-    const todayNew = myLeads.filter((l) => l.createdAt && l.createdAt >= todayStart).length
-    const todayContacted = myLeads.filter((l) => l.contactResultAt && l.contactResultAt >= todayStart && l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length
-    const todayMeetings = myLeads.filter((l) => l.meetingDate === todayStr).length
-    const todayTransfers = myLeads.filter((l) => l.assignedAt && l.assignedAt >= todayStart && l.sales && l.meetingDate).length
-
-    return { total, contacted, meetings, transferred, closedWon, meetingRate, transferRate, contactRate, todayNew, todayContacted, todayMeetings, todayTransfers }
-  }, [myLeads, currentRole, todayStr, todayStart])
+    return {
+      total, totalAll, contacted, meetings, transferred, totalCalls,
+      answeredCalls, unansweredCalls, attended, waiting, noShow,
+      totalClients, contactedClients, noReplyClients, notInterested,
+      followup1, followup2, followup3,
+      contactRate, answeredRate, meetingRate, attendanceRate, transferRate,
+    }
+  }, [myLeads, currentRole, teleFilterDate, teleFilterDateStr])
 
   /* ─── Sales Stats ─── */
   const salesStats = useMemo(() => {
@@ -179,8 +282,13 @@ export function EmployeeProfile() {
   /* ─── Status colors map ─── */
   const statusColorMap: Record<string, string> = useMemo(() => ({
     'new': '#6c63ff',
-    'no-reply': '#4a5280',
+    'meeting': '#00d4aa',
     'whatsapp': '#00d4aa',
+    'not-interested': '#ff6b6b',
+    'followup-1': '#ffd166',
+    'followup-2': '#f0a030',
+    'followup-3': '#e08020',
+    'no-reply': '#4a5280',
     'followup': '#ffd166',
     'meeting-done': '#00d4aa',
     'objection-price': '#ff6b6b',
@@ -383,32 +491,173 @@ export function EmployeeProfile() {
       </div>
 
       {/* ═══════════════════════════════════════════
-         3. TODAY'S SUMMARY CARDS
+         3. TELE COMPREHENSIVE STATS (with date filter)
          ═══════════════════════════════════════════ */}
       {teleStats && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: 'عملاء جدد اليوم', value: teleStats.todayNew, color: '#6c63ff', icon: UserPlus },
-            { label: 'تم التواصل اليوم', value: teleStats.todayContacted, color: '#00d4aa', icon: PhoneCall },
-            { label: 'اجتماعات اليوم', value: teleStats.todayMeetings, color: '#ffd166', icon: Calendar },
-            { label: 'تحويلات اليوم', value: teleStats.todayTransfers, color: '#a8a3ff', icon: ArrowRightLeft },
-          ].map((k, i) => {
-            const Icon = k.icon
-            return (
-              <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[13px] font-semibold text-[#8892b0]">{k.label}</span>
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${k.color}15` }}>
-                    <Icon size={16} style={{ color: k.color }} />
+        <>
+          {/* Date Filter */}
+          <div className="flex items-center justify-between bg-[#111520] border border-white/[0.06] rounded-xl px-4 py-3">
+            <div className="flex items-center gap-2">
+              <BarChart3 size={16} className="text-[#6c63ff]" />
+              <span className="text-[14px] font-bold text-[#f0f2ff]">إحصائيات التيلي</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={goToPrevDay}
+                className="h-8 w-8 rounded-lg flex items-center justify-center text-[#8892b0] hover:text-[#f0f2ff] hover:bg-white/[0.05] transition-colors cursor-pointer"
+              >
+                <ChevronRight size={16} />
+              </button>
+              <button
+                onClick={goToToday}
+                className="flex items-center gap-2 px-3 py-1 rounded-lg hover:bg-white/[0.05] transition-colors cursor-pointer"
+              >
+                <Calendar size={14} className="text-[#6c63ff]" />
+                <span className="text-[14px] font-bold text-[#f0f2ff] min-w-[100px] text-center">
+                  {teleFilterDayLabel}
+                </span>
+              </button>
+              <button
+                onClick={goToNextDay}
+                disabled={isTeleFilterToday}
+                className="h-8 w-8 rounded-lg flex items-center justify-center text-[#8892b0] hover:text-[#f0f2ff] hover:bg-white/[0.05] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                <ChevronLeft size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* Call Stats */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <PhoneCall size={14} className="text-[#00d4aa]" />
+              <span className="text-[13px] font-bold text-[#8892b0]">إحصائيات المكالمات</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: 'عدد المكالمات الكلية', value: teleStats.totalCalls, color: '#6c63ff', icon: PhoneCall },
+                { label: 'عدد المكالمات المجابة', value: teleStats.answeredCalls, color: '#00d4aa', icon: Phone },
+                { label: 'عدد المكالمات الغير مجابة', value: teleStats.unansweredCalls, color: '#ff6b6b', icon: PhoneOff },
+                { label: 'عدد الاجتماعات', value: teleStats.meetings, color: '#ffd166', icon: Calendar },
+              ].map((k, i) => {
+                const Icon = k.icon
+                return (
+                  <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[12px] font-bold text-[#8892b0]">{k.label}</span>
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${k.color}12` }}>
+                        <Icon size={14} style={{ color: k.color }} />
+                      </div>
+                    </div>
+                    <div className="text-[22px] font-bold" style={{ color: k.color }}>
+                      {k.value}
+                    </div>
                   </div>
-                </div>
-                <div className="text-[24px] font-bold" style={{ color: k.color }}>
-                  {k.value}
-                </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Attendance Stats */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <UserCheck size={14} className="text-[#00d4aa]" />
+              <span className="text-[13px] font-bold text-[#8892b0]">إحصائيات الحضور</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: 'عدد العملاء الذين حضروا', value: teleStats.attended, color: '#00d4aa', icon: CheckCircle2 },
+                { label: 'عدد العملاء في الانتظار', value: teleStats.waiting, color: '#ffd166', icon: HourglassIcon },
+                { label: 'عدد العملاء لم يحضروا', value: teleStats.noShow, color: '#ff6b6b', icon: UserX },
+                { label: 'عدد التحويلات', value: teleStats.transferred, color: '#a8a3ff', icon: ArrowRightLeft },
+              ].map((k, i) => {
+                const Icon = k.icon
+                return (
+                  <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[12px] font-bold text-[#8892b0]">{k.label}</span>
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${k.color}12` }}>
+                        <Icon size={14} style={{ color: k.color }} />
+                      </div>
+                    </div>
+                    <div className="text-[22px] font-bold" style={{ color: k.color }}>
+                      {k.value}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Client Stats */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Users size={14} className="text-[#6c63ff]" />
+              <span className="text-[13px] font-bold text-[#8892b0]">إحصائيات العملاء</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: 'عدد العملاء الكلي', value: teleStats.totalClients, color: '#6c63ff', icon: Users },
+                { label: 'عدد العملاء الذين كلمتهم', value: teleStats.contactedClients, color: '#00d4aa', icon: PhoneCall },
+                { label: 'عدد العملاء الذين لم يردوا', value: teleStats.noReplyClients, color: '#ff6b6b', icon: PhoneOff },
+                { label: 'عدد العملاء غير مهتم', value: teleStats.notInterested, color: '#ff6b6b', icon: UserX },
+                { label: 'متابعة 1', value: teleStats.followup1, color: '#ffd166', icon: RefreshCw },
+                { label: 'متابعة 2', value: teleStats.followup2, color: '#f0a030', icon: RefreshCw },
+                { label: 'متابعة 3', value: teleStats.followup3, color: '#e08020', icon: RefreshCw },
+                { label: 'إجمالي العملاء (كل الأيام)', value: teleStats.totalAll, color: '#4a5280', icon: BarChart3 },
+              ].map((k, i) => {
+                const Icon = k.icon
+                return (
+                  <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[12px] font-bold text-[#8892b0]">{k.label}</span>
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${k.color}12` }}>
+                        <Icon size={14} style={{ color: k.color }} />
+                      </div>
+                    </div>
+                    <div className="text-[22px] font-bold" style={{ color: k.color }}>
+                      {k.value}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Important Ratios Section */}
+          <Card className="bg-[#111520] border border-white/[0.06]">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-[15px] font-extrabold text-[#f0f2ff] flex items-center gap-2">
+                <TrendingUp size={16} className="text-[#00d4aa]" />
+                نسب مهمة
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  { label: 'نسبة التواصل', value: teleStats.contactRate, desc: `العملاء الذين تم التواصل معهم من إجمالي العملاء (${teleStats.contactedClients}/${teleStats.totalClients})`, color: '#6c63ff' },
+                  { label: 'نسبة الرد', value: teleStats.answeredRate, desc: `المكالمات المجابة من إجمالي المكالمات (${teleStats.answeredCalls}/${teleStats.totalCalls})`, color: '#00d4aa' },
+                  { label: 'نسبة الاجتماعات', value: teleStats.meetingRate, desc: `الاجتماعات من العملاء الذين تم التواصل معهم (${teleStats.meetings}/${teleStats.contactedClients})`, color: '#ffd166' },
+                  { label: 'نسبة الحضور', value: teleStats.attendanceRate, desc: `العملاء الذين حضروا من الحاضرين والغائبين (${teleStats.attended}/${teleStats.attended + teleStats.noShow})`, color: '#a8a3ff' },
+                ].map((r, i) => (
+                  <div key={i} className="bg-[#0a0d14] border border-white/[0.04] rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[13px] font-bold text-[#f0f2ff]">{r.label}</span>
+                      <span className="text-[18px] font-bold" style={{ color: r.color }}>{r.value}%</span>
+                    </div>
+                    <div className="h-2.5 rounded-full bg-[#1c2234] overflow-hidden mb-2">
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{ width: `${Math.min(r.value, 100)}%`, backgroundColor: r.color }}
+                      />
+                    </div>
+                    <div className="text-[11px] font-medium text-[#4a5280]">{r.desc}</div>
+                  </div>
+                ))}
               </div>
-            )
-          })}
-        </div>
+            </CardContent>
+          </Card>
+        </>
       )}
 
       {salesStats && (
@@ -438,43 +687,8 @@ export function EmployeeProfile() {
       )}
 
       {/* ═══════════════════════════════════════════
-         4. KPI PERFORMANCE CARDS
+         4. KPI PERFORMANCE CARDS (Sales only)
          ═══════════════════════════════════════════ */}
-      {teleStats && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-          {[
-            { label: 'إجمالي العملاء', value: teleStats.total, color: '#6c63ff', icon: Users, progress: teleStats.contactRate, progressLabel: 'تواصل' },
-            { label: 'تم التواصل', value: teleStats.contacted, color: '#00d4aa', icon: PhoneCall, progress: teleStats.meetingRate, progressLabel: 'اجتماعات' },
-            { label: 'نسبة الاجتماعات', value: `${teleStats.meetingRate}%`, color: '#ffd166', icon: Target, progress: teleStats.meetingRate, progressLabel: 'من التواصل' },
-            { label: 'نسبة التحويل', value: `${teleStats.transferRate}%`, color: '#a8a3ff', icon: ArrowRightLeft, progress: teleStats.transferRate, progressLabel: 'تحويل' },
-            { label: 'تم التقفيل', value: teleStats.closedWon, color: '#00d4aa', icon: Trophy, progress: teleStats.total > 0 ? Math.round((teleStats.closedWon / teleStats.total) * 100) : 0, progressLabel: 'تقفيل' },
-          ].map((k, i) => {
-            const Icon = k.icon
-            const progressVal = typeof k.progress === 'number' ? k.progress : 0
-            return (
-              <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[12px] font-bold text-[#8892b0]">{k.label}</span>
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${k.color}12` }}>
-                    <Icon size={14} style={{ color: k.color }} />
-                  </div>
-                </div>
-                <div className="text-[20px] font-bold mb-2" style={{ color: k.color }}>
-                  {k.value}
-                </div>
-                <div className="h-1.5 rounded-full bg-[#1c2234] overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-700"
-                    style={{ width: `${Math.min(progressVal, 100)}%`, backgroundColor: k.color }}
-                  />
-                </div>
-                <div className="text-[11px] font-medium text-[#4a5280] mt-1">{k.progressLabel} {progressVal}%</div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
       {salesStats && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {[

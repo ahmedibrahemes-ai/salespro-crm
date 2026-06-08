@@ -1,15 +1,15 @@
 'use client'
 
 import { useMemo, useState, useCallback } from 'react'
-import { useCrmStore, CONTACT_RESULTS, STATUSES, ATTENDANCE_STATUSES, formatDate, getDateRange } from '@/lib/store'
+import { useCrmStore, CONTACT_RESULTS, STATUSES, formatDate, getDateRange } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import { apiCreateLead, apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk, apiBroadcastChange } from '@/lib/supabase'
 import {
-  Search, Plus, Trash2, Archive, Phone, Filter, X, Check, ChevronDown,
-  UserPlus, Calendar, MoreHorizontal, Loader2, AlertTriangle,
-  ChevronLeft, ChevronRight, ArrowLeftRight, Send,
+  Search, Plus, Trash2, Archive, Phone, Filter, X, Check,
+  UserPlus, Calendar, Loader2, ExternalLink,
+  ChevronLeft, ChevronRight, ArrowLeftRight, Send, AlertCircle,
 } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -20,11 +20,22 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '@/components/ui/dialog'
 
 /* ═══════════════════════════════════════════════════════
    PAGE SIZE for pagination
    ═══════════════════════════════════════════════════════ */
 const PAGE_SIZE = 50
+
+/* ═══════════════════════════════════════════════════════
+   Meeting type options
+   ═══════════════════════════════════════════════════════ */
+const MEETING_TYPES = [
+  { key: 'google-meet', label: 'جوجل ميت' },
+  { key: 'zoom', label: 'زووم' },
+]
 
 /* ═══════════════════════════════════════════════════════
    Inline Editable Cell
@@ -74,10 +85,6 @@ function EditableCell({
 
 /* ═══════════════════════════════════════════════════════
    Lazy Select Cell — only renders Select when clicked
-   This is the KEY performance optimization: instead of mounting
-   3-4 Select portals per row (which creates 150-400+ DOM portals
-   for 50+ rows), we show a simple badge/text first and only
-   mount the Select dropdown when the user clicks to edit.
    ═══════════════════════════════════════════════════════ */
 function LazySelectCell({
   value,
@@ -135,10 +142,260 @@ function LazySelectCell({
 }
 
 /* ═══════════════════════════════════════════════════════
-   Tele Sheet Component — PERFORMANCE OPTIMIZED
-   - Removed Framer Motion (was creating stagger timers per row)
-   - Added pagination (50 rows per page)
-   - Lazy Select cells (only mount portal when editing)
+   Attendance Badge — read-only for tele sheet
+   ═══════════════════════════════════════════════════════ */
+function AttendanceBadge({ value }: { value: string | null }) {
+  if (!value || value === 'pending') {
+    return (
+      <Badge className="bg-amber-500/15 text-amber-400 text-[11px] font-bold border-0">
+        ⏳ انتظار
+      </Badge>
+    )
+  }
+  if (value === 'attended') {
+    return (
+      <Badge className="bg-emerald-500/15 text-emerald-400 text-[11px] font-bold border-0">
+        ✅ حضر
+      </Badge>
+    )
+  }
+  if (value === 'no-show') {
+    return (
+      <Badge className="bg-red-500/15 text-red-400 text-[11px] font-bold border-0">
+        ❌ لم يحضر
+      </Badge>
+    )
+  }
+  return (
+    <Badge className="bg-amber-500/15 text-amber-400 text-[11px] font-bold border-0">
+      ⏳ انتظار
+    </Badge>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
+   Transfer Modal — Dialog component
+   ═══════════════════════════════════════════════════════ */
+interface TransferModalProps {
+  lead: Lead | null
+  open: boolean
+  onClose: () => void
+  onSubmit: (data: TransferData) => void
+  salesTeam: string[]
+  saving: boolean
+}
+
+interface TransferData {
+  customerName: string
+  phone: string
+  storeUrl: string
+  brief: string
+  meetingType: string
+  meetingDate: string
+  meetingTime: string
+  sales: string
+}
+
+function TransferModal({ lead, open, onClose, onSubmit, salesTeam, saving }: TransferModalProps) {
+  const [form, setForm] = useState<TransferData>(() => ({
+    customerName: lead?.customerName || '',
+    phone: lead?.phone || '',
+    storeUrl: lead?.storeUrl || '',
+    brief: lead?.brief || '',
+    meetingType: lead?.meetingType || '',
+    meetingDate: lead?.meetingDate || '',
+    meetingTime: lead?.meetingTime || '',
+    sales: lead?.sales || '',
+  }))
+  const [briefError, setBriefError] = useState(false)
+
+  const handleOpenChange = useCallback((isOpen: boolean) => {
+    if (!isOpen) {
+      onClose()
+    }
+  }, [onClose])
+
+  const handleSubmit = useCallback(() => {
+    if (!form.brief.trim()) {
+      setBriefError(true)
+      return
+    }
+    setBriefError(false)
+    onSubmit(form)
+  }, [form, onSubmit])
+
+  const statusLabel = useMemo(() => {
+    if (!lead) return ''
+    const s = STATUSES.find(st => st.key === lead.status)
+    return s ? s.label : lead.status
+  }, [lead])
+
+  const updateField = useCallback((field: keyof TransferData, value: string) => {
+    setForm(prev => ({ ...prev, [field]: value }))
+    if (field === 'brief' && value.trim()) {
+      setBriefError(false)
+    }
+  }, [])
+
+  if (!lead) return null
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="bg-[#111520] border-white/[0.08] text-[#f0f2ff] sm:max-w-md" showCloseButton>
+        <DialogHeader>
+          <DialogTitle className="text-[18px] font-extrabold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            تحويل العميل للسيلز
+          </DialogTitle>
+          <DialogDescription className="text-[13px] text-[#8892b0]">
+            املأ بيانات التحويل — البريف مطلوب
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 py-2">
+          {/* Customer Name */}
+          <div className="space-y-1">
+            <label className="text-[12px] font-semibold text-[#8892b0]">اسم العميل</label>
+            <Input
+              value={form.customerName}
+              onChange={(e) => updateField('customerName', e.target.value)}
+              className="h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]"
+              placeholder="اسم العميل"
+            />
+          </div>
+
+          {/* Phone */}
+          <div className="space-y-1">
+            <label className="text-[12px] font-semibold text-[#8892b0]">رقم الجوال</label>
+            <Input
+              value={form.phone}
+              onChange={(e) => updateField('phone', e.target.value)}
+              className="h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]"
+              placeholder="رقم الجوال"
+            />
+          </div>
+
+          {/* Store URL */}
+          <div className="space-y-1">
+            <label className="text-[12px] font-semibold text-[#8892b0]">لينك المتجر</label>
+            <Input
+              value={form.storeUrl}
+              onChange={(e) => updateField('storeUrl', e.target.value)}
+              className="h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]"
+              placeholder="لينك المتجر"
+              dir="ltr"
+            />
+          </div>
+
+          {/* Brief — MANDATORY */}
+          <div className="space-y-1">
+            <label className="text-[12px] font-semibold text-[#8892b0]">
+              البريف <span className="text-red-400">*</span>
+            </label>
+            <Input
+              value={form.brief}
+              onChange={(e) => updateField('brief', e.target.value)}
+              className={`h-8 text-[13px] bg-[#0a0d14] text-[#f0f2ff] ${briefError ? 'border-red-500 focus:border-red-400' : 'border-white/[0.08]'}`}
+              placeholder="ملخص المكالمة (مطلوب)"
+            />
+            {briefError && (
+              <div className="flex items-center gap-1 text-red-400 text-[11px] font-semibold">
+                <AlertCircle size={10} />
+                البريف مطلوب للتحويل
+              </div>
+            )}
+          </div>
+
+          {/* Client Status — display only */}
+          <div className="space-y-1">
+            <label className="text-[12px] font-semibold text-[#8892b0]">حالة العميل</label>
+            <div className="h-8 px-3 rounded-md border border-white/[0.06] bg-[#0a0d14] flex items-center text-[13px] text-[#f0f2ff]">
+              {statusLabel || '—'}
+            </div>
+          </div>
+
+          {/* Meeting Type — conditional on status === 'meeting' */}
+          {(lead.status === 'meeting' || form.meetingType) && (
+            <div className="space-y-1">
+              <label className="text-[12px] font-semibold text-[#8892b0]">نوع الاجتماع</label>
+              <Select value={form.meetingType} onValueChange={(v) => updateField('meetingType', v)}>
+                <SelectTrigger className="h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
+                  <SelectValue placeholder="اختر نوع الاجتماع" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#111520] border-white/[0.08]">
+                  {MEETING_TYPES.map((mt) => (
+                    <SelectItem key={mt.key} value={mt.key} className="text-[13px] text-[#f0f2ff]">
+                      {mt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Meeting Date */}
+          <div className="space-y-1">
+            <label className="text-[12px] font-semibold text-[#8892b0]">تاريخ الاجتماع</label>
+            <Input
+              type="date"
+              value={form.meetingDate}
+              onChange={(e) => updateField('meetingDate', e.target.value)}
+              className="h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]"
+            />
+          </div>
+
+          {/* Meeting Time */}
+          <div className="space-y-1">
+            <label className="text-[12px] font-semibold text-[#8892b0]">وقت الاجتماع</label>
+            <Input
+              type="time"
+              value={form.meetingTime}
+              onChange={(e) => updateField('meetingTime', e.target.value)}
+              className="h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]"
+            />
+          </div>
+
+          {/* Sales Person */}
+          <div className="space-y-1">
+            <label className="text-[12px] font-semibold text-[#8892b0]">اسم السيلز</label>
+            <Select value={form.sales} onValueChange={(v) => updateField('sales', v)}>
+              <SelectTrigger className="h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
+                <SelectValue placeholder="اختر السيلز" />
+              </SelectTrigger>
+              <SelectContent className="bg-[#111520] border-white/[0.08]">
+                {salesTeam.map((name) => (
+                  <SelectItem key={name} value={name} className="text-[13px] text-[#f0f2ff]">
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button
+            onClick={handleSubmit}
+            disabled={saving}
+            className="bg-[#00d4aa] hover:bg-[#00c09a] text-[#0a0d14] gap-1.5 text-[13px] font-bold h-9 cursor-pointer disabled:opacity-50"
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+            تحويل
+          </Button>
+          <Button
+            onClick={onClose}
+            variant="ghost"
+            className="text-[#8892b0] hover:text-[#f0f2ff] text-[13px] h-9 cursor-pointer"
+          >
+            إلغاء
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
+   Tele Sheet Component — REWRITTEN
    ═══════════════════════════════════════════════════════ */
 export function TeleSheet() {
   const leads = useCrmStore((s) => s.leads)
@@ -170,16 +427,18 @@ export function TeleSheet() {
     customerName: '', phone: '', storeUrl: '', brief: '',
   })
   const [saving, setSaving] = useState(false)
-  const [bulkAction, setBulkAction] = useState<string | null>(null)
+
   // Tele users are locked to their own data; admin can see everyone
   const isLockedToSelf = currentRole === 'tele'
   const [selectedTele, setSelectedTele] = useState<string>(
     isLockedToSelf && currentUser ? currentUser : 'all'
   )
+
+  // Transfer modal state
   const [transferLeadId, setTransferLeadId] = useState<string | null>(null)
-  const [transferSales, setTransferSales] = useState('')
-  const [transferDate, setTransferDate] = useState('')
-  const [transferTime, setTransferTime] = useState('')
+  const [transferOpen, setTransferOpen] = useState(false)
+  const [transferSaving, setTransferSaving] = useState(false)
+
   const [currentPage, setCurrentPage] = useState(1)
 
   /* ─── Filtered leads ─── */
@@ -212,7 +471,7 @@ export function TeleSheet() {
     }
 
     return result
-  }, [leads, selectedTele, searchQuery, dateFilter])
+  }, [leads, selectedTele, searchQuery, dateFilter, isLockedToSelf, currentUser])
 
   /* ─── Paginated leads ─── */
   const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE))
@@ -234,14 +493,20 @@ export function TeleSheet() {
     const total = filteredLeads.length
     const contacted = filteredLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length
     const meetings = filteredLeads.filter((l) => l.meetingDate).length
-    const closedWon = filteredLeads.filter((l) => l.status === 'closed-won').length
-    return { total, contacted, meetings, closedWon }
+    const transferred = filteredLeads.filter((l) => l.sales).length
+    return { total, contacted, meetings, transferred }
   }, [filteredLeads])
+
+  /* ─── Transfer lead reference ─── */
+  const transferLead = useMemo(() => {
+    if (!transferLeadId) return null
+    return leads.find(l => l.id === transferLeadId) || null
+  }, [transferLeadId, leads])
 
   /* ─── Add new lead ─── */
   const handleAddLead = useCallback(async () => {
     if (!newLead.customerName.trim() || !newLead.phone.trim()) {
-      addToast('warning', 'اسم العميل ورقم التليفون مطلوبان')
+      addToast('warning', 'اسم العميل ورقم الجوال مطلوبان')
       return
     }
     setSaving(true)
@@ -306,8 +571,7 @@ export function TeleSheet() {
       addToast('error', 'فشل الأرشفة')
     }
     clearSelectedLeadIds(viewKey)
-    setBulkAction(null)
-  }, [selected, currentUser, archiveLeadsInCache, apiArchiveLeads, addToast, clearSelectedLeadIds])
+  }, [selected, currentUser, archiveLeadsInCache, addToast, clearSelectedLeadIds])
 
   const handleBulkDelete = useCallback(async () => {
     if (selected.length === 0) return
@@ -320,40 +584,66 @@ export function TeleSheet() {
       addToast('error', 'فشل الحذف')
     }
     clearSelectedLeadIds(viewKey)
-    setBulkAction(null)
-  }, [selected, batchRemoveLeadsFromCache, apiDeleteLeadsBulk, addToast, clearSelectedLeadIds])
+  }, [selected, batchRemoveLeadsFromCache, addToast, clearSelectedLeadIds])
+
+  /* ─── Open transfer modal ─── */
+  const openTransferModal = useCallback((leadId: string) => {
+    setTransferLeadId(leadId)
+    setTransferOpen(true)
+  }, [])
+
+  const closeTransferModal = useCallback(() => {
+    setTransferOpen(false)
+    setTransferLeadId(null)
+  }, [])
 
   /* ─── Transfer lead to sales ─── */
-  const handleTransferToSales = useCallback(async (leadId: string) => {
-    if (!transferSales) {
+  const handleTransferToSales = useCallback(async (formData: TransferData) => {
+    if (!transferLeadId) return
+    if (!formData.sales) {
       addToast('warning', 'اختر السيلز أولاً')
       return
     }
-    if (!transferDate) {
+    if (!formData.meetingDate) {
       addToast('warning', 'حدد تاريخ الاجتماع')
       return
     }
+    if (!formData.brief.trim()) {
+      addToast('warning', 'البريف مطلوب للتحويل')
+      return
+    }
+
+    setTransferSaving(true)
     const updates: Partial<Lead> = {
-      sales: transferSales,
-      meetingDate: transferDate,
-      meetingTime: transferTime || '',
+      sales: formData.sales,
+      meetingDate: formData.meetingDate,
+      meetingTime: formData.meetingTime || '',
       assignedAt: Date.now(),
       status: 'meeting-done',
       salesStatus: 'new',
+      brief: formData.brief,
+      customerName: formData.customerName,
+      phone: formData.phone,
+      storeUrl: formData.storeUrl,
     }
-    updateLeadInCache(leadId, updates)
+    // Add meeting type if status is meeting or form has it
+    if (formData.meetingType) {
+      updates.meetingType = formData.meetingType
+    }
+
+    updateLeadInCache(transferLeadId, updates)
     try {
-      await apiUpdateLead(leadId, updates)
-      addToast('success', `تم تحويل العميل إلى ${transferSales} بنجاح ✅`)
+      await apiUpdateLead(transferLeadId, updates)
+      addToast('success', `تم تحويل العميل إلى ${formData.sales} بنجاح ✅`)
       // Broadcast the transfer to notify sales person instantly
       apiBroadcastChange({
         type: 'assignment',
-        leadId,
+        leadId: transferLeadId,
         data: {
-          sales: transferSales,
-          meetingDate: transferDate,
-          meetingTime: transferTime || '',
-          customerName: leads.find(l => l.id === leadId)?.customerName || '',
+          sales: formData.sales,
+          meetingDate: formData.meetingDate,
+          meetingTime: formData.meetingTime || '',
+          customerName: formData.customerName,
           status: 'meeting-done',
           salesStatus: 'new',
           assignedAt: Date.now(),
@@ -365,27 +655,9 @@ export function TeleSheet() {
     } catch {
       addToast('error', 'فشل التحويل')
     }
-    setTransferLeadId(null)
-    setTransferSales('')
-    setTransferDate('')
-    setTransferTime('')
-  }, [transferSales, transferDate, transferTime, updateLeadInCache, addToast])
-
-  /* ─── Get status badge color ─── */
-  const getStatusBadge = (statusKey: string) => {
-    const s = STATUSES.find((s) => s.key === statusKey)
-    if (!s) return 'bg-[#1c2234] text-[#8892b0]'
-    const clsMap: Record<string, string> = {
-      'status-new': 'bg-[#6c63ff]/15 text-[#a8a3ff]',
-      'status-noreply': 'bg-amber-500/15 text-amber-400',
-      'status-followup': 'bg-[#6c63ff]/15 text-[#a8a3ff]',
-      'status-done': 'bg-emerald-500/15 text-emerald-400',
-      'status-objection': 'bg-red-500/15 text-red-400',
-      'status-closed-win': 'bg-[#00d4aa]/15 text-[#00d4aa]',
-      'status-closed-lost': 'bg-red-500/15 text-red-400',
-    }
-    return clsMap[s.cls] || 'bg-[#1c2234] text-[#8892b0]'
-  }
+    setTransferSaving(false)
+    closeTransferModal()
+  }, [transferLeadId, updateLeadInCache, addToast, closeTransferModal, currentUser, currentRole])
 
   /* ─── Display label maps for LazySelect ─── */
   const contactResultLabels = useMemo(() => {
@@ -400,10 +672,9 @@ export function TeleSheet() {
     return m
   }, [])
 
-  const attendanceLabels = useMemo(() => {
-    const m: Record<string, string> = {}
-    ATTENDANCE_STATUSES.forEach(a => { m[a.key] = a.label })
-    return m
+  /* ─── Check if a lead is transferred ─── */
+  const isTransferred = useCallback((lead: Lead) => {
+    return !!(lead.sales && lead.status === 'meeting-done')
   }, [])
 
   /* ═══════════════ RENDER ═══════════════ */
@@ -432,7 +703,7 @@ export function TeleSheet() {
           { label: 'إجمالي العملاء', value: stats.total, color: '#6c63ff' },
           { label: 'تم التواصل', value: stats.contacted, color: '#00d4aa' },
           { label: 'اجتماعات', value: stats.meetings, color: '#ffd166' },
-          { label: 'تم التقفيل', value: stats.closedWon, color: '#00d4aa' },
+          { label: 'تم التحويل', value: stats.transferred, color: '#00d4aa' },
         ].map((s, i) => (
           <div
             key={i}
@@ -546,14 +817,15 @@ export function TeleSheet() {
                       className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
                     />
                   </TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">لينك المتجر</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">رقم الجوال</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">اسم العميل</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">رقم التليفون</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">البريف</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">حالة التواصل</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">حالة العميل</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">الحضور</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">التاريخ</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">تحويل للسيلز</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[60px]">إجراء</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">تحويل</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[60px]">حذف</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -565,6 +837,23 @@ export function TeleSheet() {
                     </TableCell>
                     <TableCell>
                       <Input
+                        placeholder="لينك المتجر"
+                        value={newLead.storeUrl}
+                        onChange={(e) => setNewLead((p) => ({ ...p, storeUrl: e.target.value }))}
+                        className="h-7 text-[13px] bg-[#0a0d14] border-[#6c63ff]/30 text-[#f0f2ff]"
+                        dir="ltr"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        placeholder="رقم الجوال"
+                        value={newLead.phone}
+                        onChange={(e) => setNewLead((p) => ({ ...p, phone: e.target.value }))}
+                        className="h-7 text-[13px] bg-[#0a0d14] border-[#6c63ff]/30 text-[#f0f2ff]"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
                         placeholder="اسم العميل"
                         value={newLead.customerName}
                         onChange={(e) => setNewLead((p) => ({ ...p, customerName: e.target.value }))}
@@ -573,13 +862,15 @@ export function TeleSheet() {
                     </TableCell>
                     <TableCell>
                       <Input
-                        placeholder="رقم التليفون"
-                        value={newLead.phone}
-                        onChange={(e) => setNewLead((p) => ({ ...p, phone: e.target.value }))}
+                        placeholder="البريف"
+                        value={newLead.brief}
+                        onChange={(e) => setNewLead((p) => ({ ...p, brief: e.target.value }))}
                         className="h-7 text-[13px] bg-[#0a0d14] border-[#6c63ff]/30 text-[#f0f2ff]"
                       />
                     </TableCell>
-                    <TableCell>—</TableCell>
+                    <TableCell>
+                      <Badge className="bg-[#1c2234] text-[#4a5280] text-[11px] font-bold border-0">—</Badge>
+                    </TableCell>
                     <TableCell>
                       <Badge className="bg-[#6c63ff]/15 text-[#a8a3ff] text-[11px] font-bold border-0">جديد</Badge>
                     </TableCell>
@@ -608,7 +899,7 @@ export function TeleSheet() {
                 {/* ─── Data Rows ─── */}
                 {paginatedLeads.length === 0 && !showAddRow ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12 text-[#4a5280]">
+                    <TableCell colSpan={10} className="text-center py-12 text-[#4a5280]">
                       <div className="text-[30px] mb-2">📋</div>
                       <div className="text-[14px] font-semibold">لا يوجد عملاء</div>
                       <div className="text-[12px] font-medium mt-1">اضغط &quot;إضافة عميل&quot; لإضافة عميل جديد</div>
@@ -617,13 +908,19 @@ export function TeleSheet() {
                 ) : (
                   paginatedLeads.map((lead) => {
                     const isSelected = selected.includes(lead.id)
+                    const transferred = isTransferred(lead)
                     return (
                       <tr
                         key={lead.id}
                         className={`border-b border-white/[0.04] transition-colors ${
-                          isSelected ? 'bg-[#6c63ff]/5' : 'hover:bg-[#1c2234]/50'
+                          transferred
+                            ? 'bg-emerald-500/[0.04] shadow-[0_0_8px_rgba(16,185,129,0.08)]'
+                            : isSelected
+                              ? 'bg-[#6c63ff]/5'
+                              : 'hover:bg-[#1c2234]/50'
                         }`}
                       >
+                        {/* ☐ Checkbox */}
                         <TableCell className="w-[40px]">
                           <Checkbox
                             checked={isSelected}
@@ -631,25 +928,37 @@ export function TeleSheet() {
                             className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
                           />
                         </TableCell>
+
+                        {/* لينك المتجر — clickable link, editable */}
                         <TableCell>
-                          <div>
+                          <div className="flex items-center gap-1">
                             <EditableCell
-                              value={lead.customerName}
-                              onSave={(v) => handleUpdateField(lead.id, 'customerName', v)}
-                              placeholder="اسم العميل"
+                              value={lead.storeUrl}
+                              onSave={(v) => handleUpdateField(lead.id, 'storeUrl', v)}
+                              placeholder="لينك المتجر"
                             />
                             {lead.storeUrl && (
-                              <div className="text-[11px] text-[#4a5280] mt-0.5 truncate max-w-[140px]">
-                                {lead.storeUrl}
-                              </div>
+                              <a
+                                href={lead.storeUrl.startsWith('http') ? lead.storeUrl : `https://${lead.storeUrl}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-5 h-5 rounded flex items-center justify-center text-[#6c63ff] hover:text-[#a8a3ff] transition-colors shrink-0"
+                                title="فتح المتجر"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <ExternalLink size={11} />
+                              </a>
                             )}
                           </div>
                         </TableCell>
+
+                        {/* رقم الجوال — with tel: link, editable */}
                         <TableCell>
                           <div className="flex items-center gap-1.5">
                             <a
                               href={`tel:${lead.phone}`}
                               className="w-6 h-6 rounded-md bg-[#00d4aa]/10 flex items-center justify-center text-[#00d4aa] hover:bg-[#00d4aa]/20 transition-colors shrink-0"
+                              onClick={(e) => e.stopPropagation()}
                             >
                               <Phone size={10} />
                             </a>
@@ -660,6 +969,26 @@ export function TeleSheet() {
                             />
                           </div>
                         </TableCell>
+
+                        {/* اسم العميل — editable */}
+                        <TableCell>
+                          <EditableCell
+                            value={lead.customerName}
+                            onSave={(v) => handleUpdateField(lead.id, 'customerName', v)}
+                            placeholder="اسم العميل"
+                          />
+                        </TableCell>
+
+                        {/* البريف — editable */}
+                        <TableCell>
+                          <EditableCell
+                            value={lead.brief}
+                            onSave={(v) => handleUpdateField(lead.id, 'brief', v)}
+                            placeholder="البريف"
+                          />
+                        </TableCell>
+
+                        {/* حالة التواصل — LazySelectCell */}
                         <TableCell>
                           <LazySelectCell
                             value={lead.contactResult || 'none'}
@@ -669,6 +998,8 @@ export function TeleSheet() {
                             className="w-[110px]"
                           />
                         </TableCell>
+
+                        {/* حالة العميل — LazySelectCell */}
                         <TableCell>
                           <LazySelectCell
                             value={lead.status || 'new'}
@@ -678,75 +1009,22 @@ export function TeleSheet() {
                             className="w-[110px]"
                           />
                         </TableCell>
+
+                        {/* الحضور — READ-ONLY badge */}
                         <TableCell>
-                          <LazySelectCell
-                            value={lead.attended || 'pending'}
-                            options={ATTENDANCE_STATUSES}
-                            onChange={(v) => {
-                              const val = v === 'pending' ? '' : v
-                              handleUpdateField(lead.id, 'attended', val || '')
-                              if (val) {
-                                handleUpdateField(lead.id, 'attendanceMarkedAt', String(Date.now()))
-                                handleUpdateField(lead.id, 'attendanceMarkedBy', currentUser || '')
-                              }
-                            }}
-                            displayMap={attendanceLabels}
-                            className="w-[90px]"
-                          />
+                          <AttendanceBadge value={lead.attended} />
                         </TableCell>
-                        <TableCell>
-                          <span className="text-[13px] font-medium text-[#8892b0]">
-                            {formatDate(lead.createdAt)}
-                          </span>
-                        </TableCell>
+
+                        {/* تحويل — Transfer button */}
                         <TableCell>
                           {lead.sales ? (
-                            <Badge className="bg-[#00d4aa]/15 text-[#00d4aa] text-[11px] font-bold border-0 gap-1">
+                            <Badge className="bg-emerald-500/15 text-emerald-400 text-[11px] font-bold border-0 gap-1">
                               <Send size={8} />
                               {lead.sales}
                             </Badge>
-                          ) : transferLeadId === lead.id ? (
-                            <div className="flex flex-col gap-1 min-w-[160px]">
-                              <Select value={transferSales} onValueChange={setTransferSales}>
-                                <SelectTrigger className="h-7 text-[12px] w-full bg-[#0a0d14] border-[#6c63ff]/30 text-[#f0f2ff]">
-                                  <SelectValue placeholder="اختر السيلز" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-[#111520] border-white/[0.08]">
-                                  {team.sales.map((name) => (
-                                    <SelectItem key={name} value={name} className="text-[13px] text-[#f0f2ff]">{name}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <input
-                                type="date"
-                                value={transferDate}
-                                onChange={(e) => setTransferDate(e.target.value)}
-                                className="h-6 text-[12px] bg-[#0a0d14] border border-white/[0.08] rounded px-1.5 text-[#f0f2ff] w-full"
-                              />
-                              <input
-                                type="time"
-                                value={transferTime}
-                                onChange={(e) => setTransferTime(e.target.value)}
-                                className="h-6 text-[12px] bg-[#0a0d14] border border-white/[0.08] rounded px-1.5 text-[#f0f2ff] w-full"
-                              />
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={() => handleTransferToSales(lead.id)}
-                                  className="flex-1 h-6 rounded bg-[#00d4aa]/15 text-[#00d4aa] text-[12px] font-bold hover:bg-[#00d4aa]/25 transition-colors cursor-pointer"
-                                >
-                                  تحويل ✓
-                                </button>
-                                <button
-                                  onClick={() => { setTransferLeadId(null); setTransferSales(''); setTransferDate(''); setTransferTime('') }}
-                                  className="h-6 px-2 rounded bg-red-500/15 text-red-400 text-[12px] hover:bg-red-500/25 transition-colors cursor-pointer"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            </div>
                           ) : (
                             <button
-                              onClick={() => { setTransferLeadId(lead.id); setTransferSales(''); setTransferDate(''); setTransferTime('') }}
+                              onClick={() => openTransferModal(lead.id)}
                               className="w-7 h-7 rounded-md bg-[#6c63ff]/10 text-[#6c63ff] flex items-center justify-center hover:bg-[#6c63ff]/20 transition-colors cursor-pointer"
                               title="تحويل للسيلز"
                             >
@@ -754,6 +1032,8 @@ export function TeleSheet() {
                             </button>
                           )}
                         </TableCell>
+
+                        {/* حذف — Delete */}
                         <TableCell>
                           <button
                             onClick={() => handleDeleteLead(lead.id)}
@@ -805,6 +1085,17 @@ export function TeleSheet() {
           )}
         </CardContent>
       </Card>
+
+      {/* ─── Transfer Modal ─── */}
+      <TransferModal
+        key={transferLeadId}
+        lead={transferLead}
+        open={transferOpen}
+        onClose={closeTransferModal}
+        onSubmit={handleTransferToSales}
+        salesTeam={team.sales}
+        saving={transferSaving}
+      />
     </div>
   )
 }

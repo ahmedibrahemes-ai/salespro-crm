@@ -6,27 +6,21 @@ import { normalizePhone } from '@/lib/crm-utils'
 export const CONTACT_RESULTS = [
   { key: 'none', label: '—', color: 'text-muted-foreground' },
   { key: 'replied', label: '✅ رد', color: 'text-emerald-400' },
-  { key: 'no-reply', label: '📵 مردش', color: 'text-amber-400' },
-  { key: 'whatsapp', label: '💬 واتس', color: 'text-green-400' },
-  { key: 'busy', label: '🔴 مشغول', color: 'text-muted-foreground' },
+  { key: 'no-reply', label: '📵 لم يرد', color: 'text-amber-400' },
+  { key: 'busy', label: '🔴 مشغول', color: 'text-amber-400' },
   { key: 'wrong-number', label: '❌ رقم غلط', color: 'text-red-400' },
-  { key: 'callback', label: '🔄 اعادة اتصال', color: 'text-amber-400' },
-  { key: 'not-interested', label: '🚫 غير مهتم', color: 'text-red-400' },
+  { key: 'customer-service', label: '🎧 خدمة عملاء', color: 'text-blue-400' },
 ]
 
 // ===== Tele Sheet Statuses =====
 export const STATUSES = [
   { key: 'new', label: '🆕 جديد', cls: 'status-new' },
-  { key: 'no-reply', label: '📵 لم يرد', cls: 'status-noreply' },
+  { key: 'meeting', label: '📅 اجتماع', cls: 'status-done' },
   { key: 'whatsapp', label: '💬 واتس', cls: 'status-followup' },
-  { key: 'followup', label: '🔄 متابعة', cls: 'status-followup' },
-  { key: 'meeting-done', label: '✅ اجتماع تم', cls: 'status-done' },
-  { key: 'objection-price', label: '💰 غالي', cls: 'status-objection' },
-  { key: 'objection-other', label: '⚠️ اعتراض', cls: 'status-objection' },
-  { key: 'proposal-sent', label: '📤 عرض سعر', cls: 'status-followup' },
-  { key: 'negotiation', label: '🤝 تفاوض', cls: 'status-followup' },
-  { key: 'closed-won', label: '🏆 تقفيل', cls: 'status-closed-win' },
-  { key: 'closed-lost', label: '❌ خسارة', cls: 'status-closed-lost' },
+  { key: 'not-interested', label: '🚫 غير مهتم', cls: 'status-closed-lost' },
+  { key: 'followup-1', label: '🔄 متابعة 1', cls: 'status-followup' },
+  { key: 'followup-2', label: '🔄 متابعة 2', cls: 'status-followup' },
+  { key: 'followup-3', label: '🔄 متابعة 3', cls: 'status-followup' },
 ]
 
 // ===== Sales Statuses =====
@@ -72,6 +66,7 @@ export type ViewName =
   | 'bulk-add'
   | 'admin'
   | 'employee-profile'
+  | 'transfers'
 
 // ===== View Access Control =====
 export const VIEW_PERMISSIONS: Record<ViewName, Array<'tele' | 'sales' | 'admin'>> = {
@@ -87,6 +82,7 @@ export const VIEW_PERMISSIONS: Record<ViewName, Array<'tele' | 'sales' | 'admin'
   'daily-report': ['tele', 'sales', 'admin'],
   'bulk-add': ['tele', 'sales', 'admin'],
   'admin': ['admin'],
+  'transfers': ['tele', 'admin'],
 }
 
 export function canAccessView(view: ViewName, role: 'tele' | 'sales' | 'admin' | null): boolean {
@@ -293,7 +289,7 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
       return true
     })
     // BUG FIX: Use compareIds instead of a.id - b.id for proper sorting
-    deduped.sort((a, b) => compareIds(a.id, b.id))
+    deduped.sort((a, b) => compareIds(b.id, a.id))
     const leadsById: Record<string, Lead> = {}
     deduped.forEach((l: Lead) => { leadsById[l.id] = l })
     set({ leads: deduped, leadsById })
@@ -363,7 +359,7 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
       if (lead.id in state.leadsById) return state
 
       // BUG FIX: Use compareIds for proper insertion sort
-      const newLeads = [...state.leads, lead].sort((a, b) => compareIds(a.id, b.id))
+      const newLeads = [...state.leads, lead].sort((a, b) => compareIds(b.id, a.id))
       const newLeadsById = { ...state.leadsById, [lead.id]: lead }
 
       return { leads: newLeads, leadsById: newLeadsById, leadsVersion: state.leadsVersion + 1 }
@@ -384,7 +380,7 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
       }
       if (added === 0) return state
       // BUG FIX: Use compareIds for proper sorting
-      updatedLeads.sort((a, b) => compareIds(a.id, b.id))
+      updatedLeads.sort((a, b) => compareIds(b.id, a.id))
       return { leads: updatedLeads, leadsById: newLeadsById, leadsVersion: state.leadsVersion + 1 }
     })
   },
@@ -469,7 +465,7 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
         let hi = result.length
         while (lo < hi) {
           const mid = (lo + hi) >>> 1
-          if (compareIds(result[mid].id, lead.id) < 0) {
+          if (compareIds(result[mid].id, lead.id) > 0) {
             lo = mid + 1
           } else {
             hi = mid
@@ -664,8 +660,8 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
       }
 
       // BUG FIX: Use compareIds for proper sorting
-      newLeads.sort((a, b) => compareIds(a.id, b.id))
-      newArchivedLeads.sort((a, b) => compareIds(a.id, b.id))
+      newLeads.sort((a, b) => compareIds(b.id, a.id))
+      newArchivedLeads.sort((a, b) => compareIds(b.id, a.id))
 
       set({ leads: newLeads, archivedLeads: newArchivedLeads, leadsById: newLeadsById })
     }

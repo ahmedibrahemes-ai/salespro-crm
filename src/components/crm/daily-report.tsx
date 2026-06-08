@@ -15,6 +15,9 @@ import {
   UserPlus,
   Check,
   X,
+  Clock,
+  Zap,
+  Moon,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -80,6 +83,14 @@ function getContactResultLabel(key: string): string {
   return cr ? cr.label : key
 }
 
+/** Format hour (0-23) to Arabic AM/PM label */
+function formatHourLabel(hour: number): string {
+  if (hour === 0) return '12 ص'
+  if (hour < 12) return `${hour} ص`
+  if (hour === 12) return '12 م'
+  return `${hour - 12} م`
+}
+
 /* ═══════════════════════════════════════════════════════
    Activity Item Component
    ═══════════════════════════════════════════════════════ */
@@ -128,7 +139,7 @@ function ActivityItem({ icon, iconColor, title, subtitle, time }: ActivityItemPr
 /* ═══════════════════════════════════════════════════════
    DailyReport Component — OPTIMIZED
    - Replaced Framer Motion with CSS transitions
-   - Single-pass computation for all KPIs + activities
+   - Single-pass computation for all KPIs + activities + hourly data
    - Targeted Zustand selectors
    ═══════════════════════════════════════════════════════ */
 
@@ -191,6 +202,12 @@ export function DailyReport() {
     let attendedCount = 0
     let noShowCount = 0
     let closedWonCount = 0
+    let transferredCount = 0
+    let contactRepliedCount = 0
+    let contactNoReplyCount = 0
+    let contactBusyCount = 0
+    let contactWrongNumberCount = 0
+    let contactCustomerServiceCount = 0
 
     // Activity lists - single pass
     const newLeadActivities: Array<{
@@ -218,6 +235,9 @@ export function DailyReport() {
       memberStats[name] = { role: 'sales', newLeads: 0, calls: 0, meetings: 0, attended: 0, closed: 0 }
     }
 
+    // Hourly call distribution (0-23)
+    const hourlyCalls: number[] = new Array(24).fill(0)
+
     // Single pass over all leads
     for (const lead of allLeads) {
       const isNewToday = isSameDay(lead.createdAt, selectedDate)
@@ -226,13 +246,29 @@ export function DailyReport() {
       const isAttendedToday = hasMeetingToday && lead.attended === 'attended'
       const isNoShowToday = hasMeetingToday && lead.attended === 'no-show'
       const isClosedWonToday = lead.attendanceMarkedAt && isSameDay(lead.attendanceMarkedAt, selectedDate) && lead.status === 'closed-won'
+      const isTransferredToday = lead.assignedAt && isSameDay(lead.assignedAt, selectedDate) && lead.sales
 
       if (isNewToday) newLeadsCount++
-      if (isCallToday) callsMadeCount++
+      if (isCallToday) {
+        callsMadeCount++
+        // Count by contact result type
+        if (lead.contactResult === 'replied') contactRepliedCount++
+        else if (lead.contactResult === 'no-reply') contactNoReplyCount++
+        else if (lead.contactResult === 'busy') contactBusyCount++
+        else if (lead.contactResult === 'wrong-number') contactWrongNumberCount++
+        else if (lead.contactResult === 'customer-service') contactCustomerServiceCount++
+
+        // Accumulate hourly distribution
+        if (lead.contactResultAt) {
+          const hour = new Date(lead.contactResultAt).getHours()
+          hourlyCalls[hour]++
+        }
+      }
       if (hasMeetingToday) meetingsCount++
       if (isAttendedToday) attendedCount++
       if (isNoShowToday) noShowCount++
       if (isClosedWonToday) closedWonCount++
+      if (isTransferredToday) transferredCount++
 
       // Per-member stats
       const teleMember = memberStats[lead.tele]
@@ -324,22 +360,48 @@ export function DailyReport() {
     statusChangeActivities.sort((a, b) => b.timestamp - a.timestamp)
     meetingActivities.sort((a, b) => b.timestamp - a.timestamp)
 
-    // Team activity sorted by total
+    // Team activity sorted by calls (most active first)
     const teamActivity = Object.entries(memberStats).map(([name, stats]) => ({
       name,
       ...stats,
       total: stats.newLeads + stats.calls + stats.meetings + stats.attended + stats.closed,
-    })).sort((a, b) => b.total - a.total)
+    })).sort((a, b) => b.calls - a.calls || b.total - a.total)
 
     const topPerformer = teamActivity.length > 0 && teamActivity[0].total > 0 ? teamActivity[0] : null
+    const topCaller = teamActivity.find((m) => m.calls > 0) || null
+
+    // Peak hours: sort hours by call count descending
+    const peakHours = hourlyCalls
+      .map((count, hour) => ({ hour, count }))
+      .filter((h) => h.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5)
+
+    // Low activity hours: hours with 0 calls (within working hours 8-22)
+    const lowActivityHours = hourlyCalls
+      .map((count, hour) => ({ hour, count }))
+      .filter((h) => h.hour >= 8 && h.hour <= 22 && h.count === 0)
+      .sort((a, b) => a.hour - b.hour)
+
+    const maxHourlyCalls = Math.max(...hourlyCalls, 1)
 
     return {
-      kpiData: { newLeadsCount, callsMadeCount, meetingsCount, attendedCount, noShowCount, closedWonCount },
+      kpiData: {
+        newLeadsCount, callsMadeCount, meetingsCount, attendedCount,
+        noShowCount, closedWonCount, transferredCount,
+        contactRepliedCount, contactNoReplyCount, contactBusyCount,
+        contactWrongNumberCount, contactCustomerServiceCount,
+      },
       newLeadActivities: newLeadActivities.slice(0, 20),
       statusChangeActivities: statusChangeActivities.slice(0, 20),
       meetingActivities: meetingActivities.slice(0, 20),
       teamActivity,
       topPerformer,
+      topCaller,
+      hourlyCalls,
+      peakHours,
+      lowActivityHours,
+      maxHourlyCalls,
     }
   }, [leads, archivedLeads, team, selectedDate, currentUser, currentRole])
 
@@ -363,6 +425,7 @@ export function DailyReport() {
     { icon: <Check size={16} />, color: '#00d4aa', value: computed.kpiData.attendedCount, label: 'حضور مؤكد' },
     { icon: <X size={16} />, color: '#ff6b6b', value: computed.kpiData.noShowCount, label: 'لم يحضر' },
     { icon: <Trophy size={16} />, color: '#00d4aa', value: computed.kpiData.closedWonCount, label: 'تقفيلات' },
+    { icon: <Users size={16} />, color: '#6c63ff', value: computed.kpiData.transferredCount, label: 'تحويلات' },
   ]
 
   /* ═══════════════ RENDER ═══════════════ */
@@ -460,7 +523,171 @@ export function DailyReport() {
       </div>
 
       {/* ══════════════════════════════════════════════════
-          3. TEAM ACTIVITY BREAKDOWN TABLE
+          3. MOST ACTIVE EMPLOYEES (Prominent Section)
+          ══════════════════════════════════════════════════ */}
+      {computed.topCaller && (
+        <div
+          className="relative flex items-center gap-4 border rounded-2xl px-5 py-4 overflow-hidden"
+          style={{
+            background: 'linear-gradient(135deg, #6c63ff08, #6c63ff03)',
+            borderColor: '#6c63ff25',
+          }}
+        >
+          <div className="absolute -top-8 -left-8 w-32 h-32 rounded-full blur-[60px] opacity-20 bg-[#6c63ff]" />
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-[#6c63ff]/15 text-[#6c63ff]">
+            <Zap size={22} />
+          </div>
+          <div className="flex-1 min-w-0 relative z-10">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[17px] font-extrabold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                أكثر الأعضاء نشاطاً
+              </span>
+            </div>
+            <div className="text-[14px] font-bold text-[#6c63ff] mt-1" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              👑 {computed.topCaller.name} — {computed.topCaller.calls} مكالمة • {computed.topCaller.newLeads} ليد جديد • {computed.topCaller.meetings} اجتماع
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════
+          4. PEAK & LOW CALL TIMES
+          ══════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Peak Call Times */}
+        <Card className="bg-[#111520] border-white/[0.06] rounded-2xl shadow-none">
+          <CardHeader className="pb-2">
+            <CardTitle
+              className="text-[16px] font-extrabold text-[#f0f2ff] flex items-center gap-2"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              <Zap size={16} className="text-[#ffd166]" />
+              أوقات الذروة
+              <span className="text-[12px] font-bold text-[#8892b0] mr-1">الأكثر مكالمات</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {computed.peakHours.length > 0 ? (
+              <div className="space-y-2.5">
+                {computed.peakHours.map(({ hour, count }) => (
+                  <div key={hour} className="flex items-center gap-3">
+                    <span
+                      className="text-[13px] font-bold text-[#f0f2ff] w-[50px] text-center shrink-0"
+                      style={{ fontFamily: 'Cairo, sans-serif' }}
+                    >
+                      {formatHourLabel(hour)}
+                    </span>
+                    <div className="flex-1 h-7 bg-white/[0.03] rounded-lg overflow-hidden relative">
+                      <div
+                        className="h-full rounded-lg transition-all duration-500"
+                        style={{
+                          width: `${Math.max((count / computed.maxHourlyCalls) * 100, 8)}%`,
+                          background: 'linear-gradient(90deg, #ffd16640, #ffd166)',
+                        }}
+                      />
+                    </div>
+                    <span
+                      className="text-[14px] font-extrabold text-[#ffd166] w-[40px] text-center shrink-0"
+                      style={{ fontFamily: 'Cairo, sans-serif' }}
+                    >
+                      {count}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[13px] font-semibold text-[#4a5280] py-6 text-center">
+                لا توجد مكالمات مسجلة لهذا اليوم
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Low Activity Times */}
+        <Card className="bg-[#111520] border-white/[0.06] rounded-2xl shadow-none">
+          <CardHeader className="pb-2">
+            <CardTitle
+              className="text-[16px] font-extrabold text-[#f0f2ff] flex items-center gap-2"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              <Moon size={16} className="text-[#4a5280]" />
+              أوقات الهدوء
+              <span className="text-[12px] font-bold text-[#8892b0] mr-1">بدون مكالمات</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {computed.lowActivityHours.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {computed.lowActivityHours.map(({ hour }) => (
+                  <div
+                    key={hour}
+                    className="px-3 py-1.5 bg-white/[0.03] border border-white/[0.06] rounded-lg text-[13px] font-bold text-[#4a5280]"
+                    style={{ fontFamily: 'Cairo, sans-serif' }}
+                  >
+                    {formatHourLabel(hour)}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[13px] font-semibold text-[#4a5280] py-6 text-center">
+                {computed.kpiData.callsMadeCount > 0
+                  ? 'كل ساعات العمل بها نشاط! 🎉'
+                  : 'لا توجد مكالمات مسجلة لهذا اليوم'}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ══════════════════════════════════════════════════
+          5. CONTACT RESULT BREAKDOWN
+          ══════════════════════════════════════════════════ */}
+      {computed.kpiData.callsMadeCount > 0 && (
+        <Card className="bg-[#111520] border-white/[0.06] rounded-2xl shadow-none">
+          <CardHeader className="pb-2">
+            <CardTitle
+              className="text-[16px] font-extrabold text-[#f0f2ff] flex items-center gap-2"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              <Phone size={16} className="text-[#00d4aa]" />
+              تفصيل نتائج التواصل
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+              {[
+                { label: 'رد', count: computed.kpiData.contactRepliedCount, color: '#00d4aa', emoji: '✅' },
+                { label: 'لم يرد', count: computed.kpiData.contactNoReplyCount, color: '#ffd166', emoji: '📵' },
+                { label: 'مشغول', count: computed.kpiData.contactBusyCount, color: '#ff6b6b', emoji: '🔴' },
+                { label: 'رقم غلط', count: computed.kpiData.contactWrongNumberCount, color: '#ff6b6b', emoji: '❌' },
+                { label: 'خدمة عملاء', count: computed.kpiData.contactCustomerServiceCount, color: '#6c63ff', emoji: '🎧' },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="bg-white/[0.02] border border-white/[0.04] rounded-xl p-3 text-center"
+                >
+                  <div className="text-[18px] mb-1">{item.emoji}</div>
+                  <div
+                    className="text-[20px] font-extrabold"
+                    style={{ color: item.color, fontFamily: 'Cairo, sans-serif' }}
+                  >
+                    {item.count}
+                  </div>
+                  <div
+                    className="text-[12px] font-bold text-[#8892b0]"
+                    style={{ fontFamily: 'Cairo, sans-serif' }}
+                  >
+                    {item.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ══════════════════════════════════════════════════
+          6. TEAM ACTIVITY BREAKDOWN TABLE
           ══════════════════════════════════════════════════ */}
       <Card className="bg-[#111520] border-white/[0.06] rounded-2xl shadow-none">
         <CardHeader className="pb-2">
@@ -560,7 +787,7 @@ export function DailyReport() {
       </Card>
 
       {/* ══════════════════════════════════════════════════
-          4. RECENT ACTIVITIES
+          7. RECENT ACTIVITIES
           ══════════════════════════════════════════════════ */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* ─── New Leads ─── */}
@@ -691,7 +918,7 @@ export function DailyReport() {
       </div>
 
       {/* ══════════════════════════════════════════════════
-          5. SUMMARY / PERFORMANCE RATING
+          8. SUMMARY / PERFORMANCE RATING
           ══════════════════════════════════════════════════ */}
       <div
         className="relative flex items-center gap-4 border rounded-2xl px-5 py-4 overflow-hidden"
@@ -732,7 +959,7 @@ export function DailyReport() {
           </div>
           <div className="flex items-center gap-4 mt-2 flex-wrap">
             <span className="text-[12px] font-medium text-[#4a5280]" style={{ fontFamily: 'Cairo, sans-serif' }}>
-              ليدز: {computed.kpiData.newLeadsCount} • مكالمات: {computed.kpiData.callsMadeCount} • اجتماعات: {computed.kpiData.meetingsCount} • تقفيلات: {computed.kpiData.closedWonCount}
+              ليدز: {computed.kpiData.newLeadsCount} • مكالمات: {computed.kpiData.callsMadeCount} • اجتماعات: {computed.kpiData.meetingsCount} • تحويلات: {computed.kpiData.transferredCount} • تقفيلات: {computed.kpiData.closedWonCount}
             </span>
           </div>
         </div>

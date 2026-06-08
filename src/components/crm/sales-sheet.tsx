@@ -305,15 +305,7 @@ export function SalesSheet() {
     return m
   }, [])
 
-  const meetingTypeOptions = useMemo(() => [
-    { key: 'offline', label: '🏛️ حضوري' },
-    { key: 'online', label: '💻 أونلاين' },
-  ], [])
 
-  const meetingTypeLabels = useMemo(() => ({
-    offline: '🏛️ حضوري',
-    online: '💻 أونلاين',
-  }), [])
 
   /* ═══════════════ RENDER ═══════════════ */
   return (
@@ -443,7 +435,6 @@ export function SalesSheet() {
                   <TableHead className="text-right text-[11px] text-[#4a5280]">حالة السيلز</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">تاريخ الاجتماع</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">الوقت</TableHead>
-                  <TableHead className="text-right text-[11px] text-[#4a5280]">النوع</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">الحضور</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">تحويل</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280] w-[50px]">حذف</TableHead>
@@ -452,7 +443,7 @@ export function SalesSheet() {
               <TableBody>
                 {paginatedLeads.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-12 text-[#4a5280]">
+                    <TableCell colSpan={9} className="text-center py-12 text-[#4a5280]">
                       <div className="text-[32px] mb-2">📊</div>
                       <div className="text-[13px]">لا يوجد عملاء مسندين للسيلز</div>
                     </TableCell>
@@ -526,15 +517,6 @@ export function SalesSheet() {
                             onSave={(v) => handleUpdateField(lead.id, 'meetingTime', v)}
                             type="time"
                             placeholder="الوقت"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <LazySelectCell
-                            value={lead.meetingType || 'offline'}
-                            options={meetingTypeOptions}
-                            onChange={(v) => handleUpdateField(lead.id, 'meetingType', v)}
-                            displayMap={meetingTypeLabels}
-                            className="w-[90px]"
                           />
                         </TableCell>
                         <TableCell>

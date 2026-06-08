@@ -209,6 +209,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, message: 'تم حذف المستخدم' })
     }
 
+    // ── Validate Session ──
+    if (action === 'validate-session') {
+      const { userId } = body
+      if (!userId) {
+        return NextResponse.json({ valid: false }, { status: 200 })
+      }
+
+      const { data: users } = await client
+        .from('app_users')
+        .select('id, is_active')
+        .eq('id', userId)
+        .limit(1)
+
+      if (!users || users.length === 0 || !users[0].is_active) {
+        return NextResponse.json({ valid: false }, { status: 200 })
+      }
+
+      return NextResponse.json({ valid: true }, { status: 200 })
+    }
+
     return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })
   } catch (err) {
     console.error('[auth] Unexpected error:', err)

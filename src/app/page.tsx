@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, Component, lazy, Suspense, useMemo } from 'react'
-import { useCrmStore, hydrateAuth, type ViewName } from '@/lib/store'
+import { useCrmStore, hydrateAuth, canAccessView, getDefaultViewForRole, type ViewName } from '@/lib/store'
 import { apiGetLeads, apiGetArchivedLeads, apiGetTeam, apiSubscribeToLeads, apiUnsubscribe, type BroadcastMessage } from '@/lib/supabase'
 import { LoginScreen } from '@/components/crm/login-screen'
 import { Sidebar } from '@/components/layout/sidebar'
@@ -225,6 +225,8 @@ function ToastContainer() {
 export default function Home() {
   const isAuthenticated = useCrmStore((s) => s.isAuthenticated)
   const currentView = useCrmStore((s) => s.currentView)
+  const currentRole = useCrmStore((s) => s.currentRole)
+  const setCurrentView = useCrmStore((s) => s.setCurrentView)
   const loading = useCrmStore((s) => s.loading)
   const dataLoaded = useCrmStore((s) => s.dataLoaded)
   const setLeads = useCrmStore((s) => s.setLeads)
@@ -237,6 +239,16 @@ export default function Home() {
   useEffect(() => {
     hydrateAuth()
   }, [])
+
+  // Protect views based on role permissions
+  useEffect(() => {
+    if (!isAuthenticated || !currentRole) return
+    if (currentView === 'login') return
+
+    if (!canAccessView(currentView, currentRole)) {
+      setCurrentView(getDefaultViewForRole(currentRole))
+    }
+  }, [currentView, currentRole, isAuthenticated, setCurrentView])
 
   // Load data when authenticated
   useEffect(() => {

@@ -677,6 +677,8 @@ function UsersTab() {
   const [resetUserId, setResetUserId] = useState<string | null>(null)
   const [resetPassword, setResetPassword] = useState('')
   const [resetSaving, setResetSaving] = useState(false)
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null)
+  const [deleteSaving, setDeleteSaving] = useState(false)
 
   /* ─── Fetch users ─── */
   const fetchUsers = useCallback(async () => {
@@ -793,6 +795,31 @@ function UsersTab() {
       setResetSaving(false)
     }
   }, [resetUserId, resetPassword, addToast])
+
+  /* ─── Delete user ─── */
+  const handleDeleteUser = useCallback(async () => {
+    if (!deleteUserId) return
+    setDeleteSaving(true)
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete-user', userId: deleteUserId }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        addToast('error', data.error || 'فشل في حذف المستخدم')
+        return
+      }
+      addToast('success', 'تم حذف المستخدم بنجاح')
+      setDeleteUserId(null)
+      fetchUsers()
+    } catch {
+      addToast('error', 'فشل في حذف المستخدم')
+    } finally {
+      setDeleteSaving(false)
+    }
+  }, [deleteUserId, addToast, fetchUsers])
 
   const roleLabels: Record<string, string> = { tele: 'تيلي', sales: 'سيلز', admin: 'أدمن' }
   const roleColors: Record<string, string> = { tele: 'bg-[#6c63ff]/15 text-[#a8a3ff]', sales: 'bg-[#00d4aa]/15 text-[#00d4aa]', admin: 'bg-amber-500/15 text-amber-400' }
@@ -1009,6 +1036,13 @@ function UsersTab() {
                               <ToggleLeft size={16} className="text-red-400" />
                             )}
                           </button>
+                          <button
+                            onClick={() => setDeleteUserId(user.id)}
+                            className="w-7 h-7 rounded-md bg-red-500/10 text-red-400/60 flex items-center justify-center hover:text-red-400 hover:bg-red-500/20 transition-colors cursor-pointer"
+                            title="حذف المستخدم"
+                          >
+                            <Trash2 size={12} />
+                          </button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1019,6 +1053,31 @@ function UsersTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete User Confirmation */}
+      {deleteUserId && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+          <div className="bg-[#111520] border border-red-500/20 rounded-xl p-6 max-w-sm w-full" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            <h3 className="text-[18px] font-bold text-[#f0f2ff] mb-2">⚠️ حذف مستخدم</h3>
+            <p className="text-[15px] text-[#8892b0] mb-4">هل أنت متأكد من حذف هذا المستخدم؟ لا يمكن التراجع عن هذا الإجراء.</p>
+            <div className="flex gap-2">
+              <button
+                onClick={handleDeleteUser}
+                disabled={deleteSaving}
+                className="flex-1 h-9 rounded-lg bg-red-500/15 text-red-400 text-[15px] font-bold hover:bg-red-500/25 transition-colors disabled:opacity-60 cursor-pointer"
+              >
+                {deleteSaving ? 'جاري الحذف...' : 'حذف'}
+              </button>
+              <button
+                onClick={() => setDeleteUserId(null)}
+                className="flex-1 h-9 rounded-lg bg-[#1c2234] text-[#8892b0] text-[15px] font-bold hover:bg-[#252b3d] transition-colors cursor-pointer"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

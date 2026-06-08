@@ -52,6 +52,21 @@ export function LoginScreen() {
       const data = await res.json()
 
       if (!res.ok || data.error) {
+        // If database is unavailable (503), fall back to demo mode
+        if (res.status === 503) {
+          const DEMO_USERS: Record<string, { displayName: string; role: 'tele' | 'sales' | 'admin'; id: string; username: string }> = {
+            admin: { displayName: 'أحمد سالم', role: 'admin', id: 'demo-admin', username: 'admin' },
+            tele: { displayName: 'Amira', role: 'tele', id: 'demo-tele', username: 'tele' },
+            sales: { displayName: 'Rania', role: 'sales', id: 'demo-sales', username: 'sales' },
+          }
+          const demoUser = DEMO_USERS[username.trim().toLowerCase()]
+          if (demoUser) {
+            login(demoUser.displayName, demoUser.role, demoUser.id, demoUser.username)
+            return
+          }
+          setError('قاعدة البيانات غير متاحة — جرب admin / tele / sales كوضع تجريبي')
+          return
+        }
         setError(data.error || 'فشل تسجيل الدخول')
         return
       }

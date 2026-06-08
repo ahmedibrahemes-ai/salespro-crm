@@ -72,6 +72,31 @@ export type ViewName =
   | 'admin'
   | 'employee-profile'
 
+// ===== View Access Control =====
+export const VIEW_PERMISSIONS: Record<ViewName, Array<'tele' | 'sales' | 'admin'>> = {
+  'login': ['tele', 'sales', 'admin'],
+  'dashboard': ['tele', 'sales', 'admin'],
+  'employee-profile': ['tele', 'sales', 'admin'],
+  'my-sheet': ['tele', 'admin'],
+  'sales-sheet': ['sales', 'admin'],
+  'my-meetings': ['tele', 'sales', 'admin'],
+  'meetings': ['sales', 'admin'],
+  'my-archive': ['tele', 'sales', 'admin'],
+  'customers-status': ['tele', 'sales', 'admin'],
+  'daily-report': ['tele', 'sales', 'admin'],
+  'bulk-add': ['tele', 'sales', 'admin'],
+  'admin': ['admin'],
+}
+
+export function canAccessView(view: ViewName, role: 'tele' | 'sales' | 'admin' | null): boolean {
+  if (!role) return false
+  return VIEW_PERMISSIONS[view]?.includes(role) ?? false
+}
+
+export function getDefaultViewForRole(role: 'tele' | 'sales' | 'admin'): ViewName {
+  return 'dashboard'
+}
+
 // ===== Toast =====
 export interface CrmToast {
   id: string
@@ -648,6 +673,24 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
   },
 }))
 
+// ===== Session Validation =====
+export async function validateSession(): Promise<boolean> {
+  if (typeof window === 'undefined') return false
+  try {
+    const auth = getPersistedAuth()
+    if (!auth.userId) return false
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'validate-session', userId: auth.userId }),
+    })
+    const data = await res.json()
+    return data.valid === true
+  } catch {
+    return false
+  }
+}
+
 // ===== Hydrate Auth from localStorage (call on client mount) =====
 export function hydrateAuth() {
   if (typeof window === 'undefined') return
@@ -660,6 +703,12 @@ export function hydrateAuth() {
       currentView: 'dashboard',
       userId: auth.userId || null,
       username: auth.username || null,
+    })
+    // Validate session in background — if invalid, logout
+    validateSession().then((valid) => {
+      if (!valid) {
+        useCrmStore.getState().logout()
+      }
     })
   }
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useCallback } from 'react'
+import { useMemo, useCallback, useState } from 'react'
 import { useCrmStore, STATUSES, SALES_STATUSES, ATTENDANCE_STATUSES, formatDate, formatRelativeTime } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import { apiUpdateLead } from '@/lib/supabase'
@@ -10,6 +10,7 @@ import {
   PhoneCall, UserCheck, ArrowRightLeft, Sun, Moon,
   UserPlus, FileSpreadsheet, MeetingRoom, Archive,
   Video, MapPin, Zap, Award, BarChart3, Activity,
+  KeyRound, Eye, EyeOff,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -24,6 +25,14 @@ export function EmployeeProfile() {
   const setCurrentView = useCrmStore((s) => s.setCurrentView)
   const addToast = useCrmStore((s) => s.addToast)
   const updateLeadInCache = useCrmStore((s) => s.updateLeadInCache)
+  const userId = useCrmStore((s) => s.userId)
+  const [showChangePassword, setShowChangePassword] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [changingPassword, setChangingPassword] = useState(false)
 
   /* ─── Time-of-day greeting ─── */
   const greeting = useMemo(() => {
@@ -205,6 +214,53 @@ export function EmployeeProfile() {
       addToast('error', 'فشل في تسجيل الحضور')
     }
   }, [currentUser, updateLeadInCache, addToast])
+
+  /* ─── Change password handler ─── */
+  const handleChangePassword = useCallback(async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      addToast('warning', 'جميع الحقول مطلوبة')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      addToast('error', 'كلمة المرور الجديدة غير متطابقة')
+      return
+    }
+    if (newPassword.length < 4) {
+      addToast('warning', 'كلمة المرور يجب أن تكون 4 أحرف على الأقل')
+      return
+    }
+    if (!userId) {
+      addToast('error', 'معرف المستخدم غير متوفر')
+      return
+    }
+    setChangingPassword(true)
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'change-password',
+          userId,
+          currentPassword,
+          newPassword,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        addToast('error', data.error || 'فشل في تغيير كلمة المرور')
+        return
+      }
+      addToast('success', 'تم تغيير كلمة المرور بنجاح ✅')
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setShowChangePassword(false)
+    } catch {
+      addToast('error', 'فشل في تغيير كلمة المرور')
+    } finally {
+      setChangingPassword(false)
+    }
+  }, [currentPassword, newPassword, confirmPassword, userId, addToast])
 
   if (!currentUser) return null
 
@@ -656,6 +712,101 @@ export function EmployeeProfile() {
             </div>
           )}
         </CardContent>
+      </Card>
+
+      {/* ═══════════════════════════════════════════
+         9. CHANGE PASSWORD
+         ═══════════════════════════════════════════ */}
+      <Card className="bg-[#111520] border-white/[0.06]">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-[18px] font-extrabold text-[#f0f2ff] flex items-center gap-2">
+              <KeyRound size={16} className="text-[#6c63ff]" />
+              الأمان
+            </CardTitle>
+            <button
+              onClick={() => setShowChangePassword(!showChangePassword)}
+              className="text-[14px] font-semibold text-[#6c63ff] hover:text-[#a8a3ff] transition-colors cursor-pointer"
+            >
+              {showChangePassword ? 'إلغاء' : 'تغيير كلمة المرور'}
+            </button>
+          </div>
+        </CardHeader>
+        {showChangePassword && (
+          <CardContent>
+            <div className="space-y-3 max-w-md">
+              {/* Current Password */}
+              <div>
+                <label className="text-[15px] font-semibold text-[#8892b0] mb-1 block">كلمة المرور الحالية</label>
+                <div className="relative">
+                  <input
+                    type={showCurrentPassword ? 'text' : 'password'}
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="h-10 w-full rounded-lg border border-white/[0.08] bg-[#0a0d14] px-3 text-[15px] font-medium text-[#f0f2ff] placeholder:text-[#4a5280] outline-none focus:border-[#6c63ff] focus:ring-2 focus:ring-[#6c63ff]/30"
+                    style={{ fontFamily: 'Cairo, sans-serif' }}
+                    placeholder="أدخل كلمة المرور الحالية"
+                    dir="ltr"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4a5280] hover:text-[#8892b0] cursor-pointer"
+                  >
+                    {showCurrentPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </div>
+              {/* New Password */}
+              <div>
+                <label className="text-[15px] font-semibold text-[#8892b0] mb-1 block">كلمة المرور الجديدة</label>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="h-10 w-full rounded-lg border border-white/[0.08] bg-[#0a0d14] px-3 text-[15px] font-medium text-[#f0f2ff] placeholder:text-[#4a5280] outline-none focus:border-[#6c63ff] focus:ring-2 focus:ring-[#6c63ff]/30"
+                    style={{ fontFamily: 'Cairo, sans-serif' }}
+                    placeholder="أدخل كلمة المرور الجديدة"
+                    dir="ltr"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4a5280] hover:text-[#8892b0] cursor-pointer"
+                  >
+                    {showNewPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </div>
+              {/* Confirm Password */}
+              <div>
+                <label className="text-[15px] font-semibold text-[#8892b0] mb-1 block">تأكيد كلمة المرور</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-white/[0.08] bg-[#0a0d14] px-3 text-[15px] font-medium text-[#f0f2ff] placeholder:text-[#4a5280] outline-none focus:border-[#6c63ff] focus:ring-2 focus:ring-[#6c63ff]/30"
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                  placeholder="أعد كتابة كلمة المرور الجديدة"
+                  dir="ltr"
+                />
+              </div>
+              {/* Submit */}
+              <button
+                onClick={handleChangePassword}
+                disabled={changingPassword}
+                className="w-full h-10 rounded-lg text-[15px] font-bold text-white transition-all disabled:opacity-60 cursor-pointer"
+                style={{
+                  background: 'linear-gradient(135deg, #6c63ff 0%, #00d4aa 100%)',
+                  fontFamily: 'Cairo, sans-serif',
+                }}
+              >
+                {changingPassword ? 'جاري التغيير...' : 'تغيير كلمة المرور'}
+              </button>
+            </div>
+          </CardContent>
+        )}
       </Card>
     </div>
   )

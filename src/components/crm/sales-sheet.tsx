@@ -519,6 +519,17 @@ export function SalesSheet() {
                               ✅
                             </button>
                             <button
+                              onClick={() => handleMarkAttendance(lead.id, 'pending')}
+                              className={`w-6 h-6 rounded-md flex items-center justify-center text-[10px] transition-colors cursor-pointer ${
+                                lead.attended === 'pending'
+                                  ? 'bg-[#ffd166]/25 text-[#ffd166]'
+                                  : 'bg-[#1c2234] text-[#4a5280] hover:bg-[#ffd166]/10 hover:text-[#ffd166]'
+                              }`}
+                              title="فى الانتظار"
+                            >
+                              ⏳
+                            </button>
+                            <button
                               onClick={() => handleMarkAttendance(lead.id, 'no-show')}
                               className={`w-6 h-6 rounded-md flex items-center justify-center text-[10px] transition-colors cursor-pointer ${
                                 lead.attended === 'no-show'

@@ -70,6 +70,7 @@ export type ViewName =
   | 'my-archive'
   | 'bulk-add'
   | 'admin'
+  | 'employee-profile'
 
 // ===== Toast =====
 export interface CrmToast {

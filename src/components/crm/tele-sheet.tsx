@@ -7,7 +7,7 @@ import { apiCreateLead, apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDelete
 import {
   Search, Plus, Trash2, Archive, Phone, Filter, X, Check, ChevronDown,
   UserPlus, Calendar, MoreHorizontal, Loader2, AlertTriangle,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, ArrowLeftRight, Send,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -174,6 +174,10 @@ export function TeleSheet() {
   const [selectedTele, setSelectedTele] = useState<string>(
     currentRole === 'tele' && currentUser ? currentUser : 'all'
   )
+  const [transferLeadId, setTransferLeadId] = useState<string | null>(null)
+  const [transferSales, setTransferSales] = useState('')
+  const [transferDate, setTransferDate] = useState('')
+  const [transferTime, setTransferTime] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
 
   /* ─── Filtered leads ─── */
@@ -314,6 +318,37 @@ export function TeleSheet() {
     clearSelectedLeadIds(viewKey)
     setBulkAction(null)
   }, [selected, batchRemoveLeadsFromCache, apiDeleteLeadsBulk, addToast, clearSelectedLeadIds])
+
+  /* ─── Transfer lead to sales ─── */
+  const handleTransferToSales = useCallback(async (leadId: string) => {
+    if (!transferSales) {
+      addToast('warning', 'اختر السيلز أولاً')
+      return
+    }
+    if (!transferDate) {
+      addToast('warning', 'حدد تاريخ الاجتماع')
+      return
+    }
+    const updates: Partial<Lead> = {
+      sales: transferSales,
+      meetingDate: transferDate,
+      meetingTime: transferTime || '',
+      assignedAt: Date.now(),
+      status: 'meeting-done',
+      salesStatus: 'new',
+    }
+    updateLeadInCache(leadId, updates)
+    try {
+      await apiUpdateLead(leadId, updates)
+      addToast('success', `تم تحويل العميل إلى ${transferSales} بنجاح ✅`)
+    } catch {
+      addToast('error', 'فشل التحويل')
+    }
+    setTransferLeadId(null)
+    setTransferSales('')
+    setTransferDate('')
+    setTransferTime('')
+  }, [transferSales, transferDate, transferTime, updateLeadInCache, addToast])
 
   /* ─── Get status badge color ─── */
   const getStatusBadge = (statusKey: string) => {
@@ -489,6 +524,7 @@ export function TeleSheet() {
                   <TableHead className="text-right text-[11px] text-[#4a5280]">حالة العميل</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">الحضور</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">التاريخ</TableHead>
+                  <TableHead className="text-right text-[11px] text-[#4a5280]">تحويل للسيلز</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280] w-[60px]">إجراء</TableHead>
                 </TableRow>
               </TableHeader>
@@ -544,7 +580,7 @@ export function TeleSheet() {
                 {/* ─── Data Rows ─── */}
                 {paginatedLeads.length === 0 && !showAddRow ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12 text-[#4a5280]">
+                    <TableCell colSpan={9} className="text-center py-12 text-[#4a5280]">
                       <div className="text-[32px] mb-2">📋</div>
                       <div className="text-[13px]">لا يوجد عملاء</div>
                       <div className="text-[11px] mt-1">اضغط &quot;إضافة عميل&quot; لإضافة عميل جديد</div>
@@ -634,6 +670,61 @@ export function TeleSheet() {
                           <span className="text-[11px] text-[#8892b0]">
                             {formatDate(lead.createdAt)}
                           </span>
+                        </TableCell>
+                        <TableCell>
+                          {lead.sales ? (
+                            <Badge className="bg-[#00d4aa]/15 text-[#00d4aa] text-[10px] border-0 gap-1">
+                              <Send size={8} />
+                              {lead.sales}
+                            </Badge>
+                          ) : transferLeadId === lead.id ? (
+                            <div className="flex flex-col gap-1 min-w-[160px]">
+                              <Select value={transferSales} onValueChange={setTransferSales}>
+                                <SelectTrigger className="h-7 text-[10px] w-full bg-[#0a0d14] border-[#6c63ff]/30 text-[#f0f2ff]">
+                                  <SelectValue placeholder="اختر السيلز" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-[#111520] border-white/[0.08]">
+                                  {team.sales.map((name) => (
+                                    <SelectItem key={name} value={name} className="text-[11px] text-[#f0f2ff]">{name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <input
+                                type="date"
+                                value={transferDate}
+                                onChange={(e) => setTransferDate(e.target.value)}
+                                className="h-6 text-[10px] bg-[#0a0d14] border border-white/[0.08] rounded px-1.5 text-[#f0f2ff] w-full"
+                              />
+                              <input
+                                type="time"
+                                value={transferTime}
+                                onChange={(e) => setTransferTime(e.target.value)}
+                                className="h-6 text-[10px] bg-[#0a0d14] border border-white/[0.08] rounded px-1.5 text-[#f0f2ff] w-full"
+                              />
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => handleTransferToSales(lead.id)}
+                                  className="flex-1 h-6 rounded bg-[#00d4aa]/15 text-[#00d4aa] text-[10px] font-medium hover:bg-[#00d4aa]/25 transition-colors cursor-pointer"
+                                >
+                                  تحويل ✓
+                                </button>
+                                <button
+                                  onClick={() => { setTransferLeadId(null); setTransferSales(''); setTransferDate(''); setTransferTime('') }}
+                                  className="h-6 px-2 rounded bg-red-500/15 text-red-400 text-[10px] hover:bg-red-500/25 transition-colors cursor-pointer"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setTransferLeadId(lead.id); setTransferSales(''); setTransferDate(''); setTransferTime('') }}
+                              className="w-7 h-7 rounded-md bg-[#6c63ff]/10 text-[#6c63ff] flex items-center justify-center hover:bg-[#6c63ff]/20 transition-colors cursor-pointer"
+                              title="تحويل للسيلز"
+                            >
+                              <ArrowLeftRight size={12} />
+                            </button>
+                          )}
                         </TableCell>
                         <TableCell>
                           <button

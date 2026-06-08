@@ -21,6 +21,7 @@ const MyArchive = lazy(() => import('@/components/crm/my-archive').then(m => ({ 
 const DailyReport = lazy(() => import('@/components/crm/daily-report').then(m => ({ default: m.DailyReport })))
 const MeetingsPage = lazy(() => import('@/components/crm/meetings-page').then(m => ({ default: m.MeetingsPage })))
 const CustomersStatus = lazy(() => import('@/components/crm/customers-status').then(m => ({ default: m.CustomersStatus })))
+const EmployeeProfile = lazy(() => import('@/components/crm/employee-profile').then(m => ({ default: m.EmployeeProfile })))
 
 /* ------------------------------------------------------------------ */
 /*  Error Boundary to prevent component crashes from hanging the app   */
@@ -148,6 +149,8 @@ function ViewRouter({ currentView }: { currentView: ViewName }) {
         return <MeetingsPage />
       case 'customers-status':
         return <CustomersStatus />
+      case 'employee-profile':
+        return <EmployeeProfile />
       default:
         return <FallbackView view={currentView} />
     }
@@ -311,6 +314,7 @@ export default function Home() {
               phone: (newRow.phone as string) || undefined,
               customerName: (newRow.customer_name as string) || undefined,
               status: (newRow.status as string) || undefined,
+              salesStatus: (newRow.sales_status as string) || undefined,
               attended: (newRow.attended as string) || undefined,
               sales: (newRow.sales_name as string) ? (newRow.sales_name as string).trim() : undefined,
               meetingDate: (newRow.meeting_date as string) || undefined,

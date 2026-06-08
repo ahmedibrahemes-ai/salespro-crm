@@ -15,6 +15,7 @@ import {
   LogOut,
   Menu,
   X,
+  UserCircle,
 } from 'lucide-react'
 import { useCrmStore, type ViewName } from '@/lib/store'
 
@@ -31,6 +32,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { view: 'dashboard', icon: LayoutDashboard, label: 'الرئيسية', roles: ['tele', 'sales', 'admin'] },
+  { view: 'employee-profile', icon: UserCircle, label: 'صفحتي', roles: ['tele', 'sales', 'admin'] },
   { view: 'my-sheet', icon: Phone, label: 'شيت التيلي', roles: ['tele', 'admin'], showBadge: true },
   { view: 'sales-sheet', icon: Briefcase, label: 'شيت السيلز', roles: ['sales', 'admin'], showBadge: true },
   { view: 'my-meetings', icon: Calendar, label: 'اجتماعاتي', roles: ['tele', 'sales', 'admin'], showBadge: true },

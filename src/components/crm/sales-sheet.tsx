@@ -6,7 +6,7 @@ import type { Lead } from '@/lib/supabase'
 import { apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk } from '@/lib/supabase'
 import {
   Search, Plus, Trash2, Archive, Phone, Filter, X, Check,
-  Calendar, Loader2, ArrowLeftRight, Clock, Video, MapPin,
+  Calendar, Loader2, Clock, Video, MapPin,
   ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
@@ -163,7 +163,6 @@ export function SalesSheet() {
   const [selectedSales, setSelectedSales] = useState<string>(
     currentRole === 'sales' && currentUser ? currentUser : 'all'
   )
-  const [transferLeadId, setTransferLeadId] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
 
   /* ─── Filtered leads ─── */
@@ -269,18 +268,6 @@ export function SalesSheet() {
     }
     clearSelectedLeadIds(viewKey)
   }, [selected, batchRemoveLeadsFromCache, apiDeleteLeadsBulk, addToast, clearSelectedLeadIds])
-
-  /* ─── Transfer lead to another sales ─── */
-  const handleTransfer = useCallback(async (leadId: string, targetSales: string) => {
-    updateLeadInCache(leadId, { sales: targetSales, assignedAt: Date.now() })
-    try {
-      await apiUpdateLead(leadId, { sales: targetSales, assignedAt: Date.now() })
-      addToast('success', `تم تحويل العميل إلى ${targetSales}`)
-    } catch {
-      addToast('error', 'فشل التحويل')
-    }
-    setTransferLeadId(null)
-  }, [updateLeadInCache, addToast])
 
   /* ─── Mark attendance ─── */
   const handleMarkAttendance = useCallback(async (id: string, value: string) => {
@@ -436,14 +423,13 @@ export function SalesSheet() {
                   <TableHead className="text-right text-[11px] text-[#4a5280]">تاريخ الاجتماع</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">الوقت</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280]">الحضور</TableHead>
-                  <TableHead className="text-right text-[11px] text-[#4a5280]">تحويل</TableHead>
                   <TableHead className="text-right text-[11px] text-[#4a5280] w-[50px]">حذف</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedLeads.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12 text-[#4a5280]">
+                    <TableCell colSpan={8} className="text-center py-12 text-[#4a5280]">
                       <div className="text-[32px] mb-2">📊</div>
                       <div className="text-[13px]">لا يوجد عملاء مسندين للسيلز</div>
                     </TableCell>
@@ -544,36 +530,6 @@ export function SalesSheet() {
                               ❌
                             </button>
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          {transferLeadId === lead.id ? (
-                            <Select
-                              value={undefined}
-                              onValueChange={(v) => handleTransfer(lead.id, v)}
-                              onOpenChange={(open) => { if (!open) setTransferLeadId(null) }}
-                            >
-                              <SelectTrigger className="h-7 text-[11px] w-[100px] bg-[#0a0d14] border-[#6c63ff]/30 text-[#f0f2ff]">
-                                <SelectValue placeholder="تحويل إلى..." />
-                              </SelectTrigger>
-                              <SelectContent className="bg-[#111520] border-white/[0.08]">
-                                {team.sales
-                                  .filter((s) => s !== lead.sales)
-                                  .map((name) => (
-                                    <SelectItem key={name} value={name} className="text-[11px] text-[#f0f2ff]">
-                                      {name}
-                                    </SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <button
-                              onClick={() => setTransferLeadId(lead.id)}
-                              className="w-7 h-7 rounded-md bg-[#6c63ff]/10 text-[#6c63ff] flex items-center justify-center hover:bg-[#6c63ff]/20 transition-colors cursor-pointer"
-                              title="تحويل"
-                            >
-                              <ArrowLeftRight size={12} />
-                            </button>
-                          )}
                         </TableCell>
                         <TableCell>
                           <button

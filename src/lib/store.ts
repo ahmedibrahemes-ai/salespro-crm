@@ -679,6 +679,8 @@ export async function validateSession(): Promise<boolean> {
   try {
     const auth = getPersistedAuth()
     if (!auth.userId) return false
+    // Demo mode: if userId starts with "demo-", skip server validation
+    if (auth.userId.startsWith('demo-')) return true
     const res = await fetch('/api/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -431,6 +431,7 @@ export function SalesSheet() {
                     />
                   </TableHead>
                   <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">اسم العميل</TableHead>
+                  <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">البريف</TableHead>
                   <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">رقم التليفون</TableHead>
                   <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">حالة السيلز</TableHead>
                   <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">تاريخ الاجتماع</TableHead>
@@ -442,7 +443,7 @@ export function SalesSheet() {
               <TableBody>
                 {paginatedLeads.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12 text-[#4a5280]">
+                    <TableCell colSpan={9} className="text-center py-12 text-[#4a5280]">
                       <div className="text-[34px] mb-2">📊</div>
                       <div className="text-[16px] font-semibold">لا يوجد عملاء مسندين للسيلز</div>
                     </TableCell>
@@ -465,18 +466,18 @@ export function SalesSheet() {
                           />
                         </TableCell>
                         <TableCell>
-                          <div>
-                            <EditableCell
-                              value={lead.customerName}
-                              onSave={(v) => handleUpdateField(lead.id, 'customerName', v)}
-                              placeholder="اسم العميل"
-                            />
-                            {lead.brief && (
-                              <div className="text-[13px] text-[#4a5280] mt-0.5 truncate max-w-[140px]">
-                                {lead.brief}
-                              </div>
-                            )}
-                          </div>
+                          <EditableCell
+                            value={lead.customerName}
+                            onSave={(v) => handleUpdateField(lead.id, 'customerName', v)}
+                            placeholder="اسم العميل"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditableCell
+                            value={lead.brief || ''}
+                            onSave={(v) => handleUpdateField(lead.id, 'brief', v)}
+                            placeholder="البريف"
+                          />
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1.5">
@@ -519,39 +520,39 @@ export function SalesSheet() {
                           />
                         </TableCell>
                         <TableCell>
-                          <div className="flex gap-1">
+                          <div className="flex gap-1.5">
                             <button
                               onClick={() => handleMarkAttendance(lead.id, 'attended')}
-                              className={`w-6 h-6 rounded-md flex items-center justify-center text-[14px] transition-colors cursor-pointer ${
+                              className={`px-2.5 py-1 rounded-lg text-[13px] font-bold transition-all cursor-pointer border ${
                                 lead.attended === 'attended'
-                                  ? 'bg-[#00d4aa]/25 text-[#00d4aa]'
-                                  : 'bg-[#1c2234] text-[#4a5280] hover:bg-[#00d4aa]/10 hover:text-[#00d4aa]'
+                                  ? 'bg-[#00d4aa]/30 text-[#00d4aa] border-[#00d4aa]/50 shadow-[0_0_8px_rgba(0,212,170,0.3)]'
+                                  : 'bg-[#1c2234] text-[#4a5280] border-transparent hover:bg-[#00d4aa]/10 hover:text-[#00d4aa] hover:border-[#00d4aa]/20'
                               }`}
                               title="حضر"
                             >
-                              ✅
+                              حضر
                             </button>
                             <button
                               onClick={() => handleMarkAttendance(lead.id, 'pending')}
-                              className={`w-6 h-6 rounded-md flex items-center justify-center text-[14px] transition-colors cursor-pointer ${
+                              className={`px-2.5 py-1 rounded-lg text-[13px] font-bold transition-all cursor-pointer border ${
                                 lead.attended === 'pending'
-                                  ? 'bg-[#ffd166]/25 text-[#ffd166]'
-                                  : 'bg-[#1c2234] text-[#4a5280] hover:bg-[#ffd166]/10 hover:text-[#ffd166]'
+                                  ? 'bg-[#ffd166]/30 text-[#ffd166] border-[#ffd166]/50 shadow-[0_0_8px_rgba(255,209,102,0.3)]'
+                                  : 'bg-[#1c2234] text-[#4a5280] border-transparent hover:bg-[#ffd166]/10 hover:text-[#ffd166] hover:border-[#ffd166]/20'
                               }`}
                               title="فى الانتظار"
                             >
-                              ⏳
+                              انتظار
                             </button>
                             <button
                               onClick={() => handleMarkAttendance(lead.id, 'no-show')}
-                              className={`w-6 h-6 rounded-md flex items-center justify-center text-[14px] transition-colors cursor-pointer ${
+                              className={`px-2.5 py-1 rounded-lg text-[13px] font-bold transition-all cursor-pointer border ${
                                 lead.attended === 'no-show'
-                                  ? 'bg-red-500/25 text-red-400'
-                                  : 'bg-[#1c2234] text-[#4a5280] hover:bg-red-500/10 hover:text-red-400'
+                                  ? 'bg-red-500/30 text-red-400 border-red-400/50 shadow-[0_0_8px_rgba(255,107,107,0.3)]'
+                                  : 'bg-[#1c2234] text-[#4a5280] border-transparent hover:bg-red-500/10 hover:text-red-400 hover:border-red-400/20'
                               }`}
                               title="لم يحضر"
                             >
-                              ❌
+                              لم يحضر
                             </button>
                           </div>
                         </TableCell>

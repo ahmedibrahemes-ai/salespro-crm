@@ -673,7 +673,8 @@ export function isDuplicateToast(leadId: string | number): boolean {
 // ===== Real-time Subscription =====
 const PRIORITY_FIELDS = new Set([
   'attended', 'attendance_marked_at', 'attendance_marked_by',
-  'sales_name', 'is_archived', 'archived_at',
+  'sales_name', 'sales_status', 'assigned_at',
+  'is_archived', 'archived_at',
 ])
 
 function hasPriorityChange(

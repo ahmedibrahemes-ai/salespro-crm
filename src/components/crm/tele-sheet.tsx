@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback } from 'react'
 import { useCrmStore, CONTACT_RESULTS, STATUSES, ATTENDANCE_STATUSES, formatDate, getDateRange } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
-import { apiCreateLead, apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk } from '@/lib/supabase'
+import { apiCreateLead, apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk, apiBroadcastChange } from '@/lib/supabase'
 import {
   Search, Plus, Trash2, Archive, Phone, Filter, X, Check, ChevronDown,
   UserPlus, Calendar, MoreHorizontal, Loader2, AlertTriangle,
@@ -341,6 +341,23 @@ export function TeleSheet() {
     try {
       await apiUpdateLead(leadId, updates)
       addToast('success', `تم تحويل العميل إلى ${transferSales} بنجاح ✅`)
+      // Broadcast the transfer to notify sales person instantly
+      apiBroadcastChange({
+        type: 'assignment',
+        leadId,
+        data: {
+          sales: transferSales,
+          meetingDate: transferDate,
+          meetingTime: transferTime || '',
+          customerName: leads.find(l => l.id === leadId)?.customerName || '',
+          status: 'meeting-done',
+          salesStatus: 'new',
+          assignedAt: Date.now(),
+        },
+        by: currentUser || '',
+        byRole: currentRole || 'tele',
+        at: Date.now(),
+      })
     } catch {
       addToast('error', 'فشل التحويل')
     }

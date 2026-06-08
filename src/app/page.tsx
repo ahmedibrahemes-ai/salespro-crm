@@ -2,7 +2,7 @@
 
 import { useEffect, Component, lazy, Suspense, useMemo } from 'react'
 import { useCrmStore, hydrateAuth, type ViewName } from '@/lib/store'
-import { apiGetLeads, apiGetArchivedLeads, apiGetTeam, apiSubscribeToLeads, apiUnsubscribe } from '@/lib/supabase'
+import { apiGetLeads, apiGetArchivedLeads, apiGetTeam, apiSubscribeToLeads, apiUnsubscribe, type BroadcastMessage } from '@/lib/supabase'
 import { LoginScreen } from '@/components/crm/login-screen'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Topbar } from '@/components/layout/topbar'
@@ -311,16 +311,33 @@ export default function Home() {
           const newRow = payload.new as Record<string, unknown>
           if (newRow?.id) {
             updateLeadInCache(String(newRow.id), {
-              phone: (newRow.phone as string) || undefined,
-              customerName: (newRow.customer_name as string) || undefined,
-              status: (newRow.status as string) || undefined,
-              salesStatus: (newRow.sales_status as string) || undefined,
-              attended: (newRow.attended as string) || undefined,
-              sales: (newRow.sales_name as string) ? (newRow.sales_name as string).trim() : undefined,
-              meetingDate: (newRow.meeting_date as string) || undefined,
-              meetingTime: (newRow.meeting_time as string) || undefined,
+              phone: (newRow.phone as string) ?? undefined,
+              customerName: (newRow.customer_name as string) ?? undefined,
+              storeUrl: (newRow.store_url as string) ?? undefined,
+              brief: (newRow.brief as string) ?? undefined,
+              contactResult: (newRow.contact_result as string) ?? undefined,
+              status: (newRow.status as string) ?? undefined,
+              salesStatus: (newRow.sales_status as string) ?? undefined,
+              attended: (newRow.attended as string) ?? undefined,
+              sales: newRow.sales_name ? String(newRow.sales_name).trim() : null,
+              meetingDate: (newRow.meeting_date as string) ?? undefined,
+              meetingTime: (newRow.meeting_time as string) ?? undefined,
+              meetingType: (newRow.meeting_type as string) ?? undefined,
+              meetingLink: (newRow.meeting_link as string) ?? undefined,
+              assignedAt: newRow.assigned_at ? new Date(newRow.assigned_at as string).getTime() : null,
+              isArchived: (newRow.is_archived as boolean) ?? undefined,
             })
           }
+        } else if (eventType === 'BROADCAST') {
+          const msg = payload.broadcastMessage as BroadcastMessage | undefined
+          if (!msg) return
+          if (msg.type === 'assignment') {
+            const { currentUser, currentRole, addToast } = useCrmStore.getState()
+            if (currentRole === 'sales' && msg.data.sales === currentUser) {
+              addToast('info', `🔄 اجتماع جديد من ${msg.by} — ${msg.data.customerName || 'عميل'}`)
+            }
+          }
+          return
         } else if (eventType === 'DELETE') {
           const old = payload.old as Record<string, unknown>
           if (old?.id) removeLeadFromCache(String(old.id))

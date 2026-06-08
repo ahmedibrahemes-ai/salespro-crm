@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, isAdminAvailable, createAuthenticatedClient, createAnonClient } from '@/lib/supabase-admin'
+import { normalizePhone } from '@/lib/crm-utils'
 
 /**
  * GET /api/duplicates
@@ -17,18 +18,6 @@ import { getSupabaseAdmin, isAdminAvailable, createAuthenticatedClient, createAn
  * Returns a map of normalized phone → { originalId, originalTele, originalSales, duplicateIds }
  * Only includes phones that appear 2+ times across non-archived leads.
  */
-
-/** Normalize phone number (same logic as leads route) */
-function normalizePhone(input: string): string {
-  if (!input) return ''
-  let p = String(input).replace(/[\s\-()]/g, '')
-  if (p.startsWith('+966')) return p
-  if (p.startsWith('00966')) return '+' + p.substring(2)
-  if (p.startsWith('966')) return '+' + p
-  if (p.startsWith('05') && p.length >= 10) return '+966' + p.substring(1)
-  if (p.startsWith('5') && p.length >= 9) return '+966' + p
-  return p
-}
 
 /** Build the duplicates response from a flat list of leads */
 function buildDuplicatesResponse(

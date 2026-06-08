@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Lead } from './supabase'
+import { normalizePhone } from '@/lib/crm-utils'
 
 // ===== Contact Results =====
 export const CONTACT_RESULTS = [
@@ -343,14 +344,14 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
       const existing = state.leadsById[id]
       if (!existing) return state
 
-      const newLeadsById = { ...state.leadsById, [id]: { ...existing, ...updates } }
+      const newLeadsById = { ...state.leadsById, [id]: { ...existing, ...updates, notes: updates.notes !== undefined ? updates.notes : existing.notes } }
       let newLeads = state.leads
       let newArchivedLeads = state.archivedLeads
 
       if (!existing.isArchived) {
-        newLeads = state.leads.map((l) => (l.id === id ? { ...l, ...updates } : l))
+        newLeads = state.leads.map((l) => (l.id === id ? { ...l, ...updates, notes: updates.notes !== undefined ? updates.notes : l.notes } : l))
       } else {
-        newArchivedLeads = state.archivedLeads.map((l) => (l.id === id ? { ...l, ...updates } : l))
+        newArchivedLeads = state.archivedLeads.map((l) => (l.id === id ? { ...l, ...updates, notes: updates.notes !== undefined ? updates.notes : l.notes } : l))
       }
 
       return { leads: newLeads, archivedLeads: newArchivedLeads, leadsById: newLeadsById }
@@ -716,17 +717,6 @@ export function hydrateAuth() {
 }
 
 // ===== Utility Functions =====
-export function normalizePhone(input: string): string {
-  if (!input) return ''
-  let p = String(input).replace(/[\s\-()]/g, '')
-  if (p.startsWith('+966')) return p
-  if (p.startsWith('00966')) return '+' + p.substring(2)
-  if (p.startsWith('966')) return '+' + p
-  if (p.startsWith('05') && p.length >= 10) return '+966' + p.substring(1)
-  if (p.startsWith('5') && p.length >= 9) return '+966' + p
-  return p
-}
-
 export function isValidSaudiPhone(p: string): boolean {
   return /^\+9665[0-9]{8}$/.test(p)
 }

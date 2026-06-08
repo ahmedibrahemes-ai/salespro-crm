@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { DbLead, safeTimestamp, safeDate, safeTime, normalizeAttended } from '@/lib/crm-utils'
 
 // ===== Client-side Supabase client =====
 // NO hardcoded credentials — environment variables only
@@ -11,11 +12,14 @@ if (!isConfigured) {
   console.warn('[supabase] NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY is not set. App will run in demo mode without database.')
 }
 
-// Create client with a dummy URL if not configured, so the app still renders
-// The actual API calls will gracefully fail/return empty data
+// Create client only if configured — otherwise use a null-like placeholder
+// that won't expose any credentials in source code
+const DUMMY_URL = 'https://placeholder.supabase.co'
+const DUMMY_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder'
+
 export const supabase = createClient(
-  SUPABASE_URL || 'https://placeholder.supabase.co',
-  SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE2NzYzNjM2MDAsImV4cCI6MTk5MjAyMDAwMH0.placeholder',
+  SUPABASE_URL || DUMMY_URL,
+  SUPABASE_ANON_KEY || DUMMY_KEY,
   {
     auth: {
       persistSession: true,
@@ -100,35 +104,6 @@ export interface Lead {
 }
 
 // ===== DB Row Types =====
-interface DbLead {
-  id: string
-  store_url: string | null
-  phone: string | null
-  customer_name: string | null
-  customer_type: string | null
-  brief: string | null
-  contact_result: string | null
-  contact_result_at: string | null
-  tele_name: string | null
-  sales_name: string | null
-  meeting_date: string | null
-  meeting_time: string | null
-  meeting_type: string | null
-  meeting_link: string | null
-  status: string | null
-  sales_status: string | null
-  attended: string | null
-  attendance_marked_at: string | null
-  attendance_marked_by: string | null
-  cancelled_from: string | null
-  cancelled_at: string | null
-  created_at: string | null
-  assigned_at: string | null
-  is_archived: boolean | null
-  archived_at: string | null
-  archived_by: string | null
-}
-
 interface DbNote {
   id: string
   by_name: string | null
@@ -138,46 +113,6 @@ interface DbNote {
 }
 
 // ===== Helpers =====
-function safeTimestamp(val: string | number | null | undefined): number | null {
-  if (val === null || val === undefined) return null
-  if (typeof val === 'number') return val
-  if (typeof val === 'string') {
-    const trimmed = val.trim()
-    if (!trimmed) return null
-    if (/^\d+$/.test(trimmed)) return parseInt(trimmed, 10)
-    const d = new Date(trimmed)
-    return isNaN(d.getTime()) ? null : d.getTime()
-  }
-  return null
-}
-
-function safeDate(val: string | null | undefined): string | null {
-  if (!val || typeof val !== 'string') return null
-  const trimmed = val.trim()
-  if (!trimmed) return null
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
-  const d = new Date(trimmed)
-  if (isNaN(d.getTime())) return null
-  return d.toISOString().split('T')[0]
-}
-
-function safeTime(val: string | null | undefined): string | null {
-  if (!val || typeof val !== 'string') return null
-  const trimmed = val.trim()
-  if (!trimmed) return null
-  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(trimmed)) return trimmed
-  return null
-}
-
-export function normalizeAttended(val: string | boolean | null | undefined): string | null {
-  if (val === null || val === undefined) return null
-  if (typeof val === 'boolean') return val ? 'attended' : 'no-show'
-  const str = String(val).trim().toLowerCase()
-  if (str === 'true' || str === 'attended') return 'attended'
-  if (str === 'false' || str === 'no-show') return 'no-show'
-  if (str === 'pending') return null
-  return str || null
-}
 
 function leadFromDb(row: DbLead): Lead {
   return {

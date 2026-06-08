@@ -4,6 +4,7 @@ import { useMemo, useState, useCallback } from 'react'
 import { useCrmStore, ATTENDANCE_STATUSES, formatDate } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import { apiUpdateLead } from '@/lib/supabase'
+import { isTodayDateString, isThisWeek } from '@/lib/crm-utils'
 import {
   Calendar, Clock, Video, MapPin, Phone, ExternalLink,
   Check, X, CalendarDays, CalendarRange,
@@ -14,25 +15,6 @@ import { Badge } from '@/components/ui/badge'
 /* ═══════════════════════════════════════════════════════
    Date helpers
    ═══════════════════════════════════════════════════════ */
-function isToday(dateStr: string): boolean {
-  if (!dateStr) return false
-  const today = new Date().toISOString().split('T')[0]
-  return dateStr === today
-}
-
-function isThisWeek(dateStr: string): boolean {
-  if (!dateStr) return false
-  const d = new Date(dateStr)
-  const now = new Date()
-  const startOfWeek = new Date(now)
-  const dayOfWeek = now.getDay()
-  const daysSinceSaturday = dayOfWeek === 6 ? 0 : dayOfWeek + 1
-  startOfWeek.setDate(now.getDate() - daysSinceSaturday)
-  startOfWeek.setHours(0, 0, 0, 0)
-  const endOfWeek = new Date(startOfWeek)
-  endOfWeek.setDate(startOfWeek.getDate() + 7)
-  return d >= startOfWeek && d < endOfWeek
-}
 
 function isUpcoming(dateStr: string): boolean {
   if (!dateStr) return false
@@ -225,7 +207,7 @@ export function MyMeetings() {
 
     // Time filter
     if (timeFilter === 'today') {
-      result = result.filter((l) => isToday(l.meetingDate))
+      result = result.filter((l) => isTodayDateString(l.meetingDate))
     } else if (timeFilter === 'week') {
       result = result.filter((l) => isThisWeek(l.meetingDate))
     }
@@ -253,7 +235,7 @@ export function MyMeetings() {
       return true
     })
 
-    const today = allMyMeetings.filter((l) => isToday(l.meetingDate))
+    const today = allMyMeetings.filter((l) => isTodayDateString(l.meetingDate))
     const attended = allMyMeetings.filter((l) => l.attended === 'attended')
     const noShow = allMyMeetings.filter((l) => l.attended === 'no-show')
     const pending = allMyMeetings.filter((l) => !l.attended || l.attended === 'pending')

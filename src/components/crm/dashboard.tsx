@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useCrmStore } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
+import { isTodayTimestamp } from '@/lib/crm-utils'
 import {
   Flame, UserPlus, Phone, CalendarCheck, UserCheck, Percent,
   TrendingUp, TrendingDown, PhoneCall, MessageCircle, Trophy, Bot,
@@ -44,17 +45,6 @@ interface ApiStats {
 /* ═══════════════════════════════════════════════════════
    Helpers
    ═══════════════════════════════════════════════════════ */
-
-function isToday(timestamp: number): boolean {
-  if (!timestamp) return false
-  const d = new Date(timestamp)
-  const now = new Date()
-  return (
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate()
-  )
-}
 
 function isOverdueLead(lead: Lead): boolean {
   if (lead.isArchived) return false

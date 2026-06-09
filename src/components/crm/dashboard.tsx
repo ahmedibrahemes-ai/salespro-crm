@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { useCrmStore } from '@/lib/store'
+import { useCrmStore, getDateRange } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import { isTodayTimestamp } from '@/lib/crm-utils'
 import {
@@ -304,17 +304,22 @@ export function Dashboard() {
     [weeklyCallsData]
   )
 
+  /* ─── Call Stats Period Filter ─── */
+  const [callStatsPeriod, setCallStatsPeriod] = useState<'today' | 'month' | '3months'>('today')
+
   /* ─── Call Stats (إحصائيات المكالمات) ─── */
   const callStats = useMemo(() => {
-    // Use contactResultAt-based filtering for all-time stats
+    // Get the time range based on the selected period
+    const { from, to } = getDateRange(callStatsPeriod)
+
     let totalCalls = 0
     let answered = 0
     let unanswered = 0
 
     for (const l of myLeads) {
       if (l.contactResult && l.contactResult !== 'none' && l.contactResult !== '') {
-        // Only count leads that have a contactResultAt (event timestamp)
-        if (l.contactResultAt) {
+        // Only count calls within the selected period (based on contactResultAt)
+        if (l.contactResultAt && l.contactResultAt >= from && l.contactResultAt < to) {
           totalCalls++
           if (l.contactResult === 'replied') {
             answered++
@@ -329,7 +334,7 @@ export function Dashboard() {
     const answerRate = totalCalls > 0 ? Math.round((answered / totalCalls) * 100) : 0
 
     return { totalCalls, answered, unanswered, answerRate }
-  }, [myLeads])
+  }, [myLeads, callStatsPeriod])
 
   /* ─── RANK (مركزك) — Tele team only, based on meetings booked ─── */
   const rankInfo = useMemo(() => {
@@ -738,6 +743,27 @@ export function Dashboard() {
             <div className="flex items-center justify-center gap-2 text-[19px] font-extrabold text-[#ffffff] mb-4">
               <Phone size={20} className="text-[#8b83ff]" />
               إحصائيات المكالمات
+            </div>
+
+            {/* Period filter tabs */}
+            <div className="flex justify-center gap-2 mb-4">
+              {([
+                { key: 'today' as const, label: 'اليوم' },
+                { key: 'month' as const, label: 'الشهر' },
+                { key: '3months' as const, label: '3 شهور' },
+              ]).map((opt) => (
+                <button
+                  key={opt.key}
+                  onClick={() => setCallStatsPeriod(opt.key)}
+                  className={`px-3 py-1.5 rounded-xl text-[13px] font-bold transition-all cursor-pointer border ${
+                    callStatsPeriod === opt.key
+                      ? 'bg-[#6c63ff]/20 border-[#6c63ff] text-[#6c63ff]'
+                      : 'bg-[#0a0d14] border-white/[0.06] text-[#8892b0] hover:border-white/[0.12]'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
 
             {/* Total calls */}

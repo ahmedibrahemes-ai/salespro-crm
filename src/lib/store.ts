@@ -776,8 +776,15 @@ export function getDateRange(
       break
     }
     case 'month': {
+      // Month starts from day 1 to end of month
       from = new Date(today.getFullYear(), today.getMonth(), 1)
-      to = new Date(today.getTime() + 86400000)
+      to = new Date(today.getFullYear(), today.getMonth() + 1, 1) // first day of next month
+      break
+    }
+    case '3months': {
+      // 3 months: from 2 months ago day 1 to end of current month
+      from = new Date(today.getFullYear(), today.getMonth() - 2, 1)
+      to = new Date(today.getFullYear(), today.getMonth() + 1, 1) // first day of next month
       break
     }
     case 'custom':

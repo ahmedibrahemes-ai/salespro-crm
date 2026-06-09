@@ -144,12 +144,22 @@ function LazySelectCell({
 
 /* ═══════════════════════════════════════════════════════
    Attendance Badge — read-only for tele sheet
+   Logic:
+   - Not transferred (no sales) → empty (—)
+   - Transferred but attended is null/pending → ⏳ في الانتظار
+   - attended === 'attended' → ✅ حضر
+   - attended === 'no-show' → ❌ لم يحضر
    ═══════════════════════════════════════════════════════ */
-function AttendanceBadge({ value }: { value: string | null }) {
+function AttendanceBadge({ value, isTransferred }: { value: string | null; isTransferred: boolean }) {
+  // Not transferred → empty cell
+  if (!isTransferred) {
+    return <span className="text-[#4a5280] text-[13px]">—</span>
+  }
+  // Transferred but no attendance result yet → waiting
   if (!value || value === 'pending') {
     return (
       <Badge className="bg-amber-500/15 text-amber-400 text-[11px] font-bold border-0">
-        ⏳ انتظار
+        ⏳ في الانتظار
       </Badge>
     )
   }
@@ -169,7 +179,7 @@ function AttendanceBadge({ value }: { value: string | null }) {
   }
   return (
     <Badge className="bg-amber-500/15 text-amber-400 text-[11px] font-bold border-0">
-      ⏳ انتظار
+      ⏳ في الانتظار
     </Badge>
   )
 }
@@ -192,7 +202,6 @@ interface TransferData {
   storeUrl: string
   brief: string
   meetingType: string
-  meetingDate: string
   meetingTime: string
   sales: string
 }
@@ -204,7 +213,6 @@ function TransferModal({ lead, open, onClose, onSubmit, salesTeam, saving }: Tra
     storeUrl: lead?.storeUrl || '',
     brief: lead?.brief || '',
     meetingType: lead?.meetingType || '',
-    meetingDate: lead?.meetingDate || '',
     meetingTime: lead?.meetingTime || '',
     sales: lead?.sales || '',
   }))
@@ -333,20 +341,9 @@ function TransferModal({ lead, open, onClose, onSubmit, salesTeam, saving }: Tra
             </div>
           )}
 
-          {/* Meeting Date */}
-          <div className="space-y-1">
-            <label className="text-[12px] font-semibold text-[#8892b0]">تاريخ الاجتماع</label>
-            <Input
-              type="date"
-              value={form.meetingDate}
-              onChange={(e) => updateField('meetingDate', e.target.value)}
-              className="h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]"
-            />
-          </div>
-
           {/* Meeting Time */}
           <div className="space-y-1">
-            <label className="text-[12px] font-semibold text-[#8892b0]">وقت الاجتماع</label>
+            <label className="text-[12px] font-semibold text-[#8892b0]">ميعاد الاجتماع</label>
             <Input
               type="time"
               value={form.meetingTime}
@@ -613,10 +610,6 @@ export function TeleSheet() {
       addToast('warning', 'اختر السيلز أولاً')
       return
     }
-    if (!formData.meetingDate) {
-      addToast('warning', 'حدد تاريخ الاجتماع')
-      return
-    }
     if (!formData.brief.trim()) {
       addToast('warning', 'البريف مطلوب للتحويل')
       return
@@ -625,7 +618,6 @@ export function TeleSheet() {
     setTransferSaving(true)
     const updates: Partial<Lead> = {
       sales: formData.sales,
-      meetingDate: formData.meetingDate,
       meetingTime: formData.meetingTime || '',
       assignedAt: Date.now(),
       salesStatus: 'new',
@@ -649,7 +641,6 @@ export function TeleSheet() {
         leadId: transferLeadId,
         data: {
           sales: formData.sales,
-          meetingDate: formData.meetingDate,
           meetingTime: formData.meetingTime || '',
           customerName: formData.customerName,
           salesStatus: 'new',
@@ -1052,7 +1043,7 @@ export function TeleSheet() {
 
                         {/* الحضور — READ-ONLY badge */}
                         <TableCell>
-                          <AttendanceBadge value={lead.attended} />
+                          <AttendanceBadge value={lead.attended} isTransferred={transferred} />
                         </TableCell>
 
                         {/* تحويل — Transfer button / transferred info */}

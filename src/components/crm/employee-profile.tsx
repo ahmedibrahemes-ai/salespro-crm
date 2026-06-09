@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useCallback, useState } from 'react'
+import { useMemo, useCallback, useState, useEffect, useRef } from 'react'
 import { useCrmStore, STATUSES, SALES_STATUSES, ATTENDANCE_STATUSES, CONTACT_RESULTS, formatDate, formatRelativeTime } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import { apiUpdateLead } from '@/lib/supabase'
@@ -15,6 +15,122 @@ import {
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+
+/* ═══════════════════════════════════════════════════════
+   Animated Counter — counts from 0 to target value
+   Uses direct DOM manipulation to avoid setState-in-effect lint
+   ═══════════════════════════════════════════════════════ */
+function AnimatedCounter({ value, duration = 1200 }: { value: number; duration?: number }) {
+  const spanRef = useRef<HTMLSpanElement>(null)
+  const rafRef = useRef<number>(0)
+
+  useEffect(() => {
+    const startTime = performance.now()
+    const animate = (timestamp: number) => {
+      const progress = Math.min((timestamp - startTime) / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      if (spanRef.current) {
+        spanRef.current.textContent = String(Math.floor(eased * value))
+      }
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(animate)
+      }
+    }
+    rafRef.current = requestAnimationFrame(animate)
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [value, duration])
+
+  return <span ref={spanRef}>0</span>
+}
+
+/* ═══════════════════════════════════════════════════════
+   CSS Keyframes for animations
+   ═══════════════════════════════════════════════════════ */
+const PROFILE_ANIMATIONS_CSS = `
+@keyframes ep-fill-bar {
+  from { width: 0%; }
+}
+@keyframes ep-pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+@keyframes ep-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(108,99,255,0.15); }
+  50% { box-shadow: 0 0 18px rgba(108,99,255,0.3); }
+}
+.ep-bar-animated {
+  animation: ep-fill-bar 1.2s cubic-bezier(0.4,0,0.2,1) forwards;
+}
+.ep-pulse-high {
+  animation: ep-pulse-soft 2s ease-in-out infinite;
+}
+.ep-glow-hover:hover {
+  animation: ep-glow 1s ease-in-out;
+}
+.ep-stat-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.ep-stat-card:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 16px rgba(108,99,255,0.12);
+}
+.ep-ratio-card {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  cursor: pointer;
+}
+.ep-ratio-card:hover {
+  transform: scale(1.03);
+  box-shadow: 0 0 20px rgba(108,99,255,0.2);
+}
+.ep-tooltip {
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.2s, visibility 0.2s;
+}
+.ep-ratio-card:hover .ep-tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+`
+
+/* ═══════════════════════════════════════════════════════
+   Performance emoji indicator
+   ═══════════════════════════════════════════════════════ */
+function performanceEmoji(value: number): string {
+  if (value >= 70) return '🟢'
+  if (value >= 40) return '🟡'
+  return '🔴'
+}
+
+/* ═══════════════════════════════════════════════════════
+   Trend indicator (↑ ↓ =)
+   ═══════════════════════════════════════════════════════ */
+function TrendIndicator({ today, yesterday }: { today: number; yesterday: number }) {
+  if (today > yesterday) return <span className="text-[#00d4aa] text-[11px] font-bold">↑{today - yesterday}</span>
+  if (today < yesterday) return <span className="text-[#ff6b6b] text-[11px] font-bold">↓{yesterday - today}</span>
+  if (today === yesterday && today > 0) return <span className="text-[#4a5280] text-[11px] font-bold">=</span>
+  return null
+}
+
+/* ═══════════════════════════════════════════════════════
+   Motivational feedback text
+   ═══════════════════════════════════════════════════════ */
+function motivationalText(key: string, value: number): string | null {
+  if (key === 'calls' && value === 0) return 'ابدأ بالاتصال! 📞'
+  if (key === 'calls' && value >= 20) return 'أداء رائع! 🚀'
+  if (key === 'calls' && value >= 10) return 'استمر! 💪'
+  if (key === 'answered' && value >= 10) return 'ممتاز! 🌟'
+  if (key === 'meetings' && value >= 5) return 'رائع! 🎯'
+  if (key === 'meetings' && value === 0) return 'حدد اجتماعات! 📅'
+  if (key === 'attended' && value >= 3) return 'حضور ممتاز! ✨'
+  if (key === 'transferred' && value >= 3) return 'تحويلات قوية! 🔥'
+  if (key === 'totalClients' && value === 0) return 'أضف عملاء! 👥'
+  if (key === 'contacted' && value >= 10) return 'تواصل ممتاز! 📱'
+  if (key === 'salesMeetings' && value === 0) return 'لا اجتماعات اليوم 📅'
+  if (key === 'salesAttended' && value >= 2) return 'حضور ممتاز! ✨'
+  if (key === 'salesNew' && value >= 3) return 'عملاء جدد! 🆕'
+  return null
+}
 
 /* ═══════════════════════════════════════════════════════
    Employee Profile — Comprehensive Personal Dashboard
@@ -35,8 +151,22 @@ export function EmployeeProfile() {
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [changingPassword, setChangingPassword] = useState(false)
 
+  /* ─── Mount animation trigger ─── */
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 50)
+    return () => clearTimeout(t)
+  }, [])
+
   /* ─── Date filter for tele stats ─── */
   const [teleFilterDate, setTeleFilterDate] = useState(new Date())
+
+  // Reset mounted when filter date changes to re-trigger animations
+  useEffect(() => {
+    setMounted(false)
+    const t = setTimeout(() => setMounted(true), 50)
+    return () => clearTimeout(t)
+  }, [teleFilterDate])
 
   const goToPrevDay = useCallback(() => {
     setTeleFilterDate((prev) => {
@@ -194,12 +324,46 @@ export function EmployeeProfile() {
     const attendanceRate = (attended + noShow) > 0 ? Math.round((attended / (attended + noShow)) * 100) : 0
     const transferRate = meetings > 0 ? Math.round((transferred / meetings) * 100) : 0
 
+    // Yesterday stats for trend comparison
+    const prevDay = new Date(teleFilterDate)
+    prevDay.setDate(prevDay.getDate() - 1)
+    const isOnPrevDay = (ts: number | undefined | null) => {
+      if (!ts) return false
+      const d = new Date(ts)
+      return (
+        d.getFullYear() === prevDay.getFullYear() &&
+        d.getMonth() === prevDay.getMonth() &&
+        d.getDate() === prevDay.getDate()
+      )
+    }
+    const prevDayStr = `${prevDay.getFullYear()}-${String(prevDay.getMonth() + 1).padStart(2, '0')}-${String(prevDay.getDate()).padStart(2, '0')}`
+    const prevDayLeads = myLeads.filter((l) => {
+      return isOnPrevDay(l.createdAt) || isOnPrevDay(l.contactResultAt) || l.meetingDate === prevDayStr || isOnPrevDay(l.assignedAt)
+    })
+    const yCalls = prevDayLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length
+    const yAnswered = prevDayLeads.filter((l) => l.contactResult === 'replied').length
+    const yUnanswered = prevDayLeads.filter((l) => l.contactResult === 'no-reply').length
+    const yMeetings = prevDayLeads.filter((l) => l.meetingDate).length
+    const yAttended = prevDayLeads.filter((l) => l.attended === 'attended').length
+    const yWaiting = prevDayLeads.filter((l) => !l.attended || l.attended === 'pending' || l.attended === '').length
+    const yNoShow = prevDayLeads.filter((l) => l.attended === 'no-show').length
+    const yTransferred = prevDayLeads.filter((l) => l.sales && l.meetingDate).length
+    const yTotalClients = prevDayLeads.length
+    const yContactedClients = prevDayLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length
+    const yNotInterested = prevDayLeads.filter((l) => l.status === 'not-interested').length
+    const yFollowup1 = prevDayLeads.filter((l) => l.status === 'followup-1').length
+    const yFollowup2 = prevDayLeads.filter((l) => l.status === 'followup-2').length
+    const yFollowup3 = prevDayLeads.filter((l) => l.status === 'followup-3').length
+
     return {
       total, totalAll, contacted, meetings, transferred, totalCalls,
       answeredCalls, unansweredCalls, attended, waiting, noShow,
       totalClients, contactedClients, noReplyClients, notInterested,
       followup1, followup2, followup3,
       contactRate, answeredRate, meetingRate, attendanceRate, transferRate,
+      // Yesterday comparison data
+      yCalls, yAnswered, yUnanswered, yMeetings, yAttended, yWaiting, yNoShow, yTransferred,
+      yTotalClients, yContactedClients, yNotInterested, yFollowup1, yFollowup2, yFollowup3,
     }
   }, [myLeads, currentRole, teleFilterDate, teleFilterDateStr])
 
@@ -222,7 +386,26 @@ export function EmployeeProfile() {
     const todayPending = todayMeetings.filter((l) => !l.attended || l.attended === 'pending').length
     const todayNew = myLeads.filter((l) => l.assignedAt && l.assignedAt >= todayStart).length
 
-    return { total, meetings, attended, noShow, pending, closedWon, attendanceRate, closingRate, inProgress, todayMeetings, todayAttended, todayPending, todayNew }
+    // Yesterday comparison (simplified — count leads with yesterday's meeting date)
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
+    const yMeetingsCount = myLeads.filter((l) => l.meetingDate === yesterdayStr).length
+    const yAttendedCount = myLeads.filter((l) => l.meetingDate === yesterdayStr && l.attended === 'attended').length
+    const yPendingCount = myLeads.filter((l) => l.meetingDate === yesterdayStr && (!l.attended || l.attended === 'pending')).length
+    const yNewCount = myLeads.filter((l) => {
+      if (!l.assignedAt) return false
+      const assignedDate = new Date(l.assignedAt)
+      return assignedDate.getFullYear() === yesterday.getFullYear() &&
+        assignedDate.getMonth() === yesterday.getMonth() &&
+        assignedDate.getDate() === yesterday.getDate()
+    }).length
+
+    return {
+      total, meetings, attended, noShow, pending, closedWon, attendanceRate, closingRate, inProgress,
+      todayMeetings, todayAttended, todayPending, todayNew,
+      yMeetingsCount, yAttendedCount, yPendingCount, yNewCount,
+    }
   }, [myLeads, currentRole, todayStr, todayStart])
 
   /* ─── Recent Transfer Activity ─── */
@@ -253,13 +436,6 @@ export function EmployeeProfile() {
     }
     return []
   }, [myLeads, currentRole, salesStats, todayStr])
-
-  /* ─── Recent leads ─── */
-  const recentLeads = useMemo(() => {
-    return [...myLeads]
-      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
-      .slice(0, 10)
-  }, [myLeads])
 
   /* ─── Status distribution ─── */
   const statusDistribution = useMemo(() => {
@@ -374,6 +550,9 @@ export function EmployeeProfile() {
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200" dir="rtl" style={{ fontFamily: 'Cairo, sans-serif' }}>
+      {/* Inject CSS animations */}
+      <style>{PROFILE_ANIMATIONS_CSS}</style>
+
       {/* ═══════════════════════════════════════════
          1. PERSONAL HEADER
          ═══════════════════════════════════════════ */}
@@ -512,6 +691,7 @@ export function EmployeeProfile() {
               <div className="relative">
                 <input
                   type="date"
+                  lang="ar-EG"
                   value={teleFilterDateStr}
                   onChange={(e) => {
                     if (e.target.value) {
@@ -542,7 +722,7 @@ export function EmployeeProfile() {
             </div>
           </div>
 
-          {/* Call Stats */}
+          {/* Call Stats — Interactive */}
           <div>
             <div className="flex items-center gap-2 mb-2">
               <PhoneCall size={14} className="text-[#00d4aa]" />
@@ -550,30 +730,42 @@ export function EmployeeProfile() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: 'عدد المكالمات الكلية', value: teleStats.totalCalls, color: '#6c63ff', icon: PhoneCall },
-                { label: 'عدد المكالمات المجابة', value: teleStats.answeredCalls, color: '#00d4aa', icon: Phone },
-                { label: 'عدد المكالمات الغير مجابة', value: teleStats.unansweredCalls, color: '#ff6b6b', icon: PhoneOff },
-                { label: 'عدد الاجتماعات', value: teleStats.meetings, color: '#ffd166', icon: Calendar },
+                { label: 'عدد المكالمات الكلية', value: teleStats.totalCalls, yValue: teleStats.yCalls, color: '#6c63ff', icon: PhoneCall, motKey: 'calls', onClick: 'my-sheet' as const },
+                { label: 'عدد المكالمات المجابة', value: teleStats.answeredCalls, yValue: teleStats.yAnswered, color: '#00d4aa', icon: Phone, motKey: 'answered', onClick: 'my-sheet' as const },
+                { label: 'عدد المكالمات الغير مجابة', value: teleStats.unansweredCalls, yValue: teleStats.yUnanswered, color: '#ff6b6b', icon: PhoneOff, motKey: '', onClick: 'my-sheet' as const },
+                { label: 'عدد الاجتماعات', value: teleStats.meetings, yValue: teleStats.yMeetings, color: '#ffd166', icon: Calendar, motKey: 'meetings', onClick: 'my-meetings' as const },
               ].map((k, i) => {
                 const Icon = k.icon
+                const motText = motivationalText(k.motKey, k.value)
+                const isHigh = k.value >= 10
                 return (
-                  <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-4">
+                  <div
+                    key={i}
+                    onClick={() => handleQuickAction(k.onClick)}
+                    className={`ep-stat-card ep-glow-hover bg-[#111520] border border-white/[0.06] rounded-xl p-4 cursor-pointer ${isHigh ? 'ep-pulse-high' : ''}`}
+                  >
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[12px] font-bold text-[#8892b0]">{k.label}</span>
-                      <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${k.color}12` }}>
-                        <Icon size={14} style={{ color: k.color }} />
+                      <div className="flex items-center gap-1.5">
+                        <TrendIndicator today={k.value} yesterday={k.yValue} />
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${k.color}12` }}>
+                          <Icon size={14} style={{ color: k.color }} />
+                        </div>
                       </div>
                     </div>
                     <div className="text-[22px] font-bold" style={{ color: k.color }}>
-                      {k.value}
+                      <AnimatedCounter value={k.value} />
                     </div>
+                    {motText && (
+                      <div className="text-[11px] font-semibold mt-1" style={{ color: k.color }}>{motText}</div>
+                    )}
                   </div>
                 )
               })}
             </div>
           </div>
 
-          {/* Attendance Stats */}
+          {/* Attendance Stats — Interactive */}
           <div>
             <div className="flex items-center gap-2 mb-2">
               <UserCheck size={14} className="text-[#00d4aa]" />
@@ -581,30 +773,42 @@ export function EmployeeProfile() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: 'عدد العملاء الذين حضروا', value: teleStats.attended, color: '#00d4aa', icon: CheckCircle2 },
-                { label: 'عدد العملاء في الانتظار', value: teleStats.waiting, color: '#ffd166', icon: HourglassIcon },
-                { label: 'عدد العملاء لم يحضروا', value: teleStats.noShow, color: '#ff6b6b', icon: UserX },
-                { label: 'عدد التحويلات', value: teleStats.transferred, color: '#a8a3ff', icon: ArrowRightLeft },
+                { label: 'عدد العملاء الذين حضروا', value: teleStats.attended, yValue: teleStats.yAttended, color: '#00d4aa', icon: CheckCircle2, motKey: 'attended', onClick: 'my-meetings' as const },
+                { label: 'عدد العملاء في الانتظار', value: teleStats.waiting, yValue: teleStats.yWaiting, color: '#ffd166', icon: HourglassIcon, motKey: '', onClick: 'my-meetings' as const },
+                { label: 'عدد العملاء لم يحضروا', value: teleStats.noShow, yValue: teleStats.yNoShow, color: '#ff6b6b', icon: UserX, motKey: '', onClick: 'my-meetings' as const },
+                { label: 'عدد التحويلات', value: teleStats.transferred, yValue: teleStats.yTransferred, color: '#a8a3ff', icon: ArrowRightLeft, motKey: 'transferred', onClick: 'transfers' as const },
               ].map((k, i) => {
                 const Icon = k.icon
+                const motText = motivationalText(k.motKey, k.value)
+                const isHigh = k.value >= 5
                 return (
-                  <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-4">
+                  <div
+                    key={i}
+                    onClick={() => handleQuickAction(k.onClick)}
+                    className={`ep-stat-card ep-glow-hover bg-[#111520] border border-white/[0.06] rounded-xl p-4 cursor-pointer ${isHigh ? 'ep-pulse-high' : ''}`}
+                  >
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[12px] font-bold text-[#8892b0]">{k.label}</span>
-                      <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${k.color}12` }}>
-                        <Icon size={14} style={{ color: k.color }} />
+                      <div className="flex items-center gap-1.5">
+                        <TrendIndicator today={k.value} yesterday={k.yValue} />
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${k.color}12` }}>
+                          <Icon size={14} style={{ color: k.color }} />
+                        </div>
                       </div>
                     </div>
                     <div className="text-[22px] font-bold" style={{ color: k.color }}>
-                      {k.value}
+                      <AnimatedCounter value={k.value} />
                     </div>
+                    {motText && (
+                      <div className="text-[11px] font-semibold mt-1" style={{ color: k.color }}>{motText}</div>
+                    )}
                   </div>
                 )
               })}
             </div>
           </div>
 
-          {/* Client Stats */}
+          {/* Client Stats — Interactive */}
           <div>
             <div className="flex items-center gap-2 mb-2">
               <Users size={14} className="text-[#6c63ff]" />
@@ -612,61 +816,93 @@ export function EmployeeProfile() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: 'عدد العملاء الكلي', value: teleStats.totalClients, color: '#6c63ff', icon: Users },
-                { label: 'عدد العملاء الذين كلمتهم', value: teleStats.contactedClients, color: '#00d4aa', icon: PhoneCall },
-                { label: 'عدد العملاء الذين لم يردوا', value: teleStats.noReplyClients, color: '#ff6b6b', icon: PhoneOff },
-                { label: 'عدد العملاء غير مهتم', value: teleStats.notInterested, color: '#ff6b6b', icon: UserX },
-                { label: 'متابعة 1', value: teleStats.followup1, color: '#ffd166', icon: RefreshCw },
-                { label: 'متابعة 2', value: teleStats.followup2, color: '#f0a030', icon: RefreshCw },
-                { label: 'متابعة 3', value: teleStats.followup3, color: '#e08020', icon: RefreshCw },
-                { label: 'إجمالي العملاء (كل الأيام)', value: teleStats.totalAll, color: '#4a5280', icon: BarChart3 },
+                { label: 'عدد العملاء الكلي', value: teleStats.totalClients, yValue: teleStats.yTotalClients, color: '#6c63ff', icon: Users, motKey: 'totalClients', onClick: 'my-sheet' as const },
+                { label: 'عدد العملاء الذين كلمتهم', value: teleStats.contactedClients, yValue: teleStats.yContactedClients, color: '#00d4aa', icon: PhoneCall, motKey: 'contacted', onClick: 'my-sheet' as const },
+                { label: 'عدد العملاء الذين لم يردوا', value: teleStats.noReplyClients, yValue: 0, color: '#ff6b6b', icon: PhoneOff, motKey: '', onClick: 'my-sheet' as const },
+                { label: 'عدد العملاء غير مهتم', value: teleStats.notInterested, yValue: teleStats.yNotInterested, color: '#ff6b6b', icon: UserX, motKey: '', onClick: 'my-sheet' as const },
+                { label: 'متابعة 1', value: teleStats.followup1, yValue: teleStats.yFollowup1, color: '#ffd166', icon: RefreshCw, motKey: '', onClick: 'my-sheet' as const },
+                { label: 'متابعة 2', value: teleStats.followup2, yValue: teleStats.yFollowup2, color: '#f0a030', icon: RefreshCw, motKey: '', onClick: 'my-sheet' as const },
+                { label: 'متابعة 3', value: teleStats.followup3, yValue: teleStats.yFollowup3, color: '#e08020', icon: RefreshCw, motKey: '', onClick: 'my-sheet' as const },
+                { label: 'إجمالي العملاء (كل الأيام)', value: teleStats.totalAll, yValue: 0, color: '#4a5280', icon: BarChart3, motKey: '', onClick: 'my-sheet' as const },
               ].map((k, i) => {
                 const Icon = k.icon
+                const motText = motivationalText(k.motKey, k.value)
+                const isHigh = k.value >= 10
                 return (
-                  <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-4">
+                  <div
+                    key={i}
+                    onClick={() => handleQuickAction(k.onClick)}
+                    className={`ep-stat-card ep-glow-hover bg-[#111520] border border-white/[0.06] rounded-xl p-4 cursor-pointer ${isHigh ? 'ep-pulse-high' : ''}`}
+                  >
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[12px] font-bold text-[#8892b0]">{k.label}</span>
-                      <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${k.color}12` }}>
-                        <Icon size={14} style={{ color: k.color }} />
+                      <div className="flex items-center gap-1.5">
+                        {k.yValue > 0 && <TrendIndicator today={k.value} yesterday={k.yValue} />}
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${k.color}12` }}>
+                          <Icon size={14} style={{ color: k.color }} />
+                        </div>
                       </div>
                     </div>
                     <div className="text-[22px] font-bold" style={{ color: k.color }}>
-                      {k.value}
+                      <AnimatedCounter value={k.value} />
                     </div>
+                    {motText && (
+                      <div className="text-[11px] font-semibold mt-1" style={{ color: k.color }}>{motText}</div>
+                    )}
                   </div>
                 )
               })}
             </div>
           </div>
 
-          {/* Important Ratios Section */}
-          <Card className="bg-[#111520] border border-white/[0.06]">
+          {/* Important Ratios Section — Interactive */}
+          <Card className="bg-[#111520] border-white/[0.06]">
             <CardHeader className="pb-2">
               <CardTitle className="text-[15px] font-extrabold text-[#f0f2ff] flex items-center gap-2">
                 <TrendingUp size={16} className="text-[#00d4aa]" />
-                نسب مهمة
+                النسب المهمة
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[
-                  { label: 'نسبة التواصل', value: teleStats.contactRate, desc: `العملاء الذين تم التواصل معهم من إجمالي العملاء (${teleStats.contactedClients}/${teleStats.totalClients})`, color: '#6c63ff' },
-                  { label: 'نسبة الرد', value: teleStats.answeredRate, desc: `المكالمات المجابة من إجمالي المكالمات (${teleStats.answeredCalls}/${teleStats.totalCalls})`, color: '#00d4aa' },
-                  { label: 'نسبة الاجتماعات', value: teleStats.meetingRate, desc: `الاجتماعات من العملاء الذين تم التواصل معهم (${teleStats.meetings}/${teleStats.contactedClients})`, color: '#ffd166' },
-                  { label: 'نسبة الحضور', value: teleStats.attendanceRate, desc: `العملاء الذين حضروا من الحاضرين والغائبين (${teleStats.attended}/${teleStats.attended + teleStats.noShow})`, color: '#a8a3ff' },
+                  { label: 'نسبة التواصل', value: teleStats.contactRate, desc: `العملاء الذين تم التواصل معهم من إجمالي العملاء (${teleStats.contactedClients}/${teleStats.totalClients})`, color: '#6c63ff', onClick: 'my-sheet' as const },
+                  { label: 'نسبة الرد', value: teleStats.answeredRate, desc: `المكالمات المجابة من إجمالي المكالمات (${teleStats.answeredCalls}/${teleStats.totalCalls})`, color: '#00d4aa', onClick: 'my-sheet' as const },
+                  { label: 'نسبة الاجتماعات', value: teleStats.meetingRate, desc: `الاجتماعات من العملاء الذين تم التواصل معهم (${teleStats.meetings}/${teleStats.contactedClients})`, color: '#ffd166', onClick: 'my-meetings' as const },
+                  { label: 'نسبة الحضور', value: teleStats.attendanceRate, desc: `العملاء الذين حضروا من الحاضرين والغائبين (${teleStats.attended}/${teleStats.attended + teleStats.noShow})`, color: '#a8a3ff', onClick: 'my-meetings' as const },
                 ].map((r, i) => (
-                  <div key={i} className="bg-[#0a0d14] border border-white/[0.04] rounded-xl p-4">
+                  <div
+                    key={i}
+                    onClick={() => handleQuickAction(r.onClick)}
+                    className="ep-ratio-card ep-glow-hover bg-[#0a0d14] border border-white/[0.04] rounded-xl p-4 relative"
+                  >
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-[13px] font-bold text-[#f0f2ff]">{r.label}</span>
-                      <span className="text-[18px] font-bold" style={{ color: r.color }}>{r.value}%</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-bold text-[#f0f2ff]">{r.label}</span>
+                        <span className="text-[14px]">{performanceEmoji(r.value)}</span>
+                      </div>
+                      <span className="text-[18px] font-bold" style={{ color: r.color }}>
+                        <AnimatedCounter value={r.value} />%
+                      </span>
                     </div>
                     <div className="h-2.5 rounded-full bg-[#1c2234] overflow-hidden mb-2">
                       <div
-                        className="h-full rounded-full transition-all duration-700"
-                        style={{ width: `${Math.min(r.value, 100)}%`, backgroundColor: r.color }}
+                        className="h-full rounded-full ep-bar-animated"
+                        style={{
+                          width: mounted ? `${Math.min(r.value, 100)}%` : '0%',
+                          backgroundColor: r.color,
+                        }}
                       />
                     </div>
-                    <div className="text-[11px] font-medium text-[#4a5280]">{r.desc}</div>
+                    {/* Hover tooltip */}
+                    <div className="ep-tooltip absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg bg-[#1c2234] border border-white/[0.08] text-[11px] font-medium text-[#8892b0] whitespace-nowrap z-20 shadow-lg">
+                      {r.desc}
+                    </div>
+                    {/* Performance label */}
+                    <div className="text-[11px] font-medium text-[#4a5280] flex items-center justify-between">
+                      <span>{r.value >= 70 ? 'ممتاز' : r.value >= 40 ? 'مقبول' : 'يحتاج تحسين'}</span>
+                      <span style={{ color: r.color }}>{r.value}%</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -675,26 +911,41 @@ export function EmployeeProfile() {
         </>
       )}
 
+      {/* ═══════════════════════════════════════════
+         SALES TODAY STATS — Interactive
+         ═══════════════════════════════════════════ */}
       {salesStats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: 'اجتماعات اليوم', value: salesStats.todayMeetings.length, color: '#ffd166', icon: Calendar },
-            { label: 'حضر اليوم', value: salesStats.todayAttended, color: '#00d4aa', icon: CheckCircle2 },
-            { label: 'انتظار اليوم', value: salesStats.todayPending, color: '#ffd166', icon: HourglassIcon },
-            { label: 'عملاء جدد اليوم', value: salesStats.todayNew, color: '#6c63ff', icon: UserPlus },
+            { label: 'اجتماعات اليوم', value: salesStats.todayMeetings.length, yValue: salesStats.yMeetingsCount, color: '#ffd166', icon: Calendar, motKey: 'salesMeetings', onClick: 'my-meetings' as const },
+            { label: 'حضر اليوم', value: salesStats.todayAttended, yValue: salesStats.yAttendedCount, color: '#00d4aa', icon: CheckCircle2, motKey: 'salesAttended', onClick: 'my-meetings' as const },
+            { label: 'انتظار اليوم', value: salesStats.todayPending, yValue: salesStats.yPendingCount, color: '#ffd166', icon: HourglassIcon, motKey: '', onClick: 'my-meetings' as const },
+            { label: 'عملاء جدد اليوم', value: salesStats.todayNew, yValue: salesStats.yNewCount, color: '#6c63ff', icon: UserPlus, motKey: 'salesNew', onClick: 'sales-sheet' as const },
           ].map((k, i) => {
             const Icon = k.icon
+            const motText = motivationalText(k.motKey, k.value)
+            const isHigh = k.value >= 5
             return (
-              <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-4">
+              <div
+                key={i}
+                onClick={() => handleQuickAction(k.onClick)}
+                className={`ep-stat-card ep-glow-hover bg-[#111520] border border-white/[0.06] rounded-xl p-4 cursor-pointer ${isHigh ? 'ep-pulse-high' : ''}`}
+              >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[13px] font-semibold text-[#8892b0]">{k.label}</span>
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${k.color}15` }}>
-                    <Icon size={16} style={{ color: k.color }} />
+                  <div className="flex items-center gap-1.5">
+                    <TrendIndicator today={k.value} yesterday={k.yValue} />
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${k.color}15` }}>
+                      <Icon size={16} style={{ color: k.color }} />
+                    </div>
                   </div>
                 </div>
                 <div className="text-[24px] font-bold" style={{ color: k.color }}>
-                  {k.value}
+                  <AnimatedCounter value={k.value} />
                 </div>
+                {motText && (
+                  <div className="text-[11px] font-semibold mt-1" style={{ color: k.color }}>{motText}</div>
+                )}
               </div>
             )
           })}
@@ -702,21 +953,25 @@ export function EmployeeProfile() {
       )}
 
       {/* ═══════════════════════════════════════════
-         4. KPI PERFORMANCE CARDS (Sales only)
+         4. KPI PERFORMANCE CARDS (Sales only) — Interactive
          ═══════════════════════════════════════════ */}
       {salesStats && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {[
-            { label: 'إجمالي العملاء', value: salesStats.total, color: '#6c63ff', icon: Users, progress: salesStats.attendanceRate, progressLabel: 'حضور' },
-            { label: 'نسبة الحضور', value: `${salesStats.attendanceRate}%`, color: '#00d4aa', icon: UserCheck, progress: salesStats.attendanceRate, progressLabel: 'من الاجتماعات' },
-            { label: 'نسبة التقفيل', value: `${salesStats.closingRate}%`, color: '#ffd166', icon: Target, progress: salesStats.closingRate, progressLabel: 'تقفيل' },
-            { label: 'قيد المتابعة', value: salesStats.inProgress, color: '#a8a3ff', icon: Activity, progress: salesStats.total > 0 ? Math.round((salesStats.inProgress / salesStats.total) * 100) : 0, progressLabel: 'متابعة' },
-            { label: 'تم التقفيل', value: salesStats.closedWon, color: '#00d4aa', icon: Trophy, progress: salesStats.total > 0 ? Math.round((salesStats.closedWon / salesStats.total) * 100) : 0, progressLabel: 'تقفيل' },
+            { label: 'إجمالي العملاء', value: salesStats.total, color: '#6c63ff', icon: Users, progress: salesStats.attendanceRate, progressLabel: 'حضور', onClick: 'sales-sheet' as const },
+            { label: 'نسبة الحضور', value: `${salesStats.attendanceRate}%`, color: '#00d4aa', icon: UserCheck, progress: salesStats.attendanceRate, progressLabel: 'من الاجتماعات', onClick: 'my-meetings' as const },
+            { label: 'نسبة التقفيل', value: `${salesStats.closingRate}%`, color: '#ffd166', icon: Target, progress: salesStats.closingRate, progressLabel: 'تقفيل', onClick: 'sales-sheet' as const },
+            { label: 'قيد المتابعة', value: salesStats.inProgress, color: '#a8a3ff', icon: Activity, progress: salesStats.total > 0 ? Math.round((salesStats.inProgress / salesStats.total) * 100) : 0, progressLabel: 'متابعة', onClick: 'sales-sheet' as const },
+            { label: 'تم التقفيل', value: salesStats.closedWon, color: '#00d4aa', icon: Trophy, progress: salesStats.total > 0 ? Math.round((salesStats.closedWon / salesStats.total) * 100) : 0, progressLabel: 'تقفيل', onClick: 'sales-sheet' as const },
           ].map((k, i) => {
             const Icon = k.icon
             const progressVal = typeof k.progress === 'number' ? k.progress : 0
             return (
-              <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-4">
+              <div
+                key={i}
+                onClick={() => handleQuickAction(k.onClick)}
+                className="ep-stat-card ep-glow-hover bg-[#111520] border border-white/[0.06] rounded-xl p-4 cursor-pointer"
+              >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[12px] font-bold text-[#8892b0]">{k.label}</span>
                   <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${k.color}12` }}>
@@ -724,12 +979,15 @@ export function EmployeeProfile() {
                   </div>
                 </div>
                 <div className="text-[20px] font-bold mb-2" style={{ color: k.color }}>
-                  {k.value}
+                  {typeof k.value === 'number' ? <AnimatedCounter value={k.value} /> : k.value}
                 </div>
                 <div className="h-1.5 rounded-full bg-[#1c2234] overflow-hidden">
                   <div
-                    className="h-full rounded-full transition-all duration-700"
-                    style={{ width: `${Math.min(progressVal, 100)}%`, backgroundColor: k.color }}
+                    className="h-full rounded-full ep-bar-animated"
+                    style={{
+                      width: mounted ? `${Math.min(progressVal, 100)}%` : '0%',
+                      backgroundColor: k.color,
+                    }}
                   />
                 </div>
                 <div className="text-[11px] font-medium text-[#4a5280] mt-1">{k.progressLabel} {progressVal}%</div>
@@ -833,24 +1091,24 @@ export function EmployeeProfile() {
                     {currentRole === 'sales' && (!lead.attended || lead.attended === 'pending') ? (
                       <div className="flex gap-1.5">
                         <button
-                          onClick={() => handleMarkAttendance(lead.id, 'attended')}
-                          className="w-8 h-8 rounded-lg bg-[#00d4aa]/10 border border-[#00d4aa]/20 flex items-center justify-center text-[#00d4aa] hover:bg-[#00d4aa]/20 transition-colors cursor-pointer"
-                          title="حضر"
+                          onClick={(e) => { e.stopPropagation(); handleMarkAttendance(lead.id, 'attended') }}
+                          className="h-7 px-2 rounded-lg text-[11px] font-bold bg-[#00d4aa]/15 text-[#00d4aa] hover:bg-[#00d4aa]/25 transition-colors cursor-pointer"
                         >
-                          <CheckCircle2 size={14} />
+                          ✅ حضر
                         </button>
                         <button
-                          onClick={() => handleMarkAttendance(lead.id, 'no-show')}
-                          className="w-8 h-8 rounded-lg bg-[#ff6b6b]/10 border border-[#ff6b6b]/20 flex items-center justify-center text-[#ff6b6b] hover:bg-[#ff6b6b]/20 transition-colors cursor-pointer"
-                          title="لم يحضر"
+                          onClick={(e) => { e.stopPropagation(); handleMarkAttendance(lead.id, 'no-show') }}
+                          className="h-7 px-2 rounded-lg text-[11px] font-bold bg-[#ff6b6b]/15 text-[#ff6b6b] hover:bg-[#ff6b6b]/25 transition-colors cursor-pointer"
                         >
-                          <XCircle size={14} />
+                          ❌ لم يحضر
                         </button>
                       </div>
+                    ) : lead.attended === 'attended' ? (
+                      <Badge className="bg-[#00d4aa]/15 text-[#00d4aa] text-[11px] font-bold border-0">✅ حضر</Badge>
+                    ) : lead.attended === 'no-show' ? (
+                      <Badge className="bg-[#ff6b6b]/15 text-[#ff6b6b] text-[11px] font-bold border-0">❌ لم يحضر</Badge>
                     ) : (
-                      <Badge className={`text-[11px] font-bold border-0 ${lead.attended === 'attended' ? 'bg-[#00d4aa]/15 text-[#00d4aa]' : lead.attended === 'no-show' ? 'bg-[#ff6b6b]/15 text-[#ff6b6b]' : 'bg-[#ffd166]/15 text-[#ffd166]'}`}>
-                        {lead.attended === 'attended' ? 'حضر ✓' : lead.attended === 'no-show' ? 'لم يحضر ✗' : 'انتظار'}
-                      </Badge>
+                      <Badge className="bg-[#ffd166]/15 text-[#ffd166] text-[11px] font-bold border-0">⏳ انتظار</Badge>
                     )}
                   </div>
                 </div>
@@ -881,8 +1139,12 @@ export function EmployeeProfile() {
                     <span className="text-[13px] font-semibold text-[#f0f2ff] min-w-[100px] truncate">{s.label}</span>
                     <div className="flex-1 h-6 rounded-lg bg-[#1c2234] overflow-hidden relative">
                       <div
-                        className="h-full rounded-lg transition-all duration-500"
-                        style={{ width: `${barWidth}%`, backgroundColor: barColor, opacity: 0.7 }}
+                        className="h-full rounded-lg ep-bar-animated"
+                        style={{
+                          width: mounted ? `${barWidth}%` : '0%',
+                          backgroundColor: barColor,
+                          opacity: 0.7,
+                        }}
                       />
                       <span className="absolute inset-0 flex items-center justify-start pr-2 text-[11px] font-bold text-[#f0f2ff]/70">
                         {s.count} ({s.percentage}%)
@@ -895,53 +1157,6 @@ export function EmployeeProfile() {
           </CardContent>
         </Card>
       )}
-
-      {/* ═══════════════════════════════════════════
-         8. RECENT LEADS
-         ═══════════════════════════════════════════ */}
-      <Card className="bg-[#111520] border-white/[0.06]">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-[15px] font-extrabold text-[#f0f2ff] flex items-center gap-2">
-            <Clock size={16} className="text-[#6c63ff]" />
-            آخر العملاء
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {recentLeads.length === 0 ? (
-            <div className="text-center py-8 text-[#4a5280] text-[13px] font-semibold">لا يوجد عملاء بعد</div>
-          ) : (
-            <div className="space-y-1.5 max-h-96 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#1c2234 transparent' }}>
-              {recentLeads.map((lead) => {
-                const statusKey = currentRole === 'tele' ? lead.status : lead.salesStatus
-                const statusObj = currentRole === 'tele'
-                  ? STATUSES.find((s) => s.key === statusKey)
-                  : SALES_STATUSES.find((s) => s.key === statusKey)
-                return (
-                  <div key={lead.id} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-[#1c2234]/50 transition-colors">
-                    <div className="w-7 h-7 rounded-full bg-[#6c63ff]/15 flex items-center justify-center text-[11px] text-[#a8a3ff] font-bold shrink-0">
-                      {lead.customerName?.slice(0, 2) || '؟'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[13px] font-medium text-[#f0f2ff] truncate">{lead.customerName || 'عميل'}</div>
-                      <div className="text-[11px] font-medium text-[#4a5280]">{formatDate(lead.createdAt)}</div>
-                    </div>
-                    {statusObj && (
-                      <Badge className="text-[11px] font-bold border-0 bg-[#1c2234] text-[#8892b0]">
-                        {statusObj.label}
-                      </Badge>
-                    )}
-                    {lead.meetingDate && (
-                      <Badge className="bg-[#ffd166]/15 text-[#ffd166] text-[11px] font-bold border-0">
-                        📅 {lead.meetingDate}
-                      </Badge>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {/* ═══════════════════════════════════════════
          9. CHANGE PASSWORD

@@ -241,6 +241,20 @@ export default function Home() {
   // Hydrate auth from localStorage on first mount
   useEffect(() => {
     hydrateAuth()
+
+    // Hydrate theme from localStorage
+    try {
+      const savedTheme = localStorage.getItem('venom-theme')
+      if (savedTheme === 'light' || savedTheme === 'dark') {
+        useCrmStore.setState({ theme: savedTheme })
+        const html = document.documentElement
+        if (savedTheme === 'dark') {
+          html.classList.add('dark')
+        } else {
+          html.classList.remove('dark')
+        }
+      }
+    } catch { /* ignore */ }
   }, [])
 
   // Protect views based on role permissions
@@ -287,16 +301,18 @@ export default function Home() {
     const channel = apiSubscribeToLeads(
       (payload) => {
         const eventType = payload.eventType as string
-        const { addLeadToCache, updateLeadInCache, removeLeadFromCache, addToast } = useCrmStore.getState()
+        const { addLeadToCache, updateLeadInCache, removeLeadFromCache, addToast, addNotification } = useCrmStore.getState()
 
         if (eventType === 'INSERT') {
           const newRow = payload.new as Record<string, unknown>
           if (newRow?.id) {
+            const leadId = String(newRow.id)
+            const customerName = (newRow.customer_name as string) || ''
             addLeadToCache({
-              id: String(newRow.id),
+              id: leadId,
               storeUrl: (newRow.store_url as string) || '',
               phone: (newRow.phone as string) || '',
-              customerName: (newRow.customer_name as string) || '',
+              customerName: customerName,
               customerType: (newRow.customer_type as string) || '',
               brief: (newRow.brief as string) || '',
               contactResult: (newRow.contact_result as string) || '',
@@ -321,11 +337,38 @@ export default function Home() {
               archivedBy: null,
               notes: [],
             })
+            // Notification: new lead added
+            addNotification('new-lead', `عميل جديد: ${customerName || 'بدون اسم'}`, leadId)
           }
         } else if (eventType === 'UPDATE') {
           const newRow = payload.new as Record<string, unknown>
+          const oldRow = payload.old as Record<string, unknown>
           if (newRow?.id) {
-            updateLeadInCache(String(newRow.id), {
+            const leadId = String(newRow.id)
+            const state = useCrmStore.getState()
+            const existingLead = state.leadsById[leadId]
+
+            // Check attendance change
+            const newAttended = newRow.attended as string | undefined
+            const oldAttended = oldRow?.attended as string | undefined
+            if (newAttended !== undefined && newAttended !== oldAttended && existingLead) {
+              const customerName = existingLead.customerName || (newRow.customer_name as string) || ''
+              if (newAttended === 'attended') {
+                addNotification('attendance', `حضر العميل: ${customerName}`, leadId)
+              } else if (newAttended === 'no-show') {
+                addNotification('attendance', `لم يحضر العميل: ${customerName}`, leadId)
+              }
+            }
+
+            // Check transfer (sales_name changed from null/empty to a value)
+            const newSalesName = newRow.sales_name as string | undefined
+            const oldSalesName = oldRow?.sales_name as string | undefined
+            if (newSalesName && newSalesName.trim() && (!oldSalesName || !oldSalesName.trim())) {
+              const customerName = existingLead?.customerName || (newRow.customer_name as string) || ''
+              addNotification('transfer', `تحويل جديد لـ ${newSalesName.trim()}: ${customerName}`, leadId)
+            }
+
+            updateLeadInCache(leadId, {
               phone: (newRow.phone as string) ?? undefined,
               customerName: (newRow.customer_name as string) ?? undefined,
               storeUrl: (newRow.store_url as string) ?? undefined,

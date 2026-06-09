@@ -93,6 +93,16 @@ export function getDefaultViewForRole(role: 'tele' | 'sales' | 'admin'): ViewNam
   return 'dashboard'
 }
 
+// ===== Notification =====
+export interface Notification {
+  id: string
+  type: 'attendance' | 'transfer' | 'new-lead' | 'note'
+  message: string
+  leadId?: string
+  read: boolean
+  createdAt: number
+}
+
 // ===== Toast =====
 export interface CrmToast {
   id: string
@@ -217,6 +227,12 @@ interface CrmStore {
   lastSyncAt: number | null
   setLastSyncAt: (ts: number) => void
   syncChangesToCache: (freshLeads: Lead[], freshArchived: Lead[]) => number
+
+  // Bell Notifications
+  notifications: Notification[]
+  addNotification: (type: Notification['type'], message: string, leadId?: string) => void
+  markNotificationRead: (id: string) => void
+  unreadNotificationsCount: number
 
   // Target Settings
   targetSettings: { type: 'meetings' | 'money' | 'closings'; value: number }
@@ -610,6 +626,26 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
     if (!norm) return undefined
     return get().duplicatesCache[norm]
   },
+
+  // Bell Notifications
+  notifications: [],
+  addNotification: (type, message, leadId) => {
+    set((s) => {
+      const id = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+      const notif: Notification = { id, type, message, leadId, read: false, createdAt: Date.now() }
+      const updated = [notif, ...s.notifications].slice(0, 10) // max 10
+      const unreadCount = updated.filter((n) => !n.read).length
+      return { notifications: updated, unreadNotificationsCount: unreadCount }
+    })
+  },
+  markNotificationRead: (id) => {
+    set((s) => {
+      const updated = s.notifications.map((n) => (n.id === id ? { ...n, read: true } : n))
+      const unreadCount = updated.filter((n) => !n.read).length
+      return { notifications: updated, unreadNotificationsCount: unreadCount }
+    })
+  },
+  unreadNotificationsCount: 0,
 
   // Target Settings
   targetSettings: { type: 'meetings', value: 50 },

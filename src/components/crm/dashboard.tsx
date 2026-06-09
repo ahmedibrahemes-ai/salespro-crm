@@ -351,7 +351,8 @@ export function Dashboard() {
 
     // Sort by meetings descending
     const sorted = Object.entries(meetingCounts).sort((a, b) => b[1] - a[1])
-    const position = sorted.findIndex(([name]) => name === currentUser) + 1
+    const idx = sorted.findIndex(([name]) => name === currentUser)
+    const position = idx >= 0 ? idx + 1 : sorted.length
     const meetingsCount = meetingCounts[currentUser] || 0
     const totalMembers = sorted.length
 

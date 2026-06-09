@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useRef } from 'react'
 import { useCrmStore, STATUSES, CONTACT_RESULTS } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import { apiBulkCreateLeads } from '@/lib/supabase'
 import {
-  Plus, Trash2, Upload, Loader2, AlertTriangle, Check,
+  Plus, Trash2, Upload, Loader2, AlertTriangle, Check, FileSpreadsheet, ClipboardPaste,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -35,6 +35,58 @@ interface BulkRow {
 }
 
 /* ═══════════════════════════════════════════════════════
+   Helpers for parsing pasted data
+   ═══════════════════════════════════════════════════════ */
+function looksLikePhone(s: string): boolean {
+  return /^(\+966|966|05|5)\d/.test(s) || /^\d{8,}$/.test(s)
+}
+
+function looksLikeUrl(s: string): boolean {
+  return /^https?:\/\//i.test(s) || /\.(com|sa|net|org|io|store|shop)/i.test(s)
+}
+
+function parsePastedLine(line: string): { phone: string; storeUrl: string } {
+  const trimmed = line.trim()
+  if (!trimmed) return { phone: '', storeUrl: '' }
+
+  // Try splitting by common separators (tab, comma, multiple spaces)
+  const parts = trimmed.split(/[\t,]+/).map((p) => p.trim()).filter(Boolean)
+
+  if (parts.length >= 2) {
+    // Check each part
+    const phonePart = parts.find((p) => looksLikePhone(p))
+    const urlPart = parts.find((p) => looksLikeUrl(p))
+    if (phonePart && urlPart) {
+      return { phone: phonePart, storeUrl: urlPart }
+    }
+    if (phonePart) {
+      // First phone, rest might be URL or name
+      const nonPhoneParts = parts.filter((p) => p !== phonePart)
+      const maybeUrl = nonPhoneParts.find((p) => looksLikeUrl(p))
+      return { phone: phonePart, storeUrl: maybeUrl || '' }
+    }
+    if (urlPart) {
+      const nonUrlParts = parts.filter((p) => p !== urlPart)
+      const maybePhone = nonUrlParts.find((p) => looksLikePhone(p))
+      return { phone: maybePhone || '', storeUrl: urlPart }
+    }
+    // Neither looks like phone or URL — try first as phone, second as URL
+    return { phone: parts[0], storeUrl: parts.length > 1 ? parts[1] : '' }
+  }
+
+  // Single value
+  if (looksLikePhone(trimmed)) {
+    return { phone: trimmed, storeUrl: '' }
+  }
+  if (looksLikeUrl(trimmed)) {
+    return { phone: '', storeUrl: trimmed }
+  }
+
+  // Default: treat as phone
+  return { phone: trimmed, storeUrl: '' }
+}
+
+/* ═══════════════════════════════════════════════════════
    Bulk Add Component
    ═══════════════════════════════════════════════════════ */
 export function BulkAdd() {
@@ -48,6 +100,8 @@ export function BulkAdd() {
   ])
   const [submitting, setSubmitting] = useState(false)
   const [submittedCount, setSubmittedCount] = useState(0)
+  const [pastedData, setPastedData] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   /* ─── Create empty row ─── */
   function createEmptyRow(): BulkRow {
@@ -81,13 +135,14 @@ export function BulkAdd() {
   /* ─── Validate row ─── */
   function validateRow(row: BulkRow): string[] {
     const errors: string[] = []
-    if (!row.phone.trim()) {
-      errors.push('الرقم مطلوب')
-    } else if (row.phone.trim().length < 8) {
-      errors.push('رقم قصير')
+    const hasPhone = row.phone.trim().length >= 8
+    const hasUrl = row.storeUrl.trim().length > 0
+
+    if (!hasPhone && !hasUrl) {
+      errors.push('رقم الجوال أو رابط المتجر مطلوب')
     }
-    if (!row.customerName.trim()) {
-      errors.push('الاسم مطلوب')
+    if (hasPhone && row.phone.trim().length < 8 && row.phone.trim().length > 0) {
+      errors.push('رقم قصير')
     }
     return errors
   }
@@ -125,6 +180,152 @@ export function BulkAdd() {
     })
   }, [])
 
+  /* ─── Handle paste bulk add ─── */
+  const handlePasteAdd = useCallback(() => {
+    const lines = pastedData.split('\n').map((l) => l.trim()).filter(Boolean)
+    if (lines.length === 0) {
+      addToast('warning', 'لا يوجد بيانات للصقها')
+      return
+    }
+
+    const newRows: BulkRow[] = lines.map((line) => {
+      const parsed = parsePastedLine(line)
+      return {
+        id: `row-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        storeUrl: parsed.storeUrl,
+        phone: parsed.phone,
+        customerName: '',
+        customerType: isTele ? '' : 'business',
+        brief: '',
+        tele: currentUser || team.tele[0] || '',
+        sales: currentRole === 'sales' && currentUser ? currentUser : '',
+        status: 'new',
+        errors: [],
+      }
+    })
+
+    setRows((prev) => [...prev, ...newRows])
+    setPastedData('')
+    addToast('success', `تم إضافة ${newRows.length} صف من اللصق`)
+  }, [pastedData, addToast, isTele, currentUser, currentRole, team])
+
+  /* ─── Handle Excel/CSV file import ─── */
+  const handleFileImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    try {
+      const fileName = file.name.toLowerCase()
+      let parsedRows: Array<{ phone: string; storeUrl: string; customerName: string }> = []
+
+      if (fileName.endsWith('.csv')) {
+        // Parse CSV with basic JS
+        const text = await file.text()
+        const lines = text.split(/\r?\n/).filter((l) => l.trim())
+        if (lines.length === 0) {
+          addToast('warning', 'الملف فارغ')
+          return
+        }
+
+        // Try to detect header row
+        const firstLine = lines[0].toLowerCase()
+        let startIndex = 0
+        if (firstLine.includes('phone') || firstLine.includes('رقم') || firstLine.includes('جوال') || firstLine.includes('url') || firstLine.includes('لينك') || firstLine.includes('متجر') || firstLine.includes('name') || firstLine.includes('اسم')) {
+          startIndex = 1 // Skip header row
+        }
+
+        for (let i = startIndex; i < lines.length; i++) {
+          const cols = lines[i].split(',').map((c) => c.trim().replace(/^["']|["']$/g, ''))
+          const row: { phone: string; storeUrl: string; customerName: string } = { phone: '', storeUrl: '', customerName: '' }
+
+          for (const col of cols) {
+            if (!col) continue
+            if (looksLikePhone(col) && !row.phone) {
+              row.phone = col
+            } else if (looksLikeUrl(col) && !row.storeUrl) {
+              row.storeUrl = col
+            } else if (!row.customerName) {
+              row.customerName = col
+            }
+          }
+          if (row.phone || row.storeUrl) {
+            parsedRows.push(row)
+          }
+        }
+      } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        // Parse Excel with xlsx package
+        const XLSX = await import('xlsx')
+        const arrayBuffer = await file.arrayBuffer()
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+        const sheetName = workbook.SheetNames[0]
+        const sheet = workbook.Sheets[sheetName]
+        const jsonData: string[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 })
+
+        if (jsonData.length === 0) {
+          addToast('warning', 'الملف فارغ')
+          return
+        }
+
+        // Try to detect header row
+        const firstRow = jsonData[0].map((c) => String(c).toLowerCase())
+        let startIndex = 0
+        if (firstRow.some((c) => c.includes('phone') || c.includes('رقم') || c.includes('جوال') || c.includes('url') || c.includes('لينك') || c.includes('متجر') || c.includes('name') || c.includes('اسم'))) {
+          startIndex = 1
+        }
+
+        for (let i = startIndex; i < jsonData.length; i++) {
+          const cols = jsonData[i].map((c) => String(c).trim())
+          const row: { phone: string; storeUrl: string; customerName: string } = { phone: '', storeUrl: '', customerName: '' }
+
+          for (const col of cols) {
+            if (!col || col === 'undefined') continue
+            if (looksLikePhone(col) && !row.phone) {
+              row.phone = col
+            } else if (looksLikeUrl(col) && !row.storeUrl) {
+              row.storeUrl = col
+            } else if (!row.customerName && !looksLikePhone(col) && !looksLikeUrl(col)) {
+              row.customerName = col
+            }
+          }
+          if (row.phone || row.storeUrl) {
+            parsedRows.push(row)
+          }
+        }
+      } else {
+        addToast('warning', 'صيغة الملف غير مدعومة. استخدم xlsx أو csv')
+        return
+      }
+
+      if (parsedRows.length === 0) {
+        addToast('warning', 'لم يتم العثور على بيانات صالحة في الملف')
+        return
+      }
+
+      const newRows: BulkRow[] = parsedRows.map((r) => ({
+        id: `row-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        storeUrl: r.storeUrl,
+        phone: r.phone,
+        customerName: r.customerName,
+        customerType: isTele ? '' : 'business',
+        brief: '',
+        tele: currentUser || team.tele[0] || '',
+        sales: currentRole === 'sales' && currentUser ? currentUser : '',
+        status: 'new',
+        errors: [],
+      }))
+
+      setRows((prev) => [...prev, ...newRows])
+      addToast('success', `تم استيراد ${newRows.length} صف من الملف`)
+    } catch (err: unknown) {
+      addToast('error', `فشل في استيراد الملف: ${err instanceof Error ? err.message : 'خطأ غير معروف'}`)
+    } finally {
+      // Reset file input so the same file can be selected again
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }, [addToast, isTele, currentUser, currentRole, team])
+
   /* ─── Submit all ─── */
   const handleSubmit = useCallback(async () => {
     // Validate all rows
@@ -140,7 +341,7 @@ export function BulkAdd() {
       return
     }
 
-    const validRows = validatedRows.filter((r) => r.phone.trim() && r.customerName.trim())
+    const validRows = validatedRows.filter((r) => r.phone.trim() || r.storeUrl.trim())
     if (validRows.length === 0) {
       addToast('warning', 'لا يوجد بيانات للإضافة')
       return
@@ -149,9 +350,9 @@ export function BulkAdd() {
     setSubmitting(true)
     try {
       const leadsToCreate: Partial<Lead>[] = validRows.map((r) => ({
-        storeUrl: r.storeUrl,
-        phone: r.phone,
-        customerName: r.customerName,
+        storeUrl: r.storeUrl || undefined,
+        phone: r.phone || undefined,
+        customerName: r.customerName || (r.phone ? `عميل ${r.phone}` : r.storeUrl ? `متجر ${r.storeUrl.replace(/^https?:\/\//, '').split('/')[0]}` : 'عميل جديد'),
         customerType: r.customerType,
         brief: r.brief,
         tele: isTele ? currentUser! : r.tele,
@@ -177,7 +378,7 @@ export function BulkAdd() {
 
   /* ─── Valid rows count ─── */
   const validCount = useMemo(
-    () => rows.filter((r) => r.phone.trim() && r.customerName.trim()).length,
+    () => rows.filter((r) => r.phone.trim() || r.storeUrl.trim()).length,
     [rows]
   )
 
@@ -188,7 +389,7 @@ export function BulkAdd() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-[19px] font-extrabold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
-            إضافة مجموعة عملاء
+            إضافة ليدز
           </h2>
           <p className="text-[13px] font-semibold text-[#8892b0] mt-0.5">
             {isTele ? 'أضف أرقام عملاء أو لينكات متاجر وهتنزل في شيتك مباشرة' : 'إضافة عدة عملاء دفعة واحدة'}
@@ -201,6 +402,21 @@ export function BulkAdd() {
               {submittedCount} تم إضافتها
             </Badge>
           )}
+          {/* Excel import button */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+            onChange={handleFileImport}
+          />
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            className="bg-[#1c2234] hover:bg-[#252d42] text-[#8892b0] hover:text-[#f0f2ff] gap-1.5 text-[12px] h-9 border border-white/[0.06] cursor-pointer"
+          >
+            <FileSpreadsheet size={14} />
+            استيراد من إكسيل
+          </Button>
           <Button
             onClick={handleSubmit}
             disabled={submitting || validCount === 0}
@@ -211,6 +427,40 @@ export function BulkAdd() {
           </Button>
         </div>
       </div>
+
+      {/* Paste bulk data section */}
+      <Card className="bg-[#111520] border-white/[0.06]">
+        <CardContent className="p-4">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[14px] font-bold text-[#f0f2ff] flex items-center gap-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                  <ClipboardPaste size={16} className="text-[#6c63ff]" />
+                  لصق بيانات مجمعة
+                </div>
+                <p className="text-[12px] font-medium text-[#8892b0] mt-0.5">
+                  الصق أرقام الجوال أو لينكات المتاجر أو كليهما - كل سطر بيانات منفصل
+                </p>
+              </div>
+              <Button
+                onClick={handlePasteAdd}
+                disabled={!pastedData.trim()}
+                className="bg-[#6c63ff] hover:bg-[#5b54e6] text-white gap-1.5 text-[12px] h-8 cursor-pointer disabled:opacity-50"
+              >
+                <Plus size={14} />
+                إضافة
+              </Button>
+            </div>
+            <textarea
+              value={pastedData}
+              onChange={(e) => setPastedData(e.target.value)}
+              placeholder={"0512345678\nhttps://store.example.com\n0512345678, https://store.example.com"}
+              className="w-full h-24 text-[13px] bg-[#0a0d14] border border-white/[0.08] rounded-lg px-3 py-2 text-[#f0f2ff] placeholder:text-[#4a5280] resize-none focus:outline-none focus:border-[#6c63ff]/40"
+              dir="ltr"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Duplicate warning */}
       {duplicatePhones.size > 0 && (
@@ -234,8 +484,8 @@ export function BulkAdd() {
                 <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[40px]">#</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">رابط المتجر</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">رقم التليفون *</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">اسم العميل *</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">رقم الجوال</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">اسم العميل</TableHead>
                   {!isTele && (
                     <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">نوع العميل</TableHead>
                   )}
@@ -270,12 +520,12 @@ export function BulkAdd() {
                     <TableCell>
                       <div className="relative">
                         <Input
-                          placeholder="رقم التليفون"
+                          placeholder="رقم الجوال"
                           value={row.phone}
                           onChange={(e) => updateRow(row.id, 'phone', e.target.value)}
                           className={`h-7 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] w-[130px] ${
                             duplicatePhones.has(row.phone.trim()) ? 'border-amber-500/40' : ''
-                          } ${row.errors.includes('الرقم مطلوب') || row.errors.includes('رقم قصير') ? 'border-red-500/40' : ''}`}
+                          } ${row.errors.includes('رقم قصير') ? 'border-red-500/40' : ''}`}
                           dir="ltr"
                         />
                         {duplicatePhones.has(row.phone.trim()) && (
@@ -288,9 +538,7 @@ export function BulkAdd() {
                         placeholder="اسم العميل"
                         value={row.customerName}
                         onChange={(e) => updateRow(row.id, 'customerName', e.target.value)}
-                        className={`h-7 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] w-[130px] ${
-                          row.errors.includes('الاسم مطلوب') ? 'border-red-500/40' : ''
-                        }`}
+                        className="h-7 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] w-[130px]"
                       />
                     </TableCell>
                     {!isTele && (

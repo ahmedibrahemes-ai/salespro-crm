@@ -1,28 +1,24 @@
 'use client'
 
 import { useMemo, useState, useCallback } from 'react'
-import { useCrmStore, ATTENDANCE_STATUSES, SALES_STATUSES, formatDate } from '@/lib/store'
+import { useCrmStore, ATTENDANCE_STATUSES, SALES_STATUSES, formatDate, formatRelativeTime, formatTime, getDateRange } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import { apiUpdateLead } from '@/lib/supabase'
 import { isTodayDateString, isThisWeek } from '@/lib/crm-utils'
 import {
-  Calendar, Clock, Video, MapPin, Phone, ExternalLink,
-  Check, X, CalendarDays, CalendarRange,
+  Calendar, Clock, Phone, ExternalLink,
+  Check, X, CalendarDays,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
 
 /* ═══════════════════════════════════════════════════════
    Date helpers
    ═══════════════════════════════════════════════════════ */
-
-function isUpcoming(dateStr: string): boolean {
-  if (!dateStr) return false
-  const d = new Date(dateStr)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return d >= today
-}
 
 function formatMeetingDate(dateStr: string): string {
   if (!dateStr) return '—'
@@ -66,7 +62,6 @@ function MeetingCard({
   currentUser: string | null
   currentRole: string | null
 }) {
-  const isOnline = lead.meetingType === 'online'
   const isTele = currentRole === 'tele'
   const todayStr = new Date().toISOString().split('T')[0]
   const isMeetingToday = lead.meetingDate === todayStr
@@ -84,14 +79,23 @@ function MeetingCard({
   return (
     <Card className="bg-[#111520] border border-white/[0.06] hover:border-[#6c63ff]/20 transition-all group">
       <CardContent className="p-4">
+        {/* Relative time for tele users */}
+        {isTele && lead.assignedAt && (
+          <div className="mb-2 flex items-center gap-2">
+            <span className="text-[11px] font-bold text-[#a8a3ff]">
+              {formatRelativeTime(lead.assignedAt)}
+            </span>
+            <span className="text-[10px] font-medium text-[#4a5280]">
+              {formatDate(lead.assignedAt)} - {formatTime(lead.assignedAt)}
+            </span>
+          </div>
+        )}
         <div className="flex items-start justify-between gap-3">
           {/* Left section */}
           <div className="flex items-start gap-3 flex-1 min-w-0">
-            {/* Type icon */}
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-              isOnline ? 'bg-[#6c63ff]/15 text-[#6c63ff]' : 'bg-[#00d4aa]/15 text-[#00d4aa]'
-            }`}>
-              {isOnline ? <Video size={18} /> : <MapPin size={18} />}
+            {/* Calendar icon */}
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-[#6c63ff]/15 text-[#6c63ff]">
+              <Calendar size={18} />
             </div>
 
             {/* Info */}
@@ -101,7 +105,7 @@ function MeetingCard({
               </div>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className="flex items-center gap-1 text-[13px] font-medium text-[#8892b0]">
-                  <Calendar size={10} />
+                  <CalendarDays size={10} />
                   {formatMeetingDate(lead.meetingDate)}
                 </span>
                 <span className="flex items-center gap-1 text-[13px] font-medium text-[#8892b0]">
@@ -110,11 +114,6 @@ function MeetingCard({
                 </span>
               </div>
               <div className="flex items-center gap-2 mt-1.5">
-                <Badge className={`text-[11px] font-bold border ${
-                  isOnline ? 'bg-[#6c63ff]/10 text-[#a8a3ff] border-[#6c63ff]/20' : 'bg-[#00d4aa]/10 text-[#00d4aa] border-[#00d4aa]/20'
-                }`}>
-                  {isOnline ? 'أونلاين' : 'حضوري'}
-                </Badge>
                 {isMeetingToday && (
                   <Badge className="bg-[#ffd166]/10 text-[#ffd166] border border-[#ffd166]/20 text-[11px] font-bold">
                     اليوم
@@ -123,7 +122,7 @@ function MeetingCard({
               </div>
 
               {/* Meeting link */}
-              {isOnline && lead.meetingLink && (
+              {lead.meetingType === 'online' && lead.meetingLink && (
                 <a
                   href={lead.meetingLink}
                   target="_blank"
@@ -219,10 +218,27 @@ export function MyMeetings() {
   const currentRole = useCrmStore((s) => s.currentRole)
   const addToast = useCrmStore((s) => s.addToast)
   const updateLeadInCache = useCrmStore((s) => s.updateLeadInCache)
+  const dateRangeFilters = useCrmStore((s) => s.dateRangeFilters)
+  const setDateRangeFilter = useCrmStore((s) => s.setDateRangeFilter)
 
-  const [timeFilter, setTimeFilter] = useState<'today' | 'week' | 'all'>('today')
+  const viewKey = 'my-meetings'
+  const dateFilter = dateRangeFilters[viewKey] || { preset: 'all' }
 
   const isTele = currentRole === 'tele'
+
+  /* ─── Custom date state ─── */
+  const [customFrom, setCustomFrom] = useState(dateFilter.customFrom || '')
+  const [customTo, setCustomTo] = useState(dateFilter.customTo || '')
+
+  const handleDatePresetChange = useCallback((preset: string) => {
+    if (preset === 'custom') {
+      setDateRangeFilter(viewKey, { preset, customFrom, customTo })
+    } else {
+      setDateRangeFilter(viewKey, { preset })
+      setCustomFrom('')
+      setCustomTo('')
+    }
+  }, [customFrom, customTo, setDateRangeFilter])
 
   /* ─── Filtered meetings ─── */
   const meetingLeads = useMemo(() => {
@@ -236,37 +252,59 @@ export function MyMeetings() {
       result = result.filter((l) => l.sales === currentUser)
     }
 
-    // Time filter
-    if (timeFilter === 'today') {
-      result = result.filter((l) => isTodayDateString(l.meetingDate))
-    } else if (timeFilter === 'week') {
-      result = result.filter((l) => isThisWeek(l.meetingDate))
-    }
-    // For tele users: 'all' shows ALL meetings (past + future)
-    // For sales users: 'all' shows upcoming meetings only
-    if (timeFilter === 'all' && !isTele) {
-      result = result.filter((l) => isUpcoming(l.meetingDate))
+    // Date range filter
+    // For tele users: filter by assignedAt timestamp
+    // For sales users: filter by meetingDate string
+    if (dateFilter.preset !== 'all') {
+      if (isTele) {
+        // Tele: filter by assignedAt timestamp
+        const { from, to } = getDateRange(dateFilter.preset, dateFilter.customFrom, dateFilter.customTo)
+        result = result.filter((l) => {
+          const ts = l.assignedAt || l.createdAt || 0
+          return ts >= from && ts < to
+        })
+      } else {
+        // Sales: filter by meetingDate string
+        if (dateFilter.preset === 'today') {
+          result = result.filter((l) => isTodayDateString(l.meetingDate))
+        } else if (dateFilter.preset === 'yesterday') {
+          const yesterday = new Date()
+          yesterday.setDate(yesterday.getDate() - 1)
+          const yStr = yesterday.toISOString().split('T')[0]
+          result = result.filter((l) => l.meetingDate === yStr)
+        } else if (dateFilter.preset === 'week') {
+          result = result.filter((l) => isThisWeek(l.meetingDate))
+        } else if (dateFilter.preset === 'month') {
+          const now = new Date()
+          const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+          result = result.filter((l) => l.meetingDate.startsWith(monthStr))
+        } else if (dateFilter.preset === 'custom' && dateFilter.customFrom && dateFilter.customTo) {
+          result = result.filter((l) => l.meetingDate >= dateFilter.customFrom! && l.meetingDate <= dateFilter.customTo!)
+        }
+      }
     }
 
-    // Sort by date then time
-    result.sort((a, b) => {
-      const dateComp = a.meetingDate.localeCompare(b.meetingDate)
-      if (dateComp !== 0) return dateComp
-      return (a.meetingTime || '').localeCompare(b.meetingTime || '')
-    })
+    // Sort: tele users by assignedAt descending, sales users by meetingDate then time
+    if (isTele) {
+      result.sort((a, b) => {
+        const aTime = a.assignedAt || a.createdAt || 0
+        const bTime = b.assignedAt || b.createdAt || 0
+        return bTime - aTime
+      })
+    } else {
+      result.sort((a, b) => {
+        const dateComp = a.meetingDate.localeCompare(b.meetingDate)
+        if (dateComp !== 0) return dateComp
+        return (a.meetingTime || '').localeCompare(b.meetingTime || '')
+      })
+    }
 
     return result
-  }, [leads, currentUser, currentRole, timeFilter, isTele])
+  }, [leads, currentUser, currentRole, dateFilter, isTele])
 
-  /* ─── Stats ─── */
+  /* ─── Stats (respect date range filter) ─── */
   const stats = useMemo(() => {
-    const allMyMeetings = leads.filter((l) => {
-      if (l.isArchived || !l.meetingDate) return false
-      // For tele: only transferred leads (has sales assigned)
-      if (currentRole === 'tele' && currentUser) return l.tele === currentUser && l.sales
-      if (currentRole === 'sales' && currentUser) return l.sales === currentUser
-      return true
-    })
+    const allMyMeetings = meetingLeads
 
     const today = allMyMeetings.filter((l) => isTodayDateString(l.meetingDate))
     const attended = allMyMeetings.filter((l) => l.attended === 'attended')
@@ -282,7 +320,7 @@ export function MyMeetings() {
       closedWonCount: closedWon.length,
       totalCount: allMyMeetings.length,
     }
-  }, [leads, currentUser, currentRole])
+  }, [meetingLeads])
 
   /* ─── Mark attendance ─── */
   const handleMarkAttendance = useCallback(async (id: string, value: string) => {
@@ -312,29 +350,46 @@ export function MyMeetings() {
           <p className="text-[13px] font-semibold text-[#8892b0] mt-0.5">{isTele ? 'العملاء المحولين للسيلز وحالتهم' : 'متابعة الاجتماعات والحضور'}</p>
         </div>
 
-        {/* Time filter */}
-        <div className="flex items-center gap-1 bg-[#111520] border border-white/[0.06] rounded-lg p-1">
-          {[
-            { key: 'today' as const, label: 'اليوم', icon: CalendarDays },
-            { key: 'week' as const, label: 'هذا الأسبوع', icon: CalendarRange },
-            { key: 'all' as const, label: isTele ? 'الكل' : 'القادمة', icon: Calendar },
-          ].map((f) => {
-            const Icon = f.icon
-            return (
-              <button
-                key={f.key}
-                onClick={() => setTimeFilter(f.key)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-bold transition-colors cursor-pointer ${
-                  timeFilter === f.key
-                    ? 'bg-[#6c63ff]/15 text-[#a8a3ff]'
-                    : 'text-[#8892b0] hover:bg-[#1c2234] hover:text-[#f0f2ff]'
-                }`}
-              >
-                <Icon size={12} />
-                {f.label}
-              </button>
-            )
-          })}
+        {/* Date range filter */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={dateFilter.preset} onValueChange={handleDatePresetChange}>
+            <SelectTrigger className="w-[130px] h-8 text-[15px] bg-[#111520] border-white/[0.06] text-[#8892b0]">
+              <CalendarDays size={12} className="text-[#6c63ff]" />
+              <SelectValue placeholder="التاريخ" />
+            </SelectTrigger>
+            <SelectContent className="bg-[#111520] border-white/[0.08]">
+              <SelectItem value="all" className="text-[15px] text-[#f0f2ff]">الكل</SelectItem>
+              <SelectItem value="today" className="text-[15px] text-[#f0f2ff]">اليوم</SelectItem>
+              <SelectItem value="yesterday" className="text-[15px] text-[#f0f2ff]">أمس</SelectItem>
+              <SelectItem value="week" className="text-[15px] text-[#f0f2ff]">هذا الأسبوع</SelectItem>
+              <SelectItem value="month" className="text-[15px] text-[#f0f2ff]">هذا الشهر</SelectItem>
+              <SelectItem value="custom" className="text-[15px] text-[#f0f2ff]">مخصص</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Custom date range inputs */}
+          {dateFilter.preset === 'custom' && (
+            <>
+              <Input
+                type="date"
+                value={customFrom}
+                onChange={(e) => {
+                  setCustomFrom(e.target.value)
+                  setDateRangeFilter(viewKey, { preset: 'custom', customFrom: e.target.value, customTo })
+                }}
+                className="h-8 text-[15px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] w-[140px]"
+              />
+              <Input
+                type="date"
+                value={customTo}
+                onChange={(e) => {
+                  setCustomTo(e.target.value)
+                  setDateRangeFilter(viewKey, { preset: 'custom', customFrom, customTo: e.target.value })
+                }}
+                className="h-8 text-[15px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] w-[140px]"
+              />
+            </>
+          )}
         </div>
       </div>
 
@@ -364,8 +419,8 @@ export function MyMeetings() {
             <div className="text-[15px] font-bold text-[#8892b0] mb-1">لا يوجد اجتماعات</div>
             <div className="text-[13px] font-medium text-[#4a5280]">
               {isTele
-                ? (timeFilter === 'today' ? 'لا يوجد اجتماعات اليوم' : timeFilter === 'week' ? 'لا يوجد اجتماعات هذا الأسبوع' : 'لا يوجد تحويلات')
-                : (timeFilter === 'today' ? 'لا يوجد اجتماعات اليوم' : timeFilter === 'week' ? 'لا يوجد اجتماعات هذا الأسبوع' : 'لا يوجد اجتماعات قادمة')
+                ? 'لا يوجد تحويلات للفترة المحددة'
+                : 'لا يوجد اجتماعات للفترة المحددة'
               }
             </div>
           </CardContent>

@@ -8,6 +8,7 @@ import {
   Search, Plus, Trash2, Archive, Phone, Filter, X, Check,
   UserPlus, Calendar, Loader2, ExternalLink,
   ChevronLeft, ChevronRight, ArrowLeftRight, Send, AlertCircle,
+  RotateCcw, UserRound,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -76,7 +77,7 @@ function EditableCell({
   return (
     <span
       onClick={() => { setDraft(value); setEditing(true) }}
-      className="cursor-pointer hover:bg-[#1c2234] rounded px-1.5 py-0.5 transition-colors text-[13px] font-medium min-h-[28px] inline-flex items-center"
+      className="cursor-pointer hover:bg-[#1c2234] rounded px-1.5 py-0.5 transition-colors text-[13px] font-medium min-h-[28px] w-full h-full block"
     >
       {value || <span className="text-[#4a5280]">{placeholder}</span>}
     </span>
@@ -108,7 +109,7 @@ function LazySelectCell({
     return (
       <button
         onClick={() => setOpen(true)}
-        className={`h-7 text-[13px] font-medium px-2 rounded border border-white/[0.06] bg-[#0a0d14] text-[#f0f2ff] hover:border-[#6c63ff]/30 transition-colors cursor-pointer text-right w-full ${className}`}
+        className={`text-[13px] font-medium px-2 rounded border border-white/[0.06] bg-[#0a0d14] text-[#f0f2ff] hover:border-[#6c63ff]/30 transition-colors cursor-pointer text-right w-full min-h-[28px] flex items-center ${className}`}
       >
         {displayLabel}
       </button>
@@ -627,7 +628,6 @@ export function TeleSheet() {
       meetingDate: formData.meetingDate,
       meetingTime: formData.meetingTime || '',
       assignedAt: Date.now(),
-      status: 'meeting-done',
       salesStatus: 'new',
       brief: formData.brief,
       customerName: formData.customerName,
@@ -652,7 +652,6 @@ export function TeleSheet() {
           meetingDate: formData.meetingDate,
           meetingTime: formData.meetingTime || '',
           customerName: formData.customerName,
-          status: 'meeting-done',
           salesStatus: 'new',
           assignedAt: Date.now(),
         },
@@ -682,8 +681,32 @@ export function TeleSheet() {
 
   /* ─── Check if a lead is transferred ─── */
   const isTransferred = useCallback((lead: Lead) => {
-    return !!(lead.sales && lead.status === 'meeting-done')
+    return !!(lead.sales && lead.assignedAt)
   }, [])
+
+  /* ─── Cancel transfer ─── */
+  const handleCancelTransfer = useCallback(async (leadId: string) => {
+    const updates: Partial<Lead> = {
+      sales: '',
+      assignedAt: null as unknown as number,
+      meetingDate: '',
+      meetingTime: '',
+      meetingType: '',
+      salesStatus: null as unknown as string,
+    }
+    updateLeadInCache(leadId, updates)
+    try {
+      await apiUpdateLead(leadId, updates)
+      addToast('success', 'تم إلغاء التحويل')
+    } catch {
+      addToast('error', 'فشل إلغاء التحويل')
+    }
+  }, [updateLeadInCache, addToast])
+
+  /* ─── Change sales person (reopen modal) ─── */
+  const handleChangeSales = useCallback((leadId: string) => {
+    openTransferModal(leadId)
+  }, [openTransferModal])
 
   /* ═══════════════ RENDER ═══════════════ */
   return (
@@ -931,7 +954,7 @@ export function TeleSheet() {
                         key={lead.id}
                         className={`border-b border-white/[0.04] transition-colors ${
                           transferred
-                            ? 'bg-emerald-500/[0.04] shadow-[0_0_8px_rgba(16,185,129,0.08)]'
+                            ? 'bg-emerald-500/[0.08] border-r-2 border-r-emerald-400 shadow-[0_0_16px_rgba(16,185,129,0.15)]'
                             : isSelected
                               ? 'bg-[#6c63ff]/5'
                               : 'hover:bg-[#1c2234]/50'
@@ -1032,13 +1055,38 @@ export function TeleSheet() {
                           <AttendanceBadge value={lead.attended} />
                         </TableCell>
 
-                        {/* تحويل — Transfer button */}
+                        {/* تحويل — Transfer button / transferred info */}
                         <TableCell>
                           {lead.sales ? (
-                            <Badge className="bg-emerald-500/15 text-emerald-400 text-[11px] font-bold border-0 gap-1">
-                              <Send size={8} />
-                              {lead.sales}
-                            </Badge>
+                            <div className="space-y-1.5">
+                              <Badge className="bg-emerald-500/15 text-emerald-400 text-[11px] font-bold border-0 gap-1">
+                                <Send size={8} />
+                                {lead.sales}
+                              </Badge>
+                              {(lead.meetingDate || lead.meetingTime) && (
+                                <div className="text-[11px] font-semibold text-emerald-300/80">
+                                  ميعاد الاجتماع: {lead.meetingDate} {lead.meetingTime}
+                                </div>
+                              )}
+                              <div className="flex gap-1 mt-1">
+                                <button
+                                  onClick={() => handleChangeSales(lead.id)}
+                                  className="h-6 px-1.5 rounded bg-[#6c63ff]/10 text-[#6c63ff] flex items-center gap-0.5 hover:bg-[#6c63ff]/20 transition-colors cursor-pointer text-[10px] font-bold"
+                                  title="تغيير السيلز"
+                                >
+                                  <UserRound size={9} />
+                                  تغيير السيلز
+                                </button>
+                                <button
+                                  onClick={() => handleCancelTransfer(lead.id)}
+                                  className="h-6 px-1.5 rounded bg-red-500/10 text-red-400 flex items-center gap-0.5 hover:bg-red-500/20 transition-colors cursor-pointer text-[10px] font-bold"
+                                  title="إلغاء التحويل"
+                                >
+                                  <RotateCcw size={9} />
+                                  إلغاء التحويل
+                                </button>
+                              </div>
+                            </div>
                           ) : (
                             <button
                               onClick={() => openTransferModal(lead.id)}

@@ -17,7 +17,7 @@ const VIEW_TITLES: Record<ViewName, { title: string; subtitle: string }> = {
   'customers-status': { title: 'حالة العملاء', subtitle: 'متابعة حالة جميع العملاء' },
   'daily-report': { title: 'تقرير يومي', subtitle: 'ملخص الأنشطة اليومية' },
   'my-archive': { title: 'أرشيفي', subtitle: 'بيانات مؤرشفة' },
-  'bulk-add': { title: 'إضافة مجموعة', subtitle: 'إضافة عملاء جديد بالجملة' },
+  'bulk-add': { title: 'إضافة ليدز', subtitle: 'إضافة عملاء جديد بالجملة' },
   admin: { title: 'لوحة التحكم', subtitle: 'إعدادات النظام والفريق' },
   'employee-profile': { title: 'صفحتي', subtitle: 'الملف الشخصي والإعدادات' },
   transfers: { title: 'التحويلات', subtitle: 'متابعة العملاء المحوَّلين للسيلز' },

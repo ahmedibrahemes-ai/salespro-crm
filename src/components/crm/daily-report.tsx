@@ -149,6 +149,10 @@ export function DailyReport() {
   const team = useCrmStore((s) => s.team)
   const currentUser = useCrmStore((s) => s.currentUser)
   const currentRole = useCrmStore((s) => s.currentRole)
+  const teleAccess = useCrmStore((s) => s.teleAccess)
+  const salesAccess = useCrmStore((s) => s.salesAccess)
+  const accessibleTeleSheets = useCrmStore((s) => s.getAccessibleTeleSheets)
+  const accessibleSalesSheets = useCrmStore((s) => s.getAccessibleSalesSheets)
 
   /* ─── Date Navigation ─── */
   const [selectedDate, setSelectedDate] = useState(new Date())
@@ -367,8 +371,22 @@ export function DailyReport() {
       total: stats.newLeads + stats.calls + stats.meetings + stats.attended + stats.closed,
     })).sort((a, b) => b.calls - a.calls || b.total - a.total)
 
-    const topPerformer = teamActivity.length > 0 && teamActivity[0].total > 0 ? teamActivity[0] : null
-    const topCaller = teamActivity.find((m) => m.calls > 0) || null
+    // Filter team activity based on permissions
+    let filteredTeamActivity = teamActivity
+    if (currentRole === 'tele' && currentUser) {
+      const accessible = new Set(accessibleTeleSheets(currentUser))
+      filteredTeamActivity = teamActivity.filter((m) => accessible.has(m.name))
+    } else if (currentRole === 'sales' && currentUser) {
+      const accessible = new Set(accessibleSalesSheets(currentUser))
+      filteredTeamActivity = teamActivity.filter((m) => accessible.has(m.name))
+    }
+    // Admin sees all (no filter)
+
+    // Hide team section if 0 or 1 members (just themselves — redundant)
+    const showTeamSection = filteredTeamActivity.length > 1
+
+    const topPerformer = filteredTeamActivity.length > 0 && filteredTeamActivity[0].total > 0 ? filteredTeamActivity[0] : null
+    const topCaller = filteredTeamActivity.find((m) => m.calls > 0) || null
 
     // Peak hours: sort hours by call count descending
     const peakHours = hourlyCalls
@@ -395,7 +413,8 @@ export function DailyReport() {
       newLeadActivities: newLeadActivities.slice(0, 20),
       statusChangeActivities: statusChangeActivities.slice(0, 20),
       meetingActivities: meetingActivities.slice(0, 20),
-      teamActivity,
+      teamActivity: filteredTeamActivity,
+      showTeamSection,
       topPerformer,
       topCaller,
       hourlyCalls,
@@ -403,7 +422,7 @@ export function DailyReport() {
       lowActivityHours,
       maxHourlyCalls,
     }
-  }, [leads, archivedLeads, team, selectedDate, currentUser, currentRole])
+  }, [leads, archivedLeads, team, selectedDate, currentUser, currentRole, teleAccess, salesAccess, accessibleTeleSheets, accessibleSalesSheets])
 
   /* ─── Performance Rating ─── */
   const performanceRating = useMemo(() => {
@@ -525,7 +544,7 @@ export function DailyReport() {
       {/* ══════════════════════════════════════════════════
           3. MOST ACTIVE EMPLOYEES (Prominent Section)
           ══════════════════════════════════════════════════ */}
-      {computed.topCaller && (
+      {computed.showTeamSection && computed.topCaller && (
         <div
           className="relative flex items-center gap-4 border rounded-2xl px-5 py-4 overflow-hidden"
           style={{
@@ -689,7 +708,7 @@ export function DailyReport() {
       {/* ══════════════════════════════════════════════════
           6. TEAM ACTIVITY BREAKDOWN TABLE
           ══════════════════════════════════════════════════ */}
-      <Card className="bg-[#111520] border-white/[0.06] rounded-2xl shadow-none">
+      {computed.showTeamSection && <Card className="bg-[#111520] border-white/[0.06] rounded-2xl shadow-none">
         <CardHeader className="pb-2">
           <CardTitle
             className="text-[16px] font-extrabold text-[#f0f2ff] flex items-center gap-2"
@@ -784,7 +803,7 @@ export function DailyReport() {
             </Table>
           </div>
         </CardContent>
-      </Card>
+      </Card>}
 
       {/* ══════════════════════════════════════════════════
           7. RECENT ACTIVITIES

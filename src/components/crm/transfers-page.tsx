@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, useCallback } from 'react'
-import { useCrmStore, ATTENDANCE_STATUSES, SALES_STATUSES, formatDate, getDateRange } from '@/lib/store'
+import { useCrmStore, ATTENDANCE_STATUSES, SALES_STATUSES, formatDate, formatRelativeTime, formatTime, getDateRange } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import {
   Search, Filter, Calendar, ChevronLeft, ChevronRight, Phone, ExternalLink, ArrowRightLeft,
@@ -91,11 +91,11 @@ export function TransfersPage() {
 
   const [currentPage, setCurrentPage] = useState(1)
 
-  /* ─── Filtered leads: only transferred (sales is set AND status === 'meeting-done') ─── */
+  /* ─── Filtered leads: only transferred (sales is set AND assignedAt exists) ─── */
   const filteredLeads = useMemo(() => {
     // Start with leads that have been transferred
     let result = leads.filter(
-      (l) => !l.isArchived && l.sales && l.status === 'meeting-done'
+      (l) => !l.isArchived && l.sales && l.assignedAt
     )
 
     // Filter by tele member
@@ -318,6 +318,7 @@ export function TransfersPage() {
                   <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">السيلز المحول له</TableHead>
                   <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">تاريخ الاجتماع</TableHead>
                   <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">وقت الاجتماع</TableHead>
+                  <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">وقت التحويل</TableHead>
                   <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">حالة الحضور</TableHead>
                   <TableHead className="text-right text-[15px] font-bold text-[#4a5280]">حالة السيلز</TableHead>
                 </TableRow>
@@ -325,7 +326,7 @@ export function TransfersPage() {
               <TableBody>
                 {paginatedLeads.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12 text-[#4a5280]">
+                    <TableCell colSpan={10} className="text-center py-12 text-[#4a5280]">
                       <div className="text-[30px] mb-2">🔄</div>
                       <div className="text-[16px] font-semibold">لا يوجد تحويلات</div>
                       <div className="text-[14px] font-medium mt-1">العملاء المحولين سيظهرون هنا</div>
@@ -404,6 +405,18 @@ export function TransfersPage() {
                       <TableCell>
                         <div className="text-[15px] font-medium text-[#8892b0]">
                           {lead.meetingTime || '—'}
+                        </div>
+                      </TableCell>
+
+                      {/* وقت التحويل */}
+                      <TableCell>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[13px] font-bold text-[#a8a3ff]">
+                            {formatRelativeTime(lead.assignedAt)}
+                          </span>
+                          <span className="text-[11px] font-medium text-[#4a5280]">
+                            {formatDate(lead.assignedAt)} {formatTime(lead.assignedAt)}
+                          </span>
                         </div>
                       </TableCell>
 

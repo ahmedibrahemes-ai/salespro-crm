@@ -40,7 +40,7 @@ const NAV_ITEMS: NavItem[] = [
   { view: 'meetings', icon: Users, label: 'الاجتماعات', roles: ['sales', 'admin'] },
   { view: 'my-archive', icon: Archive, label: 'أرشيفي', roles: ['tele', 'sales', 'admin'] },
   { view: 'daily-report', icon: FileText, label: 'تقرير يومي', roles: ['tele', 'sales', 'admin'] },
-  { view: 'bulk-add', icon: PlusCircle, label: 'إضافة مجموعة', roles: ['tele', 'sales', 'admin'] },
+  { view: 'bulk-add', icon: PlusCircle, label: 'إضافة ليدز', roles: ['tele', 'sales', 'admin'] },
   { view: 'admin', icon: Settings, label: 'لوحة التحكم', roles: ['admin'] },
 ]
 

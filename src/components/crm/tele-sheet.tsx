@@ -795,6 +795,10 @@ export function TeleSheet() {
   // Quick Paste dialog state
   const [showPasteDialog, setShowPasteDialog] = useState(false)
 
+  // Delete confirmation dialog state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
+
   const [currentPage, setCurrentPage] = useState(1)
 
   // Ctrl+V keyboard shortcut handler
@@ -934,8 +938,17 @@ export function TeleSheet() {
     }
   }, [updateLeadInCache, addToast])
 
-  /* ─── Delete single lead ─── */
-  const handleDeleteLead = useCallback(async (id: string) => {
+  /* ─── Delete single lead — opens confirmation dialog ─── */
+  const requestDeleteLead = useCallback((id: string, name: string) => {
+    setDeleteTarget({ id, name })
+    setDeleteConfirmOpen(true)
+  }, [])
+
+  /* ─── Confirm delete single lead ─── */
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deleteTarget) return
+    const { id } = deleteTarget
+    setDeleteConfirmOpen(false)
     removeLeadFromCache(id)
     try {
       await apiDeleteLead(id)
@@ -943,7 +956,8 @@ export function TeleSheet() {
     } catch {
       addToast('error', 'فشل الحذف')
     }
-  }, [removeLeadFromCache, addToast])
+    setDeleteTarget(null)
+  }, [deleteTarget, removeLeadFromCache, addToast])
 
   /* ─── Bulk actions ─── */
   const handleBulkArchive = useCallback(async () => {
@@ -1236,6 +1250,7 @@ export function TeleSheet() {
             <Table className="table-fixed">
               <TableHeader>
                 <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
+                  <TableHead className="w-[36px] text-center text-[13px] font-bold text-[#4a5280]">#</TableHead>
                   <TableHead className="w-[40px] text-right text-[13px] font-bold text-[#4a5280]">
                     <Checkbox
                       checked={selected.length === paginatedLeads.length && paginatedLeads.length > 0}
@@ -1261,6 +1276,7 @@ export function TeleSheet() {
                 {/* ─── Inline Add Row ─── */}
                 {showAddRow && (
                   <tr className="border-b border-[#6c63ff]/20 bg-[#6c63ff]/5">
+                    <TableCell className="w-[36px] text-center text-[12px] text-[#4a5280]">—</TableCell>
                     <TableCell className="w-[40px]">
                       <UserPlus size={14} className="text-[#6c63ff]" />
                     </TableCell>
@@ -1328,16 +1344,17 @@ export function TeleSheet() {
                 {/* ─── Data Rows ─── */}
                 {paginatedLeads.length === 0 && !showAddRow ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-12 text-[#4a5280]">
+                    <TableCell colSpan={11} className="text-center py-12 text-[#4a5280]">
                       <div className="text-[30px] mb-2">📋</div>
                       <div className="text-[14px] font-semibold">لا يوجد عملاء</div>
                       <div className="text-[12px] font-medium mt-1">اضغط &quot;إضافة عميل&quot; لإضافة عميل جديد</div>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  paginatedLeads.map((lead) => {
+                  paginatedLeads.map((lead, idx) => {
                     const isSelected = selected.includes(lead.id)
                     const transferred = isTransferred(lead)
+                    const rowNum = (currentPage - 1) * PAGE_SIZE + idx + 1
                     return (
                       <tr
                         key={lead.id}
@@ -1349,6 +1366,11 @@ export function TeleSheet() {
                               : 'hover:bg-[#1c2234]/50'
                         }`}
                       >
+                        {/* # Row Number */}
+                        <TableCell className="w-[36px] text-center text-[12px] font-bold text-[#4a5280]">
+                          {rowNum}
+                        </TableCell>
+
                         {/* ☐ Checkbox */}
                         <TableCell className="w-[40px]">
                           <Checkbox
@@ -1487,10 +1509,10 @@ export function TeleSheet() {
                           )}
                         </TableCell>
 
-                        {/* حذف — Delete */}
+                        {/* حذف — Delete with confirmation */}
                         <TableCell>
                           <button
-                            onClick={() => handleDeleteLead(lead.id)}
+                            onClick={() => requestDeleteLead(lead.id, lead.customerName)}
                             className="w-7 h-7 rounded-md bg-red-500/10 text-red-400 flex items-center justify-center hover:bg-red-500/20 transition-colors cursor-pointer"
                             title="حذف"
                           >
@@ -1550,6 +1572,46 @@ export function TeleSheet() {
         salesTeam={team.sales}
         saving={transferSaving}
       />
+
+      {/* ─── Delete Confirmation Dialog ─── */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={(open) => { if (!open) { setDeleteConfirmOpen(false); setDeleteTarget(null) } }}>
+        <DialogContent className="bg-[#111520] border-white/[0.08] text-[#f0f2ff] sm:max-w-md" showCloseButton>
+          <DialogHeader>
+            <DialogTitle className="text-[18px] font-extrabold text-[#f0f2ff] flex items-center gap-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              <AlertCircle size={22} className="text-red-400" />
+              تأكيد الحذف
+            </DialogTitle>
+            <DialogDescription className="text-[13px] text-[#8892b0]">
+              هل أنت متأكد من حذف هذا العميل؟ لا يمكن التراجع عن هذا الإجراء.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteTarget && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-start gap-3">
+              <Trash2 size={18} className="text-red-400 shrink-0 mt-0.5" />
+              <div>
+                <div className="text-[14px] font-bold text-red-400">{deleteTarget.name}</div>
+                <div className="text-[12px] font-medium text-red-400/70 mt-0.5">سيتم حذف العميل نهائياً من النظام</div>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button
+              onClick={handleConfirmDelete}
+              className="bg-red-500 hover:bg-red-600 text-white gap-1.5 text-[13px] font-bold h-9 cursor-pointer"
+            >
+              <Trash2 size={14} />
+              نعم، احذف
+            </Button>
+            <Button
+              onClick={() => { setDeleteConfirmOpen(false); setDeleteTarget(null) }}
+              variant="ghost"
+              className="text-[#8892b0] hover:text-[#f0f2ff] text-[13px] h-9 cursor-pointer"
+            >
+              إلغاء
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ─── Quick Paste Dialog ─── */}
       <QuickPasteDialog

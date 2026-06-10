@@ -6,6 +6,7 @@ import type { Lead } from '@/lib/supabase'
 import { apiBulkCreateLeads } from '@/lib/supabase'
 import {
   Plus, Trash2, Upload, Loader2, AlertTriangle, Check, FileSpreadsheet, ClipboardPaste,
+  Link, Copy, Code2, RefreshCw, ExternalLink, X,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -32,6 +33,25 @@ interface BulkRow {
   sales: string
   status: string
   errors: string[]
+}
+
+interface SyncInfo {
+  webhookPath: string
+  secretConfigured: boolean
+  recentSyncs: Array<{
+    id: string
+    timestamp: number
+    received: number
+    created: number
+    skipped: number
+    errorCount: number
+  }>
+  lastSync: {
+    timestamp: number
+    received: number
+    created: number
+    skipped: number
+  } | null
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -87,6 +107,198 @@ function parsePastedLine(line: string): { phone: string; storeUrl: string } {
 }
 
 /* ═══════════════════════════════════════════════════════
+   Google Apps Script Template
+   ═══════════════════════════════════════════════════════ */
+function generateAppsScriptCode(webhookUrl: string, secret: string): string {
+  const secretLine = secret ? `  var SECRET = "${secret}";` : '  var SECRET = ""; // Leave empty if no secret is configured'
+  return `// ═══════════════════════════════════════════════════
+// SalesPro CRM - Google Sheets Auto-Sync
+// ═══════════════════════════════════════════════════
+//
+// تعليمات الإعداد:
+// 1. افتح Google Sheet الخاص بك
+// 2. اذهب إلى Extensions > Apps Script
+// 3. الصق هذا الكود بالكامل
+// 4. عدّل SHEET_NAME واسماء الأعمدة حسب شيتك
+// 5. اضغط Save ثم Run > syncToCRM
+// 6. عند اول تشغيل ستطلب صلاحيات - وافق عليها
+// 7. لتفعيل المزامنة التلقائية: اضغط على أيقونة الترigger
+//    في الشريط الجانبي وأضف trigger جديد:
+//    - Event: From spreadsheet > On edit
+//    أو استخدم installTrigger() من Run
+
+var WEBHOOK_URL = "${webhookUrl}";
+${secretLine}
+
+// اسم الشيت (التاب) - غيّره حسب اسم الشيت عندك
+var SHEET_NAME = "Sheet1";
+
+// أرقام الأعمدة (تبدأ من 1) - غيّرها حسب ترتيب الأعمدة عندك
+var COL_PHONE = 1;         // عمود رقم الجوال
+var COL_STORE_URL = 2;     // عمود رابط المتجر
+var COL_CUSTOMER_NAME = 3; // عمود اسم العميل
+var COL_EMPLOYEE_NAME = 4; // عمود اسم الموظف
+
+/**
+ * مزامنة البيانات إلى CRM
+ * يرسل جميع الصفوف التي تحتوي بيانات
+ */
+function syncToCRM() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  if (!sheet) {
+    Logger.log("Sheet not found: " + SHEET_NAME);
+    return;
+  }
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    Logger.log("No data rows found");
+    return;
+  }
+
+  var data = sheet.getRange(2, 1, lastRow - 1, Math.max(COL_PHONE, COL_STORE_URL, COL_CUSTOMER_NAME, COL_EMPLOYEE_NAME)).getValues();
+  var payload = [];
+
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    var phone = String(row[COL_PHONE - 1] || "").trim();
+    var storeUrl = String(row[COL_STORE_URL - 1] || "").trim();
+    var customerName = String(row[COL_CUSTOMER_NAME - 1] || "").trim();
+    var employeeName = String(row[COL_EMPLOYEE_NAME - 1] || "").trim();
+
+    // تخطي الصفوف الفارغة
+    if (!phone && !storeUrl) continue;
+
+    payload.push({
+      phone: phone,
+      storeUrl: storeUrl,
+      customerName: customerName,
+      employeeName: employeeName
+    });
+  }
+
+  if (payload.length === 0) {
+    Logger.log("No valid data to sync");
+    return;
+  }
+
+  var body = {
+    data: payload
+  };
+
+  if (SECRET) {
+    body.secret = SECRET;
+  }
+
+  var options = {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify(body),
+    muteHttpExceptions: true
+  };
+
+  try {
+    var response = UrlFetchApp.fetch(WEBHOOK_URL, options);
+    var result = JSON.parse(response.getContentText());
+    Logger.log("Sync result: " + JSON.stringify(result));
+
+    if (result.success) {
+      Logger.log("Created: " + result.created + ", Skipped: " + result.skipped);
+    } else {
+      Logger.log("Sync error: " + (result.error || "Unknown error"));
+    }
+  } catch (e) {
+    Logger.log("Request failed: " + e.message);
+  }
+}
+
+/**
+ * يتم تشغيله تلقائياً عند تعديل أي خلية
+ * يزامن فقط الصف المعدّل
+ */
+function onEdit(e) {
+  if (!e || !e.range) return;
+
+  var sheet = e.range.getSheet();
+  if (sheet.getName() !== SHEET_NAME) return;
+
+  var row = e.range.getRow();
+  if (row < 2) return; // تخطي صف العناوين
+
+  var col = e.range.getColumn();
+  var relevantCols = [COL_PHONE, COL_STORE_URL, COL_CUSTOMER_NAME, COL_EMPLOYEE_NAME];
+  if (relevantCols.indexOf(col) === -1) return;
+
+  var rowData = sheet.getRange(row, 1, 1, Math.max(COL_PHONE, COL_STORE_URL, COL_CUSTOMER_NAME, COL_EMPLOYEE_NAME)).getValues()[0];
+
+  var phone = String(rowData[COL_PHONE - 1] || "").trim();
+  var storeUrl = String(rowData[COL_STORE_URL - 1] || "").trim();
+
+  if (!phone && !storeUrl) return;
+
+  var customerName = String(rowData[COL_CUSTOMER_NAME - 1] || "").trim();
+  var employeeName = String(rowData[COL_EMPLOYEE_NAME - 1] || "").trim();
+
+  var body = {
+    data: [{
+      phone: phone,
+      storeUrl: storeUrl,
+      customerName: customerName,
+      employeeName: employeeName
+    }]
+  };
+
+  if (SECRET) {
+    body.secret = SECRET;
+  }
+
+  var options = {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify(body),
+    muteHttpExceptions: true
+  };
+
+  try {
+    UrlFetchApp.fetch(WEBHOOK_URL, options);
+  } catch (e) {
+    Logger.log("Auto-sync failed: " + e.message);
+  }
+}
+
+/**
+ * تثبيت trigger تلقائي للمزامنة كل 5 دقائق
+ */
+function installTrigger() {
+  // حذف الترigger القديم أولاً
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    ScriptApp.deleteTrigger(triggers[i]);
+  }
+
+  // إضافة ترigger جديد - كل 5 دقائق
+  ScriptApp.newTrigger("syncToCRM")
+    .timeBased()
+    .everyMinutes(5)
+    .create();
+
+  Logger.log("Auto-sync trigger installed (every 5 minutes)");
+}
+
+/**
+ * إزالة الترigger
+ */
+function uninstallTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    ScriptApp.deleteTrigger(triggers[i]);
+  }
+  Logger.log("All triggers removed");
+}
+`
+}
+
+/* ═══════════════════════════════════════════════════════
    Bulk Add Component
    ═══════════════════════════════════════════════════════ */
 export function BulkAdd() {
@@ -103,6 +315,13 @@ export function BulkAdd() {
   const [pastedData, setPastedData] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  /* ─── Sheets Sync State ─── */
+  const [syncInfo, setSyncInfo] = useState<SyncInfo | null>(null)
+  const [showScriptDialog, setShowScriptDialog] = useState(false)
+  const [syncTesting, setSyncTesting] = useState(false)
+  const [syncLoading, setSyncLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
+
   /* ─── Create empty row ─── */
   function createEmptyRow(): BulkRow {
     return {
@@ -118,6 +337,91 @@ export function BulkAdd() {
       errors: [],
     }
   }
+
+  /* ─── Load sync info ─── */
+  const loadSyncInfo = useCallback(async () => {
+    setSyncLoading(true)
+    try {
+      const res = await fetch('/api/sheets-sync')
+      if (res.ok) {
+        const data = await res.json()
+        setSyncInfo(data as SyncInfo)
+      }
+    } catch (err) {
+      console.warn('[bulk-add] Failed to load sync info:', err)
+    } finally {
+      setSyncLoading(false)
+    }
+  }, [])
+
+  // Load sync info on mount
+  useState(() => {
+    loadSyncInfo()
+  })
+
+  /* ─── Get webhook URL ─── */
+  const getWebhookUrl = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      return `${window.location.origin}/api/sheets-sync`
+    }
+    return '/api/sheets-sync'
+  }, [])
+
+  /* ─── Copy webhook URL ─── */
+  const handleCopyUrl = useCallback(async () => {
+    const url = getWebhookUrl()
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      addToast('success', 'تم نسخ رابط الـ Webhook')
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      addToast('error', 'فشل في نسخ الرابط')
+    }
+  }, [getWebhookUrl, addToast])
+
+  /* ─── Copy Apps Script code ─── */
+  const handleCopyScript = useCallback(async () => {
+    const code = generateAppsScriptCode(getWebhookUrl(), '')
+    try {
+      await navigator.clipboard.writeText(code)
+      addToast('success', 'تم نسخ كود Apps Script')
+    } catch {
+      addToast('error', 'فشل في نسخ الكود')
+    }
+  }, [getWebhookUrl, addToast])
+
+  /* ─── Test connection ─── */
+  const handleTestConnection = useCallback(async () => {
+    setSyncTesting(true)
+    try {
+      const res = await fetch('/api/sheets-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: [{
+            phone: `test-${Date.now()}`,
+            storeUrl: 'https://test.example.com',
+            customerName: 'اختبار اتصال',
+            employeeName: '',
+          }],
+        }),
+      })
+
+      const result = await res.json()
+      if (res.ok && result.success) {
+        addToast('success', `الاتصال ناجح! تم إنشاء ${result.created} سجل تجريبي`)
+      } else {
+        addToast('warning', `الاتصال يعمل ولكن: ${result.error || `${result.skipped} مكرر`}`)
+      }
+      // Reload sync info after test
+      loadSyncInfo()
+    } catch (err) {
+      addToast('error', `فشل الاتصال: ${err instanceof Error ? err.message : 'خطأ غير معروف'}`)
+    } finally {
+      setSyncTesting(false)
+    }
+  }, [addToast, loadSyncInfo])
 
   /* ─── Update a row field ─── */
   const updateRow = useCallback((rowId: string, field: keyof BulkRow, value: string) => {
@@ -382,6 +686,17 @@ export function BulkAdd() {
     [rows]
   )
 
+  /* ─── Format timestamp ─── */
+  const formatSyncTime = useCallback((ts: number) => {
+    const d = new Date(ts)
+    return d.toLocaleString('ar-SA', {
+      hour: '2-digit',
+      minute: '2-digit',
+      day: 'numeric',
+      month: 'short',
+    })
+  }, [])
+
   /* ═══════════════ RENDER ═══════════════ */
   return (
     <div className="space-y-4 animate-in fade-in duration-300">
@@ -427,6 +742,194 @@ export function BulkAdd() {
           </Button>
         </div>
       </div>
+
+      {/* ═══════════ Google Sheets Sync Section ═══════════ */}
+      <Card className="bg-[#111520] border-white/[0.06] overflow-hidden">
+        <CardContent className="p-4">
+          <div className="flex flex-col gap-3">
+            {/* Section Title */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-[#6c63ff]/15 flex items-center justify-center">
+                  <Link size={16} className="text-[#6c63ff]" />
+                </div>
+                <div>
+                  <div className="text-[14px] font-bold text-[#f0f2ff] flex items-center gap-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                    مزامنة Google Sheets
+                  </div>
+                  <p className="text-[11px] font-medium text-[#8892b0] mt-0.5">
+                    اربط شيت Google مع CRM لمزامنة البيانات تلقائياً
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={loadSyncInfo}
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 text-[#4a5280] hover:text-[#f0f2ff] hover:bg-[#1c2234]"
+              >
+                <RefreshCw size={12} className={syncLoading ? 'animate-spin' : ''} />
+              </Button>
+            </div>
+
+            {/* Webhook URL */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex-1 flex items-center gap-2 bg-[#0a0d14] border border-white/[0.08] rounded-lg px-3 py-2">
+                <ExternalLink size={12} className="text-[#4a5280] shrink-0" />
+                <span className="text-[12px] text-[#8892b0] font-mono truncate" dir="ltr">
+                  {getWebhookUrl()}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleCopyUrl}
+                  className="bg-[#1c2234] hover:bg-[#252d42] text-[#8892b0] hover:text-[#f0f2ff] gap-1.5 text-[12px] h-8 border border-white/[0.06] cursor-pointer whitespace-nowrap"
+                >
+                  {copied ? <Check size={12} className="text-[#00d4aa]" /> : <Copy size={12} />}
+                  {copied ? 'تم النسخ!' : 'نسخ الرابط'}
+                </Button>
+                <Button
+                  onClick={() => setShowScriptDialog(true)}
+                  className="bg-[#6c63ff]/15 hover:bg-[#6c63ff]/25 text-[#6c63ff] gap-1.5 text-[12px] h-8 border border-[#6c63ff]/20 cursor-pointer whitespace-nowrap"
+                >
+                  <Code2 size={12} />
+                  عرض كود Apps Script
+                </Button>
+              </div>
+            </div>
+
+            {/* Sync Status Row */}
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Last Sync Info */}
+              {syncInfo?.lastSync ? (
+                <div className="flex items-center gap-1.5 bg-[#00d4aa]/8 border border-[#00d4aa]/15 rounded-lg px-2.5 py-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#00d4aa] animate-pulse" />
+                  <span className="text-[11px] font-medium text-[#00d4aa]">
+                    آخر مزامنة: {formatSyncTime(syncInfo.lastSync.timestamp)}
+                  </span>
+                  <span className="text-[10px] text-[#00d4aa]/60">
+                    ({syncInfo.lastSync.created} إنشاء · {syncInfo.lastSync.skipped} تخطي)
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 bg-[#4a5280]/8 border border-[#4a5280]/15 rounded-lg px-2.5 py-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#4a5280]" />
+                  <span className="text-[11px] font-medium text-[#4a5280]">
+                    لا توجد مزامنات سابقة
+                  </span>
+                </div>
+              )}
+
+              {/* Secret indicator */}
+              {syncInfo?.secretConfigured && (
+                <Badge className="bg-amber-500/10 text-amber-400 text-[10px] font-bold border-0 gap-1 px-2 py-0.5">
+                  🔒 حماية مفعّلة
+                </Badge>
+              )}
+
+              {/* Test button */}
+              <Button
+                onClick={handleTestConnection}
+                disabled={syncTesting}
+                className="bg-[#00d4aa]/10 hover:bg-[#00d4aa]/20 text-[#00d4aa] gap-1.5 text-[11px] h-7 border border-[#00d4aa]/15 cursor-pointer disabled:opacity-50 mr-auto"
+              >
+                {syncTesting ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+                اختبار الاتصال
+              </Button>
+            </div>
+
+            {/* Recent Syncs */}
+            {syncInfo && syncInfo.recentSyncs && syncInfo.recentSyncs.length > 0 && (
+              <div className="border-t border-white/[0.04] pt-3 mt-1">
+                <div className="text-[11px] font-bold text-[#4a5280] mb-2">آخر المزامنات</div>
+                <div className="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
+                  {syncInfo.recentSyncs.map((sync) => (
+                    <div key={sync.id} className="flex items-center gap-2 text-[11px]">
+                      <span className="text-[#8892b0]">{formatSyncTime(sync.timestamp)}</span>
+                      <span className="text-[#00d4aa]">✓ {sync.created}</span>
+                      {sync.skipped > 0 && (
+                        <span className="text-amber-400">⊘ {sync.skipped}</span>
+                      )}
+                      {sync.errorCount > 0 && (
+                        <span className="text-red-400">✗ {sync.errorCount}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ═══════════ Apps Script Dialog ═══════════ */}
+      {showScriptDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#111520] border border-white/[0.08] rounded-2xl w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col shadow-2xl">
+            {/* Dialog Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+              <div className="flex items-center gap-2">
+                <Code2 size={18} className="text-[#6c63ff]" />
+                <h3 className="text-[15px] font-bold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                  كود Google Apps Script
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowScriptDialog(false)}
+                className="w-8 h-8 rounded-lg bg-[#1c2234] hover:bg-[#252d42] flex items-center justify-center text-[#8892b0] hover:text-[#f0f2ff] transition-colors cursor-pointer"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Instructions */}
+            <div className="px-5 py-3 border-b border-white/[0.04] bg-[#0a0d14]/50">
+              <div className="text-[12px] font-bold text-[#6c63ff] mb-1.5">📌 تعليمات الإعداد:</div>
+              <ol className="text-[11px] text-[#8892b0] space-y-1 list-decimal list-inside">
+                <li>افتح Google Sheet الخاص بك</li>
+                <li>اذهب إلى <span className="text-[#f0f2ff] font-medium">Extensions → Apps Script</span></li>
+                <li>امسح أي كود موجود والصق الكود أدناه</li>
+                <li>عدّل <span className="text-[#f0f2ff] font-medium">SHEET_NAME</span> وأرقام الأعمدة حسب شيتك</li>
+                <li>اضغط <span className="text-[#f0f2ff] font-medium">Save</span> ثم <span className="text-[#f0f2ff] font-medium">Run → syncToCRM</span></li>
+                <li>وافق على الصلاحيات عند أول تشغيل</li>
+                <li>للمزامنة التلقائية: شغّل <span className="text-[#f0f2ff] font-medium">installTrigger()</span> من Run</li>
+              </ol>
+            </div>
+
+            {/* Script Code */}
+            <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
+              <pre
+                className="text-[11px] leading-relaxed text-[#8892b0] font-mono whitespace-pre-wrap bg-[#0a0d14] border border-white/[0.06] rounded-xl p-4"
+                dir="ltr"
+              >
+                {generateAppsScriptCode(getWebhookUrl(), '')}
+              </pre>
+            </div>
+
+            {/* Dialog Footer */}
+            <div className="flex items-center justify-between px-5 py-3 border-t border-white/[0.06]">
+              <div className="text-[10px] text-[#4a5280]">
+                Webhook URL: <span className="text-[#8892b0] font-mono" dir="ltr">{getWebhookUrl()}</span>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleCopyScript}
+                  className="bg-[#6c63ff] hover:bg-[#5b54e6] text-white gap-1.5 text-[12px] h-8 cursor-pointer"
+                >
+                  <Copy size={12} />
+                  نسخ الكود
+                </Button>
+                <Button
+                  onClick={() => setShowScriptDialog(false)}
+                  className="bg-[#1c2234] hover:bg-[#252d42] text-[#8892b0] hover:text-[#f0f2ff] text-[12px] h-8 border border-white/[0.06] cursor-pointer"
+                >
+                  إغلاق
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Paste bulk data section */}
       <Card className="bg-[#111520] border-white/[0.06]">

@@ -1,14 +1,15 @@
 'use client'
 
-import { useMemo, useState, useCallback } from 'react'
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { useCrmStore, CONTACT_RESULTS, STATUSES, formatDate, getDateRange } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
-import { apiCreateLead, apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk, apiBroadcastChange } from '@/lib/supabase'
+import { apiCreateLead, apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk, apiBroadcastChange, apiBulkCreateLeads } from '@/lib/supabase'
+import { normalizePhone } from '@/lib/crm-utils'
 import {
   Search, Plus, Trash2, Archive, Phone, Filter, X, Check,
   UserPlus, Calendar, Loader2, ExternalLink,
   ChevronLeft, ChevronRight, ArrowLeftRight, Send, AlertCircle,
-  RotateCcw, UserRound,
+  RotateCcw, UserRound, ClipboardPaste, Lightbulb, Info,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -37,6 +38,55 @@ const MEETING_TYPES = [
   { key: 'google-meet', label: 'جوجل ميت' },
   { key: 'zoom', label: 'زووم' },
 ]
+
+/* ═══════════════════════════════════════════════════════
+   Paste Parsing Helpers (adapted from bulk-add.tsx)
+   ═══════════════════════════════════════════════════════ */
+function looksLikePhone(s: string): boolean {
+  return /^(\+966|966|05|5)\d/.test(s) || /^\d{8,}$/.test(s)
+}
+
+function looksLikeUrl(s: string): boolean {
+  return /^https?:\/\//i.test(s) || /\.(com|sa|net|org|io|store|shop)/i.test(s)
+}
+
+function parsePastedLine(line: string): { phone: string; storeUrl: string } {
+  const trimmed = line.trim()
+  if (!trimmed) return { phone: '', storeUrl: '' }
+
+  // Try splitting by common separators (tab, comma, multiple spaces)
+  const parts = trimmed.split(/[\t,]+/).map((p) => p.trim()).filter(Boolean)
+
+  if (parts.length >= 2) {
+    const phonePart = parts.find((p) => looksLikePhone(p))
+    const urlPart = parts.find((p) => looksLikeUrl(p))
+    if (phonePart && urlPart) {
+      return { phone: phonePart, storeUrl: urlPart }
+    }
+    if (phonePart) {
+      const nonPhoneParts = parts.filter((p) => p !== phonePart)
+      const maybeUrl = nonPhoneParts.find((p) => looksLikeUrl(p))
+      return { phone: phonePart, storeUrl: maybeUrl || '' }
+    }
+    if (urlPart) {
+      const nonUrlParts = parts.filter((p) => p !== urlPart)
+      const maybePhone = nonUrlParts.find((p) => looksLikePhone(p))
+      return { phone: maybePhone || '', storeUrl: urlPart }
+    }
+    return { phone: parts[0], storeUrl: parts.length > 1 ? parts[1] : '' }
+  }
+
+  // Single value
+  if (looksLikePhone(trimmed)) {
+    return { phone: trimmed, storeUrl: '' }
+  }
+  if (looksLikeUrl(trimmed)) {
+    return { phone: '', storeUrl: trimmed }
+  }
+
+  // Default: treat as phone
+  return { phone: trimmed, storeUrl: '' }
+}
 
 /* ═══════════════════════════════════════════════════════
    Inline Editable Cell
@@ -393,6 +443,307 @@ function TransferModal({ lead, open, onClose, onSubmit, salesTeam, saving }: Tra
 }
 
 /* ═══════════════════════════════════════════════════════
+   Quick Paste Dialog
+   ═══════════════════════════════════════════════════════ */
+interface ParsedPasteRow {
+  phone: string
+  storeUrl: string
+}
+
+interface QuickPasteDialogProps {
+  open: boolean
+  onClose: () => void
+  leads: Lead[]
+  teleName: string
+  onSaved: (created: Lead[]) => void
+  addToast: (type: 'success' | 'error' | 'info' | 'warning', message: string) => void
+}
+
+function QuickPasteDialog({ open, onClose, leads, teleName, onSaved, addToast }: QuickPasteDialogProps) {
+  const [pasteText, setPasteText] = useState('')
+  const [parsedRows, setParsedRows] = useState<ParsedPasteRow[]>([])
+  const [pasteOptions, setPasteOptions] = useState({
+    autoAdd: true,
+    fixPhone: true,
+    fixUrl: true,
+  })
+  const [pasteSaving, setPasteSaving] = useState(false)
+  const [hasParsed, setHasParsed] = useState(false)
+
+  // Build set of existing normalized phone numbers for duplicate detection
+  const existingPhoneSet = useMemo(() => {
+    const s = new Set<string>()
+    for (const l of leads) {
+      if (l.phone) {
+        const norm = normalizePhone(l.phone)
+        if (norm) s.add(norm)
+      }
+    }
+    return s
+  }, [leads])
+
+  // Detect duplicates among parsed rows
+  const duplicatePhoneSet = useMemo(() => {
+    const dupes = new Set<string>()
+    const seen = new Map<string, number>()
+    for (const row of parsedRows) {
+      if (!row.phone) continue
+      const norm = normalizePhone(row.phone)
+      if (!norm) continue
+      // Check against existing leads
+      if (existingPhoneSet.has(norm)) {
+        dupes.add(row.phone)
+      }
+      // Check against other parsed rows
+      const count = seen.get(norm) || 0
+      if (count > 0) {
+        dupes.add(row.phone)
+      }
+      seen.set(norm, count + 1)
+    }
+    return dupes
+  }, [parsedRows, existingPhoneSet])
+
+  const validRows = useMemo(
+    () => parsedRows.filter((r) => r.phone.trim() || r.storeUrl.trim()),
+    [parsedRows]
+  )
+
+  const handleSave = useCallback(async () => {
+    if (validRows.length === 0) {
+      addToast('warning', 'لا يوجد صفوف صالحة للحفظ')
+      return
+    }
+
+    setPasteSaving(true)
+    try {
+      const leadsToCreate: Partial<Lead>[] = validRows.map((r) => ({
+        phone: r.phone || undefined,
+        storeUrl: r.storeUrl || undefined,
+        customerName: r.phone
+          ? `عميل ${r.phone}`
+          : r.storeUrl
+            ? `متجر ${r.storeUrl.replace(/^https?:\/\//, '').split('/')[0]}`
+            : 'عميل جديد',
+        tele: teleName,
+        status: 'new',
+        contactResult: '',
+      }))
+
+      const created = await apiBulkCreateLeads(leadsToCreate)
+      if (Array.isArray(created) && created.length > 0) {
+        onSaved(created)
+      }
+      addToast('success', `تم إضافة ${validRows.length} عميل بنجاح 🎉`)
+      // Reset
+      setPasteText('')
+      setParsedRows([])
+      setHasParsed(false)
+      onClose()
+    } catch (err: unknown) {
+      addToast('error', `فشل في إضافة العملاء: ${err instanceof Error ? err.message : 'خطأ غير معروف'}`)
+    } finally {
+      setPasteSaving(false)
+    }
+  }, [validRows, teleName, onSaved, addToast, onClose])
+
+  const handleOpenChange = useCallback((isOpen: boolean) => {
+    if (!isOpen) {
+      onClose()
+    }
+  }, [onClose])
+
+  // Auto-parse when text changes with debounce
+  const parseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (!pasteText.trim()) {
+      setParsedRows([])
+      setHasParsed(false)
+      return
+    }
+    if (parseTimeoutRef.current) clearTimeout(parseTimeoutRef.current)
+    parseTimeoutRef.current = setTimeout(() => {
+      const lines = pasteText.split('\n').map((l) => l.trim()).filter(Boolean)
+      const rows = lines.map((line) => parsePastedLine(line))
+      setParsedRows(rows)
+      setHasParsed(true)
+    }, 300)
+    return () => {
+      if (parseTimeoutRef.current) clearTimeout(parseTimeoutRef.current)
+    }
+  }, [pasteText])
+
+  // Reset state when dialog opens
+  useEffect(() => {
+    if (open) {
+      setPasteText('')
+      setParsedRows([])
+      setHasParsed(false)
+    }
+  }, [open])
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="bg-[#111520] border-white/[0.08] text-[#f0f2ff] sm:max-w-2xl max-h-[85vh] overflow-y-auto" showCloseButton>
+        <DialogHeader>
+          <DialogTitle className="text-[18px] font-extrabold text-[#f0f2ff] flex items-center gap-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            <ClipboardPaste size={20} className="text-[#6c63ff]" />
+            لصق سريع
+          </DialogTitle>
+          <DialogDescription className="text-[13px] text-[#8892b0]">
+            الصق أرقام الجوال أو لينكات المتاجر أو كليهما — كل سطر بيانات منفصل
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          {/* Paste area */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-[12px] font-semibold text-[#8892b0]">
+              <Lightbulb size={12} className="text-[#ffd166]" />
+              أمثلة: <span dir="ltr" className="text-[#a8a3ff]">0512345678</span> أو <span dir="ltr" className="text-[#a8a3ff]">https://store.example.com</span> أو <span dir="ltr" className="text-[#a8a3ff]">0512345678, https://store.example.com</span>
+            </div>
+            <textarea
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              placeholder={"0512345678\nhttps://store.example.com\n0512345678\thttps://store.example.com"}
+              className="w-full h-32 text-[13px] bg-[#0a0d14] border border-white/[0.08] rounded-lg px-3 py-2 text-[#f0f2ff] placeholder:text-[#4a5280] resize-none focus:outline-none focus:border-[#6c63ff]/40"
+              dir="ltr"
+              autoFocus
+            />
+          </div>
+
+          {/* Options */}
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-2 text-[12px] font-semibold text-[#8892b0] cursor-pointer">
+              <Checkbox
+                checked={pasteOptions.autoAdd}
+                onCheckedChange={(checked) => setPasteOptions((p) => ({ ...p, autoAdd: !!checked }))}
+                className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
+              />
+              إضافة صف جديد تلقائياً بعد paste
+            </label>
+            <label className="flex items-center gap-2 text-[12px] font-semibold text-[#8892b0] cursor-pointer">
+              <Checkbox
+                checked={pasteOptions.fixPhone}
+                onCheckedChange={(checked) => setPasteOptions((p) => ({ ...p, fixPhone: !!checked }))}
+                className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
+              />
+              تثبيت عمود الهاتف
+            </label>
+            <label className="flex items-center gap-2 text-[12px] font-semibold text-[#8892b0] cursor-pointer">
+              <Checkbox
+                checked={pasteOptions.fixUrl}
+                onCheckedChange={(checked) => setPasteOptions((p) => ({ ...p, fixUrl: !!checked }))}
+                className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
+              />
+              تثبيت عمود الرابط
+            </label>
+          </div>
+
+          {/* Duplicate warning */}
+          {duplicatePhoneSet.size > 0 && (
+            <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 transition-all duration-300">
+              <AlertCircle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <div className="text-[14px] font-bold text-amber-400">أرقام مكررة</div>
+                <div className="text-[12px] font-medium text-amber-400/80 mt-0.5">
+                  الأرقام التالية موجودة مسبقاً: {Array.from(duplicatePhoneSet).slice(0, 5).join('، ')}{duplicatePhoneSet.size > 5 ? ` +${duplicatePhoneSet.size - 5} أخرى` : ''}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Preview table */}
+          {hasParsed && parsedRows.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-[13px] font-bold text-[#f0f2ff] flex items-center gap-2">
+                  <Info size={14} className="text-[#6c63ff]" />
+                  معاينة البيانات
+                </div>
+                <Badge className="bg-[#6c63ff]/15 text-[#a8a3ff] text-[11px] font-bold border-0">
+                  {validRows.length} صالح من {parsedRows.length}
+                </Badge>
+              </div>
+              <div className="max-h-48 overflow-y-auto rounded-lg border border-white/[0.06] custom-scrollbar">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
+                      <TableHead className="text-right text-[12px] font-bold text-[#4a5280] w-[40px]">#</TableHead>
+                      <TableHead className="text-right text-[12px] font-bold text-[#4a5280]">رقم الجوال</TableHead>
+                      <TableHead className="text-right text-[12px] font-bold text-[#4a5280]">لينك المتجر</TableHead>
+                      <TableHead className="text-right text-[12px] font-bold text-[#4a5280] w-[60px]">حالة</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {parsedRows.map((row, idx) => {
+                      const isDupe = duplicatePhoneSet.has(row.phone)
+                      const isValid = row.phone.trim() || row.storeUrl.trim()
+                      return (
+                        <TableRow
+                          key={idx}
+                          className={`border-b border-white/[0.04] ${isDupe ? 'bg-amber-500/5' : !isValid ? 'bg-red-500/5' : ''}`}
+                        >
+                          <TableCell className="text-[12px] text-[#4a5280]">{idx + 1}</TableCell>
+                          <TableCell>
+                            <span dir="ltr" className={`text-[13px] font-medium ${isDupe ? 'text-amber-400' : row.phone ? 'text-[#f0f2ff]' : 'text-[#4a5280]'}`}>
+                              {row.phone || '—'}
+                            </span>
+                            {isDupe && (
+                              <Badge className="bg-amber-500/15 text-amber-400 text-[9px] font-bold border-0 mr-1">مكرر</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <span dir="ltr" className="text-[13px] font-medium text-[#f0f2ff] truncate block max-w-[200px]">
+                              {row.storeUrl || <span className="text-[#4a5280]">—</span>}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {isValid ? (
+                              <Badge className="bg-[#00d4aa]/15 text-[#00d4aa] text-[10px] font-bold border-0">صالح</Badge>
+                            ) : (
+                              <Badge className="bg-red-500/15 text-red-400 text-[10px] font-bold border-0">فارغ</Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+
+          {/* Tele assignment info */}
+          <div className="flex items-center gap-2 text-[12px] font-medium text-[#8892b0] bg-[#0a0d14] rounded-lg px-3 py-2 border border-white/[0.06]">
+            <UserRound size={14} className="text-[#6c63ff]" />
+            سيتم تعيين العملاء إلى: <span className="text-[#f0f2ff] font-bold">{teleName}</span>
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button
+            onClick={handleSave}
+            disabled={pasteSaving || validRows.length === 0}
+            className="bg-[#00d4aa] hover:bg-[#00c09a] text-[#0a0d14] gap-1.5 text-[13px] font-bold h-9 cursor-pointer disabled:opacity-50"
+          >
+            {pasteSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+            {pasteSaving ? 'جاري الحفظ...' : `حفظ الكل (${validRows.length})`}
+          </Button>
+          <Button
+            onClick={onClose}
+            variant="ghost"
+            className="text-[#8892b0] hover:text-[#f0f2ff] text-[13px] h-9 cursor-pointer"
+          >
+            إلغاء
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
    Tele Sheet Component — REWRITTEN
    ═══════════════════════════════════════════════════════ */
 export function TeleSheet() {
@@ -413,6 +764,7 @@ export function TeleSheet() {
   const addLeadToCache = useCrmStore((s) => s.addLeadToCache)
   const removeLeadFromCache = useCrmStore((s) => s.removeLeadFromCache)
   const batchRemoveLeadsFromCache = useCrmStore((s) => s.batchRemoveLeadsFromCache)
+  const batchAddLeadsToCache = useCrmStore((s) => s.batchAddLeadsToCache)
   const archiveLeadsInCache = useCrmStore((s) => s.archiveLeadsInCache)
   const activeFilter = useCrmStore((s) => s.activeFilter)
   const setActiveFilter = useCrmStore((s) => s.setActiveFilter)
@@ -440,7 +792,25 @@ export function TeleSheet() {
   const [transferOpen, setTransferOpen] = useState(false)
   const [transferSaving, setTransferSaving] = useState(false)
 
+  // Quick Paste dialog state
+  const [showPasteDialog, setShowPasteDialog] = useState(false)
+
   const [currentPage, setCurrentPage] = useState(1)
+
+  // Ctrl+V keyboard shortcut handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only trigger if not currently focused on an input/textarea/select element
+      const target = e.target as HTMLElement
+      const isEditing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v' && !isEditing) {
+        e.preventDefault()
+        setShowPasteDialog(true)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   /* ─── Filtered leads ─── */
   const filteredLeads = useMemo(() => {
@@ -699,6 +1069,17 @@ export function TeleSheet() {
     openTransferModal(leadId)
   }, [openTransferModal])
 
+  /* ─── Handle paste saved — add created leads to cache ─── */
+  const handlePasteSaved = useCallback((created: Lead[]) => {
+    batchAddLeadsToCache(created)
+  }, [batchAddLeadsToCache])
+
+  /* ─── Compute tele name for paste dialog ─── */
+  const pasteTeleName = useMemo(() => {
+    if (isLockedToSelf) return currentUser || ''
+    return selectedTele === 'all' ? (currentUser || '') : selectedTele
+  }, [isLockedToSelf, currentUser, selectedTele])
+
   /* ═══════════════ RENDER ═══════════════ */
   return (
     <div className="space-y-4 animate-in fade-in duration-200">
@@ -724,6 +1105,13 @@ export function TeleSheet() {
           >
             <Plus size={14} />
             إضافة عميل
+          </Button>
+          <Button
+            onClick={() => setShowPasteDialog(true)}
+            className="bg-[#1c2234] hover:bg-[#252d42] text-[#8892b0] hover:text-[#f0f2ff] gap-1.5 text-[12px] h-9 border border-white/[0.06] cursor-pointer"
+          >
+            <ClipboardPaste size={14} />
+            لصق سريع
           </Button>
         </div>
       </div>
@@ -1151,6 +1539,16 @@ export function TeleSheet() {
         onSubmit={handleTransferToSales}
         salesTeam={team.sales}
         saving={transferSaving}
+      />
+
+      {/* ─── Quick Paste Dialog ─── */}
+      <QuickPasteDialog
+        open={showPasteDialog}
+        onClose={() => setShowPasteDialog(false)}
+        leads={leads}
+        teleName={pasteTeleName}
+        onSaved={handlePasteSaved}
+        addToast={addToast}
       />
     </div>
   )

@@ -584,17 +584,9 @@ function QuickPasteDialog({ open, onClose, leads, teleName, onSaved, addToast }:
     setRows((prev) => [...prev, ...newRows])
   }, [])
 
-  /* ─── Toggle all duplicates ─── */
-  const excludeAllDuplicates = useCallback(() => {
-    setRows((prev) =>
-      prev.map((r) => (r.isDuplicate ? { ...r, included: false } : r))
-    )
-  }, [])
-
-  const includeAllDuplicates = useCallback(() => {
-    setRows((prev) =>
-      prev.map((r) => (r.isDuplicate ? { ...r, included: true } : r))
-    )
+  /* ─── Remove all duplicate rows from table ─── */
+  const removeDuplicateRows = useCallback(() => {
+    setRows((prev) => prev.filter((r) => !r.isDuplicate))
   }, [])
 
   /* ─── Select/Deselect all ─── */
@@ -684,16 +676,10 @@ function QuickPasteDialog({ open, onClose, leads, teleName, onSaved, addToast }:
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={excludeAllDuplicates}
+                  onClick={removeDuplicateRows}
                   className="h-7 px-2.5 rounded-lg bg-red-500/15 text-red-400 text-[11px] font-bold hover:bg-red-500/25 transition-colors cursor-pointer"
                 >
-                  استبعاد الكل
-                </button>
-                <button
-                  onClick={includeAllDuplicates}
-                  className="h-7 px-2.5 rounded-lg bg-amber-500/15 text-amber-400 text-[11px] font-bold hover:bg-amber-500/25 transition-colors cursor-pointer"
-                >
-                  تضمين الكل
+                  استبعاد المكرر
                 </button>
               </div>
             </div>

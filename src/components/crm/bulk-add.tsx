@@ -552,30 +552,26 @@ export function BulkAdd() {
     setRows((prev) => [...prev, ...newRows])
   }, [isTele, currentUser, currentRole, team])
 
-  /* ─── Toggle all duplicates ─── */
-  const excludeAllDuplicates = useCallback(() => {
-    setRows((prev) =>
-      prev.map((r) => {
-        const norm = r.phone ? normalizePhone(r.phone) : ''
-        const isExisting = norm ? existingPhoneSet.has(norm) : false
-        // Check intra-paste
+  /* ─── Remove all duplicate rows from table ─── */
+  const removeDuplicateRows = useCallback(() => {
+    setRows((prev) => {
+      const duplicateIds = new Set<string>()
+      // First pass: identify all duplicate row IDs
+      for (const r of prev) {
+        if (!r.phone) continue
+        const norm = normalizePhone(r.phone)
+        if (!norm) continue
+        const isExisting = existingPhoneSet.has(norm)
         const normCount = prev.filter((pr) => pr.phone && normalizePhone(pr.phone) === norm).length
         const isIntraDupe = normCount > 1
-        return (isExisting || isIntraDupe) ? { ...r, included: false } : r
-      })
-    )
-  }, [existingPhoneSet])
-
-  const includeAllDuplicates = useCallback(() => {
-    setRows((prev) =>
-      prev.map((r) => {
-        const norm = r.phone ? normalizePhone(r.phone) : ''
-        const isExisting = norm ? existingPhoneSet.has(norm) : false
-        const normCount = prev.filter((pr) => pr.phone && normalizePhone(pr.phone) === norm).length
-        const isIntraDupe = normCount > 1
-        return (isExisting || isIntraDupe) ? { ...r, included: true } : r
-      })
-    )
+        if (isExisting || isIntraDupe) {
+          duplicateIds.add(r.id)
+        }
+      }
+      // Remove all duplicates from the table
+      const kept = prev.filter((r) => !duplicateIds.has(r.id))
+      return kept
+    })
   }, [existingPhoneSet])
 
   /* ─── Select/Deselect all ─── */
@@ -1038,16 +1034,10 @@ export function BulkAdd() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={excludeAllDuplicates}
+                    onClick={removeDuplicateRows}
                     className="h-7 px-2.5 rounded-lg bg-red-500/15 text-red-400 text-[11px] font-bold hover:bg-red-500/25 transition-colors cursor-pointer"
                   >
-                    استبعاد الكل
-                  </button>
-                  <button
-                    onClick={includeAllDuplicates}
-                    className="h-7 px-2.5 rounded-lg bg-amber-500/15 text-amber-400 text-[11px] font-bold hover:bg-amber-500/25 transition-colors cursor-pointer"
-                  >
-                    تضمين الكل
+                    استبعاد المكرر
                   </button>
                 </div>
               </div>

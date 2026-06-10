@@ -1,17 +1,19 @@
 'use client'
 
 import { useState, useCallback, useMemo, useRef } from 'react'
-import { useCrmStore, STATUSES, CONTACT_RESULTS } from '@/lib/store'
+import { useCrmStore, STATUSES } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import { apiBulkCreateLeads } from '@/lib/supabase'
+import { normalizePhone } from '@/lib/crm-utils'
 import {
-  Plus, Trash2, Upload, Loader2, AlertTriangle, Check, FileSpreadsheet, ClipboardPaste,
-  Link, Copy, Code2, RefreshCw, ExternalLink, X,
+  Plus, Trash2, Upload, Loader2, Check, FileSpreadsheet, ClipboardPaste,
+  Link, Copy, Code2, RefreshCw, ExternalLink, X, AlertCircle,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -33,6 +35,8 @@ interface BulkRow {
   sales: string
   status: string
   errors: string[]
+  included: boolean
+  isDuplicate: boolean
 }
 
 interface SyncInfo {
@@ -299,20 +303,21 @@ function uninstallTrigger() {
 }
 
 /* ═══════════════════════════════════════════════════════
-   Bulk Add Component
+   Bulk Add Component — REDESIGNED: Smart table-based paste
    ═══════════════════════════════════════════════════════ */
+let bulkRowCounter = 0
+
 export function BulkAdd() {
   const { team, currentUser, currentRole, addToast, batchAddLeadsToCache, leads } = useCrmStore()
 
   const isTele = currentRole === 'tele'
 
   /* ─── State ─── */
-  const [rows, setRows] = useState<BulkRow[]>([
-    createEmptyRow(),
-  ])
+  const [rows, setRows] = useState<BulkRow[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [submittedCount, setSubmittedCount] = useState(0)
-  const [pastedData, setPastedData] = useState('')
+  const [focusedCell, setFocusedCell] = useState<{ rowId: string; field: 'phone' | 'storeUrl' } | null>(null)
+  const tableRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   /* ─── Sheets Sync State ─── */
@@ -325,7 +330,7 @@ export function BulkAdd() {
   /* ─── Create empty row ─── */
   function createEmptyRow(): BulkRow {
     return {
-      id: `row-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: `row-${++bulkRowCounter}`,
       storeUrl: '',
       phone: '',
       customerName: '',
@@ -335,6 +340,8 @@ export function BulkAdd() {
       sales: currentRole === 'sales' && currentUser ? currentUser : '',
       status: 'new',
       errors: [],
+      included: true,
+      isDuplicate: false,
     }
   }
 
@@ -423,19 +430,6 @@ export function BulkAdd() {
     }
   }, [addToast, loadSyncInfo])
 
-  /* ─── Update a row field ─── */
-  const updateRow = useCallback((rowId: string, field: keyof BulkRow, value: string) => {
-    setRows((prev) =>
-      prev.map((r) => {
-        if (r.id !== rowId) return r
-        const updated = { ...r, [field]: value }
-        // Validate
-        updated.errors = validateRow(updated)
-        return updated
-      })
-    )
-  }, [])
-
   /* ─── Validate row ─── */
   function validateRow(row: BulkRow): string[] {
     const errors: string[] = []
@@ -451,51 +445,96 @@ export function BulkAdd() {
     return errors
   }
 
-  /* ─── Check for duplicate phones ─── */
-  const duplicatePhones = useMemo(() => {
-    const phoneMap: Record<string, number> = {}
+  /* ─── Build set of existing normalized phone numbers ─── */
+  const existingPhoneSet = useMemo(() => {
+    const s = new Set<string>()
+    for (const l of leads) {
+      if (l.phone) {
+        const norm = normalizePhone(l.phone)
+        if (norm) s.add(norm)
+      }
+    }
+    return s
+  }, [leads])
+
+  /* ─── Compute rows with duplicate status ─── */
+  const rowsWithDuplicates = useMemo(() => {
+    const normToIds = new Map<string, string[]>()
+    // First pass: collect all norms
     for (const row of rows) {
-      const p = row.phone.trim()
-      if (!p) continue
-      phoneMap[p] = (phoneMap[p] || 0) + 1
+      if (!row.phone) continue
+      const norm = normalizePhone(row.phone)
+      if (!norm) continue
+      const arr = normToIds.get(norm) || []
+      arr.push(row.id)
+      normToIds.set(norm, arr)
     }
+    // Second pass: mark duplicates (existing + intra-paste)
+    return rows.map((row) => {
+      if (!row.phone) return { ...row, isDuplicate: false }
+      const norm = normalizePhone(row.phone)
+      if (!norm) return { ...row, isDuplicate: false }
+      const isExisting = existingPhoneSet.has(norm)
+      const idsWithSameNorm = normToIds.get(norm) || []
+      const isIntraDupe = idsWithSameNorm.length > 1
+      return { ...row, isDuplicate: isExisting || isIntraDupe }
+    })
+  }, [rows, existingPhoneSet])
 
-    const existingPhones = new Set(leads.map((l) => l.phone?.trim()).filter(Boolean))
-    const duplicates: Set<string> = new Set()
+  /* ─── Selected valid rows (included + has data) ─── */
+  const selectedValidRows = useMemo(
+    () => rowsWithDuplicates.filter((r) => r.included && (r.phone.trim() || r.storeUrl.trim())),
+    [rowsWithDuplicates]
+  )
 
-    for (const [phone, count] of Object.entries(phoneMap)) {
-      if (count > 1) duplicates.add(phone)
-      if (existingPhones.has(phone)) duplicates.add(phone)
-    }
+  /* ─── Duplicate count ─── */
+  const duplicateCount = useMemo(
+    () => rowsWithDuplicates.filter((r) => r.isDuplicate && r.included).length,
+    [rowsWithDuplicates]
+  )
 
-    return duplicates
-  }, [rows, leads])
-
-  /* ─── Add new row ─── */
-  const handleAddRow = useCallback(() => {
-    setRows((prev) => [...prev, createEmptyRow()])
-  }, [currentUser, currentRole])
+  /* ─── Update a row field ─── */
+  const updateRow = useCallback((rowId: string, field: keyof BulkRow, value: string | boolean) => {
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.id !== rowId) return r
+        const updated = { ...r, [field]: value }
+        // Validate only for string fields
+        if (typeof value === 'string') {
+          updated.errors = validateRow(updated)
+        }
+        return updated
+      })
+    )
+  }, [])
 
   /* ─── Remove row ─── */
   const handleRemoveRow = useCallback((rowId: string) => {
-    setRows((prev) => {
-      if (prev.length <= 1) return prev
-      return prev.filter((r) => r.id !== rowId)
-    })
+    setRows((prev) => prev.filter((r) => r.id !== rowId))
   }, [])
 
-  /* ─── Handle paste bulk add ─── */
-  const handlePasteAdd = useCallback(() => {
-    const lines = pastedData.split('\n').map((l) => l.trim()).filter(Boolean)
-    if (lines.length === 0) {
-      addToast('warning', 'لا يوجد بيانات للصقها')
-      return
-    }
+  /* ─── Add empty row ─── */
+  const addEmptyRow = useCallback(() => {
+    const newRow = createEmptyRow()
+    setRows((prev) => [...prev, newRow])
+    setTimeout(() => setFocusedCell({ rowId: newRow.id, field: 'phone' }), 50)
+  }, [currentUser, currentRole])
+
+  /* ─── Handle paste event on the table area ─── */
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const text = e.clipboardData.getData('text/plain')
+    if (!text.trim()) return
+
+    // Check if it's multi-line data (bulk paste)
+    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+    if (lines.length === 0) return
+
+    e.preventDefault()
 
     const newRows: BulkRow[] = lines.map((line) => {
       const parsed = parsePastedLine(line)
       return {
-        id: `row-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        id: `paste-${++bulkRowCounter}`,
         storeUrl: parsed.storeUrl,
         phone: parsed.phone,
         customerName: '',
@@ -505,13 +544,50 @@ export function BulkAdd() {
         sales: currentRole === 'sales' && currentUser ? currentUser : '',
         status: 'new',
         errors: [],
+        included: true,
+        isDuplicate: false,
       }
     })
 
     setRows((prev) => [...prev, ...newRows])
-    setPastedData('')
-    addToast('success', `تم إضافة ${newRows.length} صف من اللصق`)
-  }, [pastedData, addToast, isTele, currentUser, currentRole, team])
+  }, [isTele, currentUser, currentRole, team])
+
+  /* ─── Toggle all duplicates ─── */
+  const excludeAllDuplicates = useCallback(() => {
+    setRows((prev) =>
+      prev.map((r) => {
+        const norm = r.phone ? normalizePhone(r.phone) : ''
+        const isExisting = norm ? existingPhoneSet.has(norm) : false
+        // Check intra-paste
+        const normCount = prev.filter((pr) => pr.phone && normalizePhone(pr.phone) === norm).length
+        const isIntraDupe = normCount > 1
+        return (isExisting || isIntraDupe) ? { ...r, included: false } : r
+      })
+    )
+  }, [existingPhoneSet])
+
+  const includeAllDuplicates = useCallback(() => {
+    setRows((prev) =>
+      prev.map((r) => {
+        const norm = r.phone ? normalizePhone(r.phone) : ''
+        const isExisting = norm ? existingPhoneSet.has(norm) : false
+        const normCount = prev.filter((pr) => pr.phone && normalizePhone(pr.phone) === norm).length
+        const isIntraDupe = normCount > 1
+        return (isExisting || isIntraDupe) ? { ...r, included: true } : r
+      })
+    )
+  }, [existingPhoneSet])
+
+  /* ─── Select/Deselect all ─── */
+  const toggleAll = useCallback((checked: boolean) => {
+    setRows((prev) => prev.map((r) => ({ ...r, included: checked })))
+  }, [])
+
+  /* ─── Clear all rows ─── */
+  const clearAll = useCallback(() => {
+    setRows([])
+    setFocusedCell(null)
+  }, [])
 
   /* ─── Handle Excel/CSV file import ─── */
   const handleFileImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -606,7 +682,7 @@ export function BulkAdd() {
       }
 
       const newRows: BulkRow[] = parsedRows.map((r) => ({
-        id: `row-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        id: `file-${++bulkRowCounter}`,
         storeUrl: r.storeUrl,
         phone: r.phone,
         customerName: r.customerName,
@@ -616,6 +692,8 @@ export function BulkAdd() {
         sales: currentRole === 'sales' && currentUser ? currentUser : '',
         status: 'new',
         errors: [],
+        included: true,
+        isDuplicate: false,
       }))
 
       setRows((prev) => [...prev, ...newRows])
@@ -630,30 +708,38 @@ export function BulkAdd() {
     }
   }, [addToast, isTele, currentUser, currentRole, team])
 
-  /* ─── Submit all ─── */
+  /* ─── Submit included rows ─── */
   const handleSubmit = useCallback(async () => {
-    // Validate all rows
-    const validatedRows = rows.map((r) => ({
+    // Get only included rows with valid data
+    const includedRows = rowsWithDuplicates.filter((r) => r.included && (r.phone.trim() || r.storeUrl.trim()))
+
+    // Validate all included rows
+    const validatedRows = includedRows.map((r) => ({
       ...r,
       errors: validateRow(r),
     }))
 
     const hasErrors = validatedRows.some((r) => r.errors.length > 0)
     if (hasErrors) {
-      setRows(validatedRows)
+      // Update the rows with errors in state
+      setRows((prev) =>
+        prev.map((r) => {
+          const validated = validatedRows.find((vr) => vr.id === r.id)
+          return validated ? { ...r, errors: validated.errors } : r
+        })
+      )
       addToast('warning', 'يوجد أخطاء في بعض الصفوف. تأكد من البيانات.')
       return
     }
 
-    const validRows = validatedRows.filter((r) => r.phone.trim() || r.storeUrl.trim())
-    if (validRows.length === 0) {
-      addToast('warning', 'لا يوجد بيانات للإضافة')
+    if (validatedRows.length === 0) {
+      addToast('warning', 'لا يوجد بيانات محددة للإضافة')
       return
     }
 
     setSubmitting(true)
     try {
-      const leadsToCreate: Partial<Lead>[] = validRows.map((r) => ({
+      const leadsToCreate: Partial<Lead>[] = validatedRows.map((r) => ({
         storeUrl: r.storeUrl || undefined,
         phone: r.phone || undefined,
         customerName: r.customerName || (r.phone ? `عميل ${r.phone}` : r.storeUrl ? `متجر ${r.storeUrl.replace(/^https?:\/\//, '').split('/')[0]}` : 'عميل جديد'),
@@ -670,20 +756,21 @@ export function BulkAdd() {
         batchAddLeadsToCache(created)
       }
 
-      setSubmittedCount(validRows.length)
-      addToast('success', `تم إضافة ${validRows.length} عميل بنجاح 🎉`)
-      setRows([createEmptyRow()])
+      setSubmittedCount(validatedRows.length)
+      addToast('success', `تم إضافة ${validatedRows.length} عميل بنجاح 🎉`)
+      setRows([])
+      setFocusedCell(null)
     } catch (err: unknown) {
       addToast('error', `فشل في إضافة العملاء: ${err instanceof Error ? err.message : 'خطأ غير معروف'}`)
     } finally {
       setSubmitting(false)
     }
-  }, [rows, addToast, batchAddLeadsToCache, isTele, currentUser])
+  }, [rowsWithDuplicates, addToast, batchAddLeadsToCache, isTele, currentUser])
 
-  /* ─── Valid rows count ─── */
+  /* ─── Valid included rows count ─── */
   const validCount = useMemo(
-    () => rows.filter((r) => r.phone.trim() || r.storeUrl.trim()).length,
-    [rows]
+    () => selectedValidRows.length,
+    [selectedValidRows]
   )
 
   /* ─── Format timestamp ─── */
@@ -696,6 +783,10 @@ export function BulkAdd() {
       month: 'short',
     })
   }, [])
+
+  /* ─── Select/deselect all state ─── */
+  const allIncluded = rows.length > 0 && rows.every((r) => r.included)
+  const someIncluded = rows.some((r) => r.included) && !allIncluded
 
   /* ═══════════════ RENDER ═══════════════ */
   return (
@@ -738,7 +829,7 @@ export function BulkAdd() {
             className="bg-[#6c63ff] hover:bg-[#5b54e6] text-white gap-1.5 text-[12px] h-9 cursor-pointer disabled:opacity-50"
           >
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-            {submitting ? 'جاري الإضافة...' : `إضافة الكل (${validCount})`}
+            {submitting ? 'جاري الإضافة...' : `إضافة المحدد (${validCount})`}
           </Button>
         </div>
       </div>
@@ -931,213 +1022,333 @@ export function BulkAdd() {
         </div>
       )}
 
-      {/* Paste bulk data section */}
-      <Card className="bg-[#111520] border-white/[0.06]">
-        <CardContent className="p-4">
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-[14px] font-bold text-[#f0f2ff] flex items-center gap-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                  <ClipboardPaste size={16} className="text-[#6c63ff]" />
-                  لصق بيانات مجمعة
-                </div>
-                <p className="text-[12px] font-medium text-[#8892b0] mt-0.5">
-                  الصق أرقام الجوال أو لينكات المتاجر أو كليهما - كل سطر بيانات منفصل
-                </p>
-              </div>
-              <Button
-                onClick={handlePasteAdd}
-                disabled={!pastedData.trim()}
-                className="bg-[#6c63ff] hover:bg-[#5b54e6] text-white gap-1.5 text-[12px] h-8 cursor-pointer disabled:opacity-50"
-              >
-                <Plus size={14} />
-                إضافة
-              </Button>
-            </div>
-            <textarea
-              value={pastedData}
-              onChange={(e) => setPastedData(e.target.value)}
-              placeholder={"0512345678\nhttps://store.example.com\n0512345678, https://store.example.com"}
-              className="w-full h-24 text-[13px] bg-[#0a0d14] border border-white/[0.08] rounded-lg px-3 py-2 text-[#f0f2ff] placeholder:text-[#4a5280] resize-none focus:outline-none focus:border-[#6c63ff]/40"
-              dir="ltr"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Duplicate warning */}
-      {duplicatePhones.size > 0 && (
-        <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 transition-all duration-300">
-          <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
-          <div>
-            <div className="text-[14px] font-bold text-amber-400">أرقام مكررة</div>
-            <div className="text-[12px] font-medium text-amber-400/80 mt-0.5">
-              الأرقام التالية مكررة: {Array.from(duplicatePhones).join('، ')}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Main Table */}
+      {/* ═══════════ Smart Table — Paste Target ═══════════ */}
       <Card className="bg-[#111520] border-white/[0.06]">
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[40px]">#</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">رابط المتجر</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">رقم الجوال</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">اسم العميل</TableHead>
-                  {!isTele && (
-                    <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">نوع العميل</TableHead>
-                  )}
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">نبذة</TableHead>
-                  {!isTele && (
-                    <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">التيلي</TableHead>
-                  )}
-                  {!isTele && (
-                    <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">السيلز</TableHead>
-                  )}
-                  {!isTele && (
-                    <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">الحالة</TableHead>
-                  )}
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[40px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((row, idx) => (
-                  <TableRow key={row.id} className={`border-b border-white/[0.04] transition-colors duration-200 ${
-                    row.errors.length > 0 ? 'bg-red-500/5' : duplicatePhones.has(row.phone.trim()) ? 'bg-amber-500/5' : 'hover:bg-[#1c2234]/30'
-                  }`}>
-                    <TableCell className="w-[40px] text-[12px] text-[#4a5280]">{idx + 1}</TableCell>
-                    <TableCell>
-                      <Input
-                        placeholder="رابط المتجر"
-                        value={row.storeUrl}
-                        onChange={(e) => updateRow(row.id, 'storeUrl', e.target.value)}
-                        className="h-7 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] w-[130px]"
-                        dir="ltr"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="relative">
-                        <Input
-                          placeholder="رقم الجوال"
-                          value={row.phone}
-                          onChange={(e) => updateRow(row.id, 'phone', e.target.value)}
-                          className={`h-7 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] w-[130px] ${
-                            duplicatePhones.has(row.phone.trim()) ? 'border-amber-500/40' : ''
-                          } ${row.errors.includes('رقم قصير') ? 'border-red-500/40' : ''}`}
-                          dir="ltr"
-                        />
-                        {duplicatePhones.has(row.phone.trim()) && (
-                          <AlertTriangle size={10} className="absolute left-1.5 top-1/2 -translate-y-1/2 text-amber-400" />
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        placeholder="اسم العميل"
-                        value={row.customerName}
-                        onChange={(e) => updateRow(row.id, 'customerName', e.target.value)}
-                        className="h-7 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] w-[130px]"
-                      />
-                    </TableCell>
-                    {!isTele && (
-                      <TableCell>
-                        <Select value={row.customerType || 'business'} onValueChange={(v) => updateRow(row.id, 'customerType', v)}>
-                          <SelectTrigger className="h-7 text-[13px] w-[100px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-[#111520] border-white/[0.08]">
-                            <SelectItem value="business" className="text-[13px]">تجاري</SelectItem>
-                            <SelectItem value="individual" className="text-[13px]">فرد</SelectItem>
-                            <SelectItem value="enterprise" className="text-[13px]">مؤسسة</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                    )}
-                    <TableCell>
-                      <Input
-                        placeholder="نبذة"
-                        value={row.brief}
-                        onChange={(e) => updateRow(row.id, 'brief', e.target.value)}
-                        className="h-7 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] w-[100px]"
-                      />
-                    </TableCell>
-                    {!isTele && (
-                      <TableCell>
-                        <Select value={row.tele} onValueChange={(v) => updateRow(row.id, 'tele', v)}>
-                          <SelectTrigger className="h-7 text-[13px] w-[90px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-[#111520] border-white/[0.08]">
-                            {team.tele.map((n) => (
-                              <SelectItem key={n} value={n} className="text-[13px]">{n}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                    )}
-                    {!isTele && (
-                      <TableCell>
-                        <Select value={row.sales || 'none'} onValueChange={(v) => updateRow(row.id, 'sales', v === 'none' ? '' : v)}>
-                          <SelectTrigger className="h-7 text-[13px] w-[90px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-[#111520] border-white/[0.08]">
-                            <SelectItem value="none" className="text-[13px]">—</SelectItem>
-                            {team.sales.map((n) => (
-                              <SelectItem key={n} value={n} className="text-[13px]">{n}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                    )}
-                    {!isTele && (
-                      <TableCell>
-                        <Select value={row.status} onValueChange={(v) => updateRow(row.id, 'status', v)}>
-                          <SelectTrigger className="h-7 text-[13px] w-[90px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-[#111520] border-white/[0.08]">
-                            {STATUSES.slice(0, 5).map((s) => (
-                              <SelectItem key={s.key} value={s.key} className="text-[13px]">{s.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                    )}
-                    <TableCell>
-                      <button
-                        onClick={() => handleRemoveRow(row.id)}
-                        disabled={rows.length <= 1}
-                        className="w-7 h-7 rounded-md bg-red-500/10 text-red-400/60 flex items-center justify-center hover:bg-red-500/20 hover:text-red-400 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <div className="flex flex-col">
+            {/* Duplicate warning bar */}
+            {duplicateCount > 0 && (
+              <div className="flex items-center justify-between gap-3 bg-amber-500/10 border-b border-amber-500/20 px-4 py-2.5">
+                <div className="flex items-center gap-2">
+                  <AlertCircle size={16} className="text-amber-400 shrink-0" />
+                  <div>
+                    <span className="text-[13px] font-bold text-amber-400">{duplicateCount} بيانات مكررة</span>
+                    <span className="text-[12px] font-medium text-amber-400/70 mr-2">— موجودة مسبقاً</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={excludeAllDuplicates}
+                    className="h-7 px-2.5 rounded-lg bg-red-500/15 text-red-400 text-[11px] font-bold hover:bg-red-500/25 transition-colors cursor-pointer"
+                  >
+                    استبعاد الكل
+                  </button>
+                  <button
+                    onClick={includeAllDuplicates}
+                    className="h-7 px-2.5 rounded-lg bg-amber-500/15 text-amber-400 text-[11px] font-bold hover:bg-amber-500/25 transition-colors cursor-pointer"
+                  >
+                    تضمين الكل
+                  </button>
+                </div>
+              </div>
+            )}
 
-          {/* Footer */}
-          <div className="border-t border-white/[0.06] px-4 py-3 flex items-center justify-between">
-            <span className="text-[12px] font-medium text-[#4a5280]">
-              {rows.length} صف · {validCount} صالح للإضافة
-              {isTele && currentUser && <span className="text-[#6c63ff] mr-2">→ شيت: {currentUser}</span>}
-            </span>
-            <Button
-              onClick={handleAddRow}
-              size="sm"
-              className="h-7 text-[13px] font-bold bg-[#1c2234] text-[#8892b0] hover:text-[#f0f2ff] border-white/[0.06] gap-1 cursor-pointer"
+            {/* Table area — paste target */}
+            <div
+              ref={tableRef}
+              onPaste={handlePaste}
+              tabIndex={0}
+              className="min-h-[200px] max-h-[60vh] overflow-y-auto custom-scrollbar focus:border-[#6c63ff]/30 focus:outline-none transition-colors"
             >
-              <Plus size={12} />
-              إضافة صف
-            </Button>
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-b border-white/[0.06] hover:bg-transparent sticky top-0 bg-[#111520] z-10">
+                    <TableHead className="w-[36px] text-center text-[12px] font-bold text-[#4a5280]">
+                      <Checkbox
+                        checked={allIncluded}
+                        ref={(el) => {
+                          if (el) (el as HTMLButtonElement & { indeterminate?: boolean }).indeterminate = someIncluded
+                        }}
+                        onCheckedChange={(checked) => toggleAll(!!checked)}
+                        className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
+                      />
+                    </TableHead>
+                    <TableHead className="w-[36px] text-center text-[12px] font-bold text-[#4a5280]">#</TableHead>
+                    <TableHead className="text-right text-[12px] font-bold text-[#4a5280] w-[160px]">رقم الجوال</TableHead>
+                    <TableHead className="text-right text-[12px] font-bold text-[#4a5280]">لينك المتجر</TableHead>
+                    {!isTele && (
+                      <>
+                        <TableHead className="text-right text-[12px] font-bold text-[#4a5280]">اسم العميل</TableHead>
+                        <TableHead className="text-right text-[12px] font-bold text-[#4a5280]">نوع العميل</TableHead>
+                        <TableHead className="text-right text-[12px] font-bold text-[#4a5280]">نبذة</TableHead>
+                        <TableHead className="text-right text-[12px] font-bold text-[#4a5280]">التيلي</TableHead>
+                        <TableHead className="text-right text-[12px] font-bold text-[#4a5280]">السيلز</TableHead>
+                        <TableHead className="text-right text-[12px] font-bold text-[#4a5280]">الحالة</TableHead>
+                      </>
+                    )}
+                    <TableHead className="w-[36px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rowsWithDuplicates.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={isTele ? 5 : 11} className="text-center py-12">
+                        <div className="flex flex-col items-center gap-2">
+                          <ClipboardPaste size={32} className="text-[#4a5280]/40" />
+                          <div className="text-[#4a5280] text-[14px] font-semibold">الصق البيانات هنا (Ctrl+V)</div>
+                          <div className="text-[#4a5280]/60 text-[12px]">الأرقام تنزل في عمود الرقم واللينكات في عمود المتجر</div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    rowsWithDuplicates.map((row, idx) => {
+                      const isEmpty = !row.phone.trim() && !row.storeUrl.trim()
+                      return (
+                        <TableRow
+                          key={row.id}
+                          className={`border-b border-white/[0.04] transition-colors ${
+                            !row.included
+                              ? 'bg-red-500/[0.04] opacity-50'
+                              : row.isDuplicate
+                                ? 'bg-amber-500/[0.06]'
+                                : isEmpty
+                                  ? 'bg-white/[0.01]'
+                                  : 'hover:bg-[#1c2234]/50'
+                          }`}
+                        >
+                          {/* Include checkbox */}
+                          <TableCell className="w-[36px] text-center">
+                            <Checkbox
+                              checked={row.included}
+                              onCheckedChange={(checked) => updateRow(row.id, 'included', !!checked)}
+                              className={`border-white/20 ${row.isDuplicate ? 'data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500' : 'data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]'}`}
+                            />
+                          </TableCell>
+
+                          {/* Row number */}
+                          <TableCell className="w-[36px] text-center text-[12px] font-bold text-[#4a5280]">
+                            {idx + 1}
+                          </TableCell>
+
+                          {/* Phone number */}
+                          <TableCell className="w-[160px]">
+                            <div className="flex items-center gap-1">
+                              {focusedCell?.rowId === row.id && focusedCell?.field === 'phone' ? (
+                                <input
+                                  type="text"
+                                  value={row.phone}
+                                  onChange={(e) => updateRow(row.id, 'phone', e.target.value)}
+                                  onBlur={() => setFocusedCell(null)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') setFocusedCell(null)
+                                    if (e.key === 'Tab') {
+                                      e.preventDefault()
+                                      setFocusedCell({ rowId: row.id, field: 'storeUrl' })
+                                    }
+                                  }}
+                                  className="bg-[#0a0d14] border border-[#6c63ff]/40 rounded px-2 py-1 text-[13px] text-[#f0f2ff] w-full outline-none focus:border-[#6c63ff]"
+                                  dir="ltr"
+                                  autoFocus
+                                />
+                              ) : (
+                                <span
+                                  onClick={() => setFocusedCell({ rowId: row.id, field: 'phone' })}
+                                  className={`cursor-pointer rounded px-1.5 py-0.5 text-[13px] font-medium min-h-[28px] inline-block truncate max-w-full transition-colors ${
+                                    row.isDuplicate ? 'text-amber-400 hover:bg-amber-500/10' : row.phone ? 'text-[#f0f2ff] hover:bg-[#1c2234]' : 'text-[#4a5280] hover:bg-[#1c2234]'
+                                  }`}
+                                  dir="ltr"
+                                >
+                                  {row.phone || 'رقم الجوال...'}
+                                </span>
+                              )}
+                              {row.isDuplicate && row.phone && (
+                                <Badge className="bg-amber-500/15 text-amber-400 text-[9px] font-bold border-0 shrink-0">مكرر</Badge>
+                              )}
+                            </div>
+                          </TableCell>
+
+                          {/* Store URL */}
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              {focusedCell?.rowId === row.id && focusedCell?.field === 'storeUrl' ? (
+                                <input
+                                  type="text"
+                                  value={row.storeUrl}
+                                  onChange={(e) => updateRow(row.id, 'storeUrl', e.target.value)}
+                                  onBlur={() => setFocusedCell(null)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') setFocusedCell(null)
+                                    if (e.key === 'Tab' && !e.shiftKey) {
+                                      e.preventDefault()
+                                      // Focus phone of next row, or add new row
+                                      const nextIdx = idx + 1
+                                      if (nextIdx < rowsWithDuplicates.length) {
+                                        setFocusedCell({ rowId: rowsWithDuplicates[nextIdx].id, field: 'phone' })
+                                      } else {
+                                        addEmptyRow()
+                                      }
+                                    }
+                                  }}
+                                  className="bg-[#0a0d14] border border-[#6c63ff]/40 rounded px-2 py-1 text-[13px] text-[#f0f2ff] w-full outline-none focus:border-[#6c63ff]"
+                                  dir="ltr"
+                                  autoFocus
+                                />
+                              ) : (
+                                <span
+                                  onClick={() => setFocusedCell({ rowId: row.id, field: 'storeUrl' })}
+                                  className={`cursor-pointer rounded px-1.5 py-0.5 text-[13px] font-medium min-h-[28px] inline-block truncate max-w-full transition-colors ${
+                                    row.storeUrl ? 'text-[#f0f2ff] hover:bg-[#1c2234]' : 'text-[#4a5280] hover:bg-[#1c2234]'
+                                  }`}
+                                  dir="ltr"
+                                >
+                                  {row.storeUrl || 'لينك المتجر...'}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+
+                          {/* Additional columns for non-tele roles */}
+                          {!isTele && (
+                            <>
+                              {/* Customer Name */}
+                              <TableCell>
+                                <Input
+                                  placeholder="اسم العميل"
+                                  value={row.customerName}
+                                  onChange={(e) => updateRow(row.id, 'customerName', e.target.value)}
+                                  className="h-7 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] w-[130px]"
+                                />
+                              </TableCell>
+
+                              {/* Customer Type */}
+                              <TableCell>
+                                <Select value={row.customerType || 'business'} onValueChange={(v) => updateRow(row.id, 'customerType', v)}>
+                                  <SelectTrigger className="h-7 text-[13px] w-[100px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-[#111520] border-white/[0.08]">
+                                    <SelectItem value="business" className="text-[13px]">تجاري</SelectItem>
+                                    <SelectItem value="individual" className="text-[13px]">فرد</SelectItem>
+                                    <SelectItem value="enterprise" className="text-[13px]">مؤسسة</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+
+                              {/* Brief */}
+                              <TableCell>
+                                <Input
+                                  placeholder="نبذة"
+                                  value={row.brief}
+                                  onChange={(e) => updateRow(row.id, 'brief', e.target.value)}
+                                  className="h-7 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] w-[100px]"
+                                />
+                              </TableCell>
+
+                              {/* Tele */}
+                              <TableCell>
+                                <Select value={row.tele} onValueChange={(v) => updateRow(row.id, 'tele', v)}>
+                                  <SelectTrigger className="h-7 text-[13px] w-[90px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-[#111520] border-white/[0.08]">
+                                    {team.tele.map((n) => (
+                                      <SelectItem key={n} value={n} className="text-[13px]">{n}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+
+                              {/* Sales */}
+                              <TableCell>
+                                <Select value={row.sales || 'none'} onValueChange={(v) => updateRow(row.id, 'sales', v === 'none' ? '' : v)}>
+                                  <SelectTrigger className="h-7 text-[13px] w-[90px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-[#111520] border-white/[0.08]">
+                                    <SelectItem value="none" className="text-[13px]">—</SelectItem>
+                                    {team.sales.map((n) => (
+                                      <SelectItem key={n} value={n} className="text-[13px]">{n}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+
+                              {/* Status */}
+                              <TableCell>
+                                <Select value={row.status} onValueChange={(v) => updateRow(row.id, 'status', v)}>
+                                  <SelectTrigger className="h-7 text-[13px] w-[90px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-[#111520] border-white/[0.08]">
+                                    {STATUSES.slice(0, 5).map((s) => (
+                                      <SelectItem key={s.key} value={s.key} className="text-[13px]">{s.label}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                            </>
+                          )}
+
+                          {/* Delete row */}
+                          <TableCell className="w-[36px]">
+                            <button
+                              onClick={() => handleRemoveRow(row.id)}
+                              className="w-6 h-6 rounded-md bg-red-500/10 text-red-400 flex items-center justify-center hover:bg-red-500/20 transition-colors cursor-pointer"
+                              title="حذف الصف"
+                            >
+                              <X size={10} />
+                            </button>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Footer bar */}
+            <div className="border-t border-white/[0.06] px-4 py-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={addEmptyRow}
+                  className="h-8 px-3 rounded-lg bg-[#6c63ff]/10 text-[#6c63ff] text-[12px] font-bold flex items-center gap-1.5 hover:bg-[#6c63ff]/20 transition-colors cursor-pointer"
+                >
+                  <Plus size={12} />
+                  صف جديد
+                </button>
+                {rows.length > 0 && (
+                  <button
+                    onClick={clearAll}
+                    className="h-8 px-3 rounded-lg bg-red-500/10 text-red-400 text-[12px] font-bold flex items-center gap-1.5 hover:bg-red-500/20 transition-colors cursor-pointer"
+                  >
+                    <Trash2 size={12} />
+                    مسح الكل
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-3 text-[12px] font-medium">
+                <span className="text-[#8892b0]">
+                  {rows.length > 0 ? (
+                    <>
+                      <span className="text-[#f0f2ff] font-bold">{selectedValidRows.length}</span> محدد من <span className="text-[#f0f2ff] font-bold">{rows.length}</span>
+                    </>
+                  ) : (
+                    'لا يوجد بيانات'
+                  )}
+                </span>
+                {duplicateCount > 0 && (
+                  <Badge className="bg-amber-500/15 text-amber-400 text-[11px] font-bold border-0">
+                    {duplicateCount} مكرر
+                  </Badge>
+                )}
+                {isTele && currentUser && (
+                  <span className="text-[#8892b0]">
+                    → شيت: <span className="text-[#6c63ff]">{currentUser}</span>
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -9,7 +9,7 @@ import {
   Search, Plus, Trash2, Archive, Phone, Filter, X, Check,
   UserPlus, Calendar, Loader2, ExternalLink,
   ChevronLeft, ChevronRight, ArrowLeftRight, Send, AlertCircle,
-  RotateCcw, UserRound, ClipboardPaste, Lightbulb, Info,
+  RotateCcw, UserRound, ClipboardPaste,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -443,11 +443,14 @@ function TransferModal({ lead, open, onClose, onSubmit, salesTeam, saving }: Tra
 }
 
 /* ═══════════════════════════════════════════════════════
-   Quick Paste Dialog
+   Quick Paste Dialog — REDESIGNED: Table-first smart paste
    ═══════════════════════════════════════════════════════ */
-interface ParsedPasteRow {
+interface PasteRow {
+  id: string
   phone: string
   storeUrl: string
+  included: boolean
+  isDuplicate: boolean
 }
 
 interface QuickPasteDialogProps {
@@ -459,16 +462,13 @@ interface QuickPasteDialogProps {
   addToast: (type: 'success' | 'error' | 'info' | 'warning', message: string) => void
 }
 
+let pasteRowCounter = 0
+
 function QuickPasteDialog({ open, onClose, leads, teleName, onSaved, addToast }: QuickPasteDialogProps) {
-  const [pasteText, setPasteText] = useState('')
-  const [parsedRows, setParsedRows] = useState<ParsedPasteRow[]>([])
-  const [pasteOptions, setPasteOptions] = useState({
-    autoAdd: true,
-    fixPhone: true,
-    fixUrl: true,
-  })
+  const [rows, setRows] = useState<PasteRow[]>([])
   const [pasteSaving, setPasteSaving] = useState(false)
-  const [hasParsed, setHasParsed] = useState(false)
+  const [focusedCell, setFocusedCell] = useState<{ rowId: string; field: 'phone' | 'storeUrl' } | null>(null)
+  const tableRef = useRef<HTMLDivElement>(null)
 
   // Build set of existing normalized phone numbers for duplicate detection
   const existingPhoneSet = useMemo(() => {
@@ -482,42 +482,141 @@ function QuickPasteDialog({ open, onClose, leads, teleName, onSaved, addToast }:
     return s
   }, [leads])
 
-  // Detect duplicates among parsed rows
-  const duplicatePhoneSet = useMemo(() => {
-    const dupes = new Set<string>()
-    const seen = new Map<string, number>()
-    for (const row of parsedRows) {
+  // Recompute duplicate status whenever rows or leads change
+  const computeDuplicates = useCallback((currentRows: PasteRow[]) => {
+    const seenInPaste = new Map<string, string[]>() // norm -> row ids
+    return currentRows.map((row) => {
+      const norm = row.phone ? normalizePhone(row.phone) : ''
+      const isExisting = norm ? existingPhoneSet.has(norm) : false
+      // Check intra-paste duplicates
+      if (norm) {
+        const existing = seenInPaste.get(norm) || []
+        existing.push(row.id)
+        seenInPaste.set(norm, existing)
+      }
+      return { ...row, isDuplicate: isExisting || false }
+    })
+  }, [existingPhoneSet])
+
+  // After computing, mark intra-paste duplicates too
+  const rowsWithDuplicates = useMemo(() => {
+    const normToIds = new Map<string, string[]>()
+    // First pass: collect all norms
+    for (const row of rows) {
       if (!row.phone) continue
       const norm = normalizePhone(row.phone)
       if (!norm) continue
-      // Check against existing leads
-      if (existingPhoneSet.has(norm)) {
-        dupes.add(row.phone)
-      }
-      // Check against other parsed rows
-      const count = seen.get(norm) || 0
-      if (count > 0) {
-        dupes.add(row.phone)
-      }
-      seen.set(norm, count + 1)
+      const arr = normToIds.get(norm) || []
+      arr.push(row.id)
+      normToIds.set(norm, arr)
     }
-    return dupes
-  }, [parsedRows, existingPhoneSet])
+    // Second pass: mark duplicates (existing + intra-paste)
+    return rows.map((row) => {
+      if (!row.phone) return row
+      const norm = normalizePhone(row.phone)
+      if (!norm) return row
+      const isExisting = existingPhoneSet.has(norm)
+      const idsWithSameNorm = normToIds.get(norm) || []
+      const isIntraDupe = idsWithSameNorm.length > 1
+      return { ...row, isDuplicate: isExisting || isIntraDupe }
+    })
+  }, [rows, existingPhoneSet])
 
-  const validRows = useMemo(
-    () => parsedRows.filter((r) => r.phone.trim() || r.storeUrl.trim()),
-    [parsedRows]
+  // Selected rows (included + valid)
+  const selectedValidRows = useMemo(
+    () => rowsWithDuplicates.filter((r) => r.included && (r.phone.trim() || r.storeUrl.trim())),
+    [rowsWithDuplicates]
   )
 
+  const duplicateCount = useMemo(
+    () => rowsWithDuplicates.filter((r) => r.isDuplicate && r.included).length,
+    [rowsWithDuplicates]
+  )
+
+  /* ─── Update a row's field ─── */
+  const updateRow = useCallback((id: string, field: 'phone' | 'storeUrl' | 'included', value: string | boolean) => {
+    setRows((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, [field]: value } : r))
+    )
+  }, [])
+
+  /* ─── Remove a single row ─── */
+  const removeRow = useCallback((id: string) => {
+    setRows((prev) => prev.filter((r) => r.id !== id))
+  }, [])
+
+  /* ─── Add empty row ─── */
+  const addEmptyRow = useCallback(() => {
+    const newRow: PasteRow = {
+      id: `new-${++pasteRowCounter}`,
+      phone: '',
+      storeUrl: '',
+      included: true,
+      isDuplicate: false,
+    }
+    setRows((prev) => [...prev, newRow])
+    // Focus the phone cell of the new row
+    setTimeout(() => setFocusedCell({ rowId: newRow.id, field: 'phone' }), 50)
+  }, [])
+
+  /* ─── Handle paste event on the table area ─── */
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const text = e.clipboardData.getData('text/plain')
+    if (!text.trim()) return
+
+    // Check if it's multi-line data (bulk paste)
+    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+    if (lines.length === 0) return
+
+    e.preventDefault()
+
+    const newRows: PasteRow[] = lines.map((line) => {
+      const parsed = parsePastedLine(line)
+      return {
+        id: `paste-${++pasteRowCounter}`,
+        phone: parsed.phone,
+        storeUrl: parsed.storeUrl,
+        included: true,
+        isDuplicate: false,
+      }
+    })
+
+    setRows((prev) => [...prev, ...newRows])
+  }, [])
+
+  /* ─── Toggle all duplicates ─── */
+  const excludeAllDuplicates = useCallback(() => {
+    setRows((prev) =>
+      prev.map((r) => (r.isDuplicate ? { ...r, included: false } : r))
+    )
+  }, [])
+
+  const includeAllDuplicates = useCallback(() => {
+    setRows((prev) =>
+      prev.map((r) => (r.isDuplicate ? { ...r, included: true } : r))
+    )
+  }, [])
+
+  /* ─── Select/Deselect all ─── */
+  const toggleAll = useCallback((checked: boolean) => {
+    setRows((prev) => prev.map((r) => ({ ...r, included: checked })))
+  }, [])
+
+  /* ─── Clear all rows ─── */
+  const clearAll = useCallback(() => {
+    setRows([])
+  }, [])
+
+  /* ─── Save selected rows to tele sheet ─── */
   const handleSave = useCallback(async () => {
-    if (validRows.length === 0) {
-      addToast('warning', 'لا يوجد صفوف صالحة للحفظ')
+    if (selectedValidRows.length === 0) {
+      addToast('warning', 'لا يوجد صفوف محددة للحفظ')
       return
     }
 
     setPasteSaving(true)
     try {
-      const leadsToCreate: Partial<Lead>[] = validRows.map((r) => ({
+      const leadsToCreate: Partial<Lead>[] = selectedValidRows.map((r) => ({
         phone: r.phone || undefined,
         storeUrl: r.storeUrl || undefined,
         customerName: r.phone
@@ -534,201 +633,284 @@ function QuickPasteDialog({ open, onClose, leads, teleName, onSaved, addToast }:
       if (Array.isArray(created) && created.length > 0) {
         onSaved(created)
       }
-      addToast('success', `تم إضافة ${validRows.length} عميل بنجاح 🎉`)
-      // Reset
-      setPasteText('')
-      setParsedRows([])
-      setHasParsed(false)
+      addToast('success', `تم إضافة ${selectedValidRows.length} عميل بنجاح 🎉`)
+      setRows([])
       onClose()
     } catch (err: unknown) {
       addToast('error', `فشل في إضافة العملاء: ${err instanceof Error ? err.message : 'خطأ غير معروف'}`)
     } finally {
       setPasteSaving(false)
     }
-  }, [validRows, teleName, onSaved, addToast, onClose])
+  }, [selectedValidRows, teleName, onSaved, addToast, onClose])
 
   const handleOpenChange = useCallback((isOpen: boolean) => {
-    if (!isOpen) {
-      onClose()
-    }
+    if (!isOpen) onClose()
   }, [onClose])
-
-  // Auto-parse when text changes with debounce
-  const parseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => {
-    if (!pasteText.trim()) {
-      setParsedRows([])
-      setHasParsed(false)
-      return
-    }
-    if (parseTimeoutRef.current) clearTimeout(parseTimeoutRef.current)
-    parseTimeoutRef.current = setTimeout(() => {
-      const lines = pasteText.split('\n').map((l) => l.trim()).filter(Boolean)
-      const rows = lines.map((line) => parsePastedLine(line))
-      setParsedRows(rows)
-      setHasParsed(true)
-    }, 300)
-    return () => {
-      if (parseTimeoutRef.current) clearTimeout(parseTimeoutRef.current)
-    }
-  }, [pasteText])
 
   // Reset state when dialog opens
   useEffect(() => {
     if (open) {
-      setPasteText('')
-      setParsedRows([])
-      setHasParsed(false)
+      setRows([])
+      setFocusedCell(null)
     }
   }, [open])
 
+  const allIncluded = rows.length > 0 && rows.every((r) => r.included)
+  const someIncluded = rows.some((r) => r.included) && !allIncluded
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="bg-[#111520] border-white/[0.08] text-[#f0f2ff] sm:max-w-2xl max-h-[85vh] overflow-y-auto" showCloseButton>
+      <DialogContent className="bg-[#111520] border-white/[0.08] text-[#f0f2ff] sm:max-w-3xl max-h-[90vh] flex flex-col" showCloseButton>
         <DialogHeader>
           <DialogTitle className="text-[18px] font-extrabold text-[#f0f2ff] flex items-center gap-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
             <ClipboardPaste size={20} className="text-[#6c63ff]" />
-            لصق سريع
+            إضافة ليدز سريعة
           </DialogTitle>
           <DialogDescription className="text-[13px] text-[#8892b0]">
-            الصق أرقام الجوال أو لينكات المتاجر أو كليهما — كل سطر بيانات منفصل
+            الصق البيانات مباشرة (Ctrl+V) أو اكتب يدوياً — الأرقام تنزل في عمود الرقم واللينكات في عمود المتجر
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          {/* Paste area */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-[12px] font-semibold text-[#8892b0]">
-              <Lightbulb size={12} className="text-[#ffd166]" />
-              أمثلة: <span dir="ltr" className="text-[#a8a3ff]">0512345678</span> أو <span dir="ltr" className="text-[#a8a3ff]">https://store.example.com</span> أو <span dir="ltr" className="text-[#a8a3ff]">0512345678, https://store.example.com</span>
-            </div>
-            <textarea
-              value={pasteText}
-              onChange={(e) => setPasteText(e.target.value)}
-              placeholder={"0512345678\nhttps://store.example.com\n0512345678\thttps://store.example.com"}
-              className="w-full h-32 text-[13px] bg-[#0a0d14] border border-white/[0.08] rounded-lg px-3 py-2 text-[#f0f2ff] placeholder:text-[#4a5280] resize-none focus:outline-none focus:border-[#6c63ff]/40"
-              dir="ltr"
-              autoFocus
-            />
-          </div>
-
-          {/* Options */}
-          <div className="flex flex-wrap items-center gap-4">
-            <label className="flex items-center gap-2 text-[12px] font-semibold text-[#8892b0] cursor-pointer">
-              <Checkbox
-                checked={pasteOptions.autoAdd}
-                onCheckedChange={(checked) => setPasteOptions((p) => ({ ...p, autoAdd: !!checked }))}
-                className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
-              />
-              إضافة صف جديد تلقائياً بعد paste
-            </label>
-            <label className="flex items-center gap-2 text-[12px] font-semibold text-[#8892b0] cursor-pointer">
-              <Checkbox
-                checked={pasteOptions.fixPhone}
-                onCheckedChange={(checked) => setPasteOptions((p) => ({ ...p, fixPhone: !!checked }))}
-                className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
-              />
-              تثبيت عمود الهاتف
-            </label>
-            <label className="flex items-center gap-2 text-[12px] font-semibold text-[#8892b0] cursor-pointer">
-              <Checkbox
-                checked={pasteOptions.fixUrl}
-                onCheckedChange={(checked) => setPasteOptions((p) => ({ ...p, fixUrl: !!checked }))}
-                className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
-              />
-              تثبيت عمود الرابط
-            </label>
-          </div>
-
-          {/* Duplicate warning */}
-          {duplicatePhoneSet.size > 0 && (
-            <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 transition-all duration-300">
-              <AlertCircle size={16} className="text-amber-400 shrink-0 mt-0.5" />
-              <div>
-                <div className="text-[14px] font-bold text-amber-400">أرقام مكررة</div>
-                <div className="text-[12px] font-medium text-amber-400/80 mt-0.5">
-                  الأرقام التالية موجودة مسبقاً: {Array.from(duplicatePhoneSet).slice(0, 5).join('، ')}{duplicatePhoneSet.size > 5 ? ` +${duplicatePhoneSet.size - 5} أخرى` : ''}
+        <div className="flex-1 flex flex-col gap-3 min-h-0 py-2">
+          {/* Duplicate warning bar */}
+          {duplicateCount > 0 && (
+            <div className="flex items-center justify-between gap-3 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2.5">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={16} className="text-amber-400 shrink-0" />
+                <div>
+                  <span className="text-[13px] font-bold text-amber-400">{duplicateCount} بيانات مكررة</span>
+                  <span className="text-[12px] font-medium text-amber-400/70 mr-2">— موجودة مسبقاً</span>
                 </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={excludeAllDuplicates}
+                  className="h-7 px-2.5 rounded-lg bg-red-500/15 text-red-400 text-[11px] font-bold hover:bg-red-500/25 transition-colors cursor-pointer"
+                >
+                  استبعاد الكل
+                </button>
+                <button
+                  onClick={includeAllDuplicates}
+                  className="h-7 px-2.5 rounded-lg bg-amber-500/15 text-amber-400 text-[11px] font-bold hover:bg-amber-500/25 transition-colors cursor-pointer"
+                >
+                  تضمين الكل
+                </button>
               </div>
             </div>
           )}
 
-          {/* Preview table */}
-          {hasParsed && parsedRows.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="text-[13px] font-bold text-[#f0f2ff] flex items-center gap-2">
-                  <Info size={14} className="text-[#6c63ff]" />
-                  معاينة البيانات
-                </div>
-                <Badge className="bg-[#6c63ff]/15 text-[#a8a3ff] text-[11px] font-bold border-0">
-                  {validRows.length} صالح من {parsedRows.length}
-                </Badge>
-              </div>
-              <div className="max-h-48 overflow-y-auto rounded-lg border border-white/[0.06] custom-scrollbar">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
-                      <TableHead className="text-right text-[12px] font-bold text-[#4a5280] w-[40px]">#</TableHead>
-                      <TableHead className="text-right text-[12px] font-bold text-[#4a5280]">رقم الجوال</TableHead>
-                      <TableHead className="text-right text-[12px] font-bold text-[#4a5280]">لينك المتجر</TableHead>
-                      <TableHead className="text-right text-[12px] font-bold text-[#4a5280] w-[60px]">حالة</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {parsedRows.map((row, idx) => {
-                      const isDupe = duplicatePhoneSet.has(row.phone)
-                      const isValid = row.phone.trim() || row.storeUrl.trim()
-                      return (
-                        <TableRow
-                          key={idx}
-                          className={`border-b border-white/[0.04] ${isDupe ? 'bg-amber-500/5' : !isValid ? 'bg-red-500/5' : ''}`}
-                        >
-                          <TableCell className="text-[12px] text-[#4a5280]">{idx + 1}</TableCell>
-                          <TableCell>
-                            <span dir="ltr" className={`text-[13px] font-medium ${isDupe ? 'text-amber-400' : row.phone ? 'text-[#f0f2ff]' : 'text-[#4a5280]'}`}>
-                              {row.phone || '—'}
-                            </span>
-                            {isDupe && (
-                              <Badge className="bg-amber-500/15 text-amber-400 text-[9px] font-bold border-0 mr-1">مكرر</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <span dir="ltr" className="text-[13px] font-medium text-[#f0f2ff] truncate block max-w-[200px]">
-                              {row.storeUrl || <span className="text-[#4a5280]">—</span>}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            {isValid ? (
-                              <Badge className="bg-[#00d4aa]/15 text-[#00d4aa] text-[10px] font-bold border-0">صالح</Badge>
+          {/* Table area — paste target */}
+          <div
+            ref={tableRef}
+            onPaste={handlePaste}
+            tabIndex={0}
+            className="flex-1 min-h-[200px] max-h-[50vh] overflow-y-auto rounded-xl border border-white/[0.06] bg-[#0a0d14] custom-scrollbar focus:border-[#6c63ff]/30 focus:outline-none transition-colors"
+          >
+            <Table>
+              <TableHeader>
+                <TableRow className="border-b border-white/[0.06] hover:bg-transparent sticky top-0 bg-[#0a0d14] z-10">
+                  <TableHead className="w-[36px] text-center text-[12px] font-bold text-[#4a5280]">
+                    <Checkbox
+                      checked={allIncluded}
+                      ref={(el) => {
+                        if (el) (el as HTMLButtonElement & { indeterminate?: boolean }).indeterminate = someIncluded
+                      }}
+                      onCheckedChange={(checked) => toggleAll(!!checked)}
+                      className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
+                    />
+                  </TableHead>
+                  <TableHead className="w-[36px] text-center text-[12px] font-bold text-[#4a5280]">#</TableHead>
+                  <TableHead className="text-right text-[12px] font-bold text-[#4a5280] w-[160px]">رقم الجوال</TableHead>
+                  <TableHead className="text-right text-[12px] font-bold text-[#4a5280]">لينك المتجر</TableHead>
+                  <TableHead className="w-[36px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rowsWithDuplicates.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-12">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="text-[#4a5280] text-[14px] font-semibold">الصق البيانات هنا أو اضغط الزر بالأسفل</div>
+                        <div className="text-[#4a5280]/60 text-[12px]">Ctrl+V للصق • كل سطر = صف جديد • الأرقام واللينكات تنزل تلقائياً في الأعمدة الصح</div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  rowsWithDuplicates.map((row, idx) => {
+                    const isEmpty = !row.phone.trim() && !row.storeUrl.trim()
+                    return (
+                      <TableRow
+                        key={row.id}
+                        className={`border-b border-white/[0.04] transition-colors ${
+                          !row.included
+                            ? 'bg-red-500/[0.04] opacity-50'
+                            : row.isDuplicate
+                              ? 'bg-amber-500/[0.06]'
+                              : isEmpty
+                                ? 'bg-white/[0.01]'
+                                : 'hover:bg-[#1c2234]/50'
+                        }`}
+                      >
+                        {/* Include checkbox */}
+                        <TableCell className="w-[36px] text-center">
+                          <Checkbox
+                            checked={row.included}
+                            onCheckedChange={(checked) => updateRow(row.id, 'included', !!checked)}
+                            className={`border-white/20 ${row.isDuplicate ? 'data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500' : 'data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]'}`}
+                          />
+                        </TableCell>
+
+                        {/* Row number */}
+                        <TableCell className="w-[36px] text-center text-[12px] font-bold text-[#4a5280]">
+                          {idx + 1}
+                        </TableCell>
+
+                        {/* Phone number */}
+                        <TableCell className="w-[160px]">
+                          <div className="flex items-center gap-1">
+                            {focusedCell?.rowId === row.id && focusedCell?.field === 'phone' ? (
+                              <input
+                                type="text"
+                                value={row.phone}
+                                onChange={(e) => updateRow(row.id, 'phone', e.target.value)}
+                                onBlur={() => setFocusedCell(null)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') setFocusedCell(null)
+                                  if (e.key === 'Tab') {
+                                    e.preventDefault()
+                                    setFocusedCell({ rowId: row.id, field: 'storeUrl' })
+                                  }
+                                }}
+                                className="bg-[#111520] border border-[#6c63ff]/40 rounded px-2 py-1 text-[13px] text-[#f0f2ff] w-full outline-none focus:border-[#6c63ff]"
+                                dir="ltr"
+                                autoFocus
+                              />
                             ) : (
-                              <Badge className="bg-red-500/15 text-red-400 text-[10px] font-bold border-0">فارغ</Badge>
+                              <span
+                                onClick={() => setFocusedCell({ rowId: row.id, field: 'phone' })}
+                                className={`cursor-pointer rounded px-1.5 py-0.5 text-[13px] font-medium min-h-[28px] inline-block truncate max-w-full transition-colors ${
+                                  row.isDuplicate ? 'text-amber-400 hover:bg-amber-500/10' : row.phone ? 'text-[#f0f2ff] hover:bg-[#1c2234]' : 'text-[#4a5280] hover:bg-[#1c2234]'
+                                }`}
+                                dir="ltr"
+                              >
+                                {row.phone || 'رقم الجوال...'}
+                              </span>
                             )}
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+                            {row.isDuplicate && row.phone && (
+                              <Badge className="bg-amber-500/15 text-amber-400 text-[9px] font-bold border-0 shrink-0">مكرر</Badge>
+                            )}
+                          </div>
+                        </TableCell>
+
+                        {/* Store URL */}
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            {focusedCell?.rowId === row.id && focusedCell?.field === 'storeUrl' ? (
+                              <input
+                                type="text"
+                                value={row.storeUrl}
+                                onChange={(e) => updateRow(row.id, 'storeUrl', e.target.value)}
+                                onBlur={() => setFocusedCell(null)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') setFocusedCell(null)
+                                  if (e.key === 'Tab' && !e.shiftKey) {
+                                    e.preventDefault()
+                                    // Focus phone of next row, or add new row
+                                    const nextIdx = idx + 1
+                                    if (nextIdx < rowsWithDuplicates.length) {
+                                      setFocusedCell({ rowId: rowsWithDuplicates[nextIdx].id, field: 'phone' })
+                                    } else {
+                                      addEmptyRow()
+                                    }
+                                  }
+                                }}
+                                className="bg-[#111520] border border-[#6c63ff]/40 rounded px-2 py-1 text-[13px] text-[#f0f2ff] w-full outline-none focus:border-[#6c63ff]"
+                                dir="ltr"
+                                autoFocus
+                              />
+                            ) : (
+                              <span
+                                onClick={() => setFocusedCell({ rowId: row.id, field: 'storeUrl' })}
+                                className={`cursor-pointer rounded px-1.5 py-0.5 text-[13px] font-medium min-h-[28px] inline-block truncate max-w-full transition-colors ${
+                                  row.storeUrl ? 'text-[#f0f2ff] hover:bg-[#1c2234]' : 'text-[#4a5280] hover:bg-[#1c2234]'
+                                }`}
+                                dir="ltr"
+                              >
+                                {row.storeUrl || 'لينك المتجر...'}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+
+                        {/* Delete row */}
+                        <TableCell className="w-[36px]">
+                          <button
+                            onClick={() => removeRow(row.id)}
+                            className="w-6 h-6 rounded-md bg-red-500/10 text-red-400 flex items-center justify-center hover:bg-red-500/20 transition-colors cursor-pointer"
+                            title="حذف الصف"
+                          >
+                            <X size={10} />
+                          </button>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Action bar below table */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={addEmptyRow}
+                className="h-8 px-3 rounded-lg bg-[#6c63ff]/10 text-[#6c63ff] text-[12px] font-bold flex items-center gap-1.5 hover:bg-[#6c63ff]/20 transition-colors cursor-pointer"
+              >
+                <Plus size={12} />
+                صف جديد
+              </button>
+              {rows.length > 0 && (
+                <button
+                  onClick={clearAll}
+                  className="h-8 px-3 rounded-lg bg-red-500/10 text-red-400 text-[12px] font-bold flex items-center gap-1.5 hover:bg-red-500/20 transition-colors cursor-pointer"
+                >
+                  <Trash2 size={12} />
+                  مسح الكل
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-3 text-[12px] font-medium">
+              <span className="text-[#8892b0]">
+                {rows.length > 0 ? (
+                  <>
+                    <span className="text-[#f0f2ff] font-bold">{selectedValidRows.length}</span> محدد من <span className="text-[#f0f2ff] font-bold">{rows.length}</span>
+                  </>
+                ) : (
+                  'لا يوجد بيانات'
+                )}
+              </span>
+              {duplicateCount > 0 && (
+                <Badge className="bg-amber-500/15 text-amber-400 text-[11px] font-bold border-0">
+                  {duplicateCount} مكرر
+                </Badge>
+              )}
+              <div className="flex items-center gap-1 text-[#8892b0]">
+                <UserRound size={12} className="text-[#6c63ff]" />
+                {teleName}
               </div>
             </div>
-          )}
-
-          {/* Tele assignment info */}
-          <div className="flex items-center gap-2 text-[12px] font-medium text-[#8892b0] bg-[#0a0d14] rounded-lg px-3 py-2 border border-white/[0.06]">
-            <UserRound size={14} className="text-[#6c63ff]" />
-            سيتم تعيين العملاء إلى: <span className="text-[#f0f2ff] font-bold">{teleName}</span>
           </div>
         </div>
 
         <DialogFooter className="gap-2">
           <Button
             onClick={handleSave}
-            disabled={pasteSaving || validRows.length === 0}
+            disabled={pasteSaving || selectedValidRows.length === 0}
             className="bg-[#00d4aa] hover:bg-[#00c09a] text-[#0a0d14] gap-1.5 text-[13px] font-bold h-9 cursor-pointer disabled:opacity-50"
           >
             {pasteSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-            {pasteSaving ? 'جاري الحفظ...' : `حفظ الكل (${validRows.length})`}
+            {pasteSaving ? 'جاري الإضافة...' : `إضافة المحدد (${selectedValidRows.length})`}
           </Button>
           <Button
             onClick={onClose}

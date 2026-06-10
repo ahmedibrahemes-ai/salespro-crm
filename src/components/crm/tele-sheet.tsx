@@ -127,7 +127,7 @@ function EditableCell({
   return (
     <span
       onClick={() => { setDraft(value); setEditing(true) }}
-      className="cursor-pointer hover:bg-[#1c2234] rounded px-1.5 py-0.5 transition-colors text-[13px] font-medium min-h-[28px] w-full h-full block"
+      className="cursor-pointer hover:bg-[#1c2234] rounded px-1.5 py-0.5 transition-colors text-[13px] font-medium min-h-[28px] inline-block truncate max-w-full"
     >
       {value || <span className="text-[#4a5280]">{placeholder}</span>}
     </span>
@@ -846,6 +846,16 @@ export function TeleSheet() {
       result = result.filter((l) => l.createdAt >= from && l.createdAt < to)
     }
 
+    // Sort newest first (by createdAt descending, fallback to ID descending)
+    result.sort((a, b) => {
+      const timeDiff = (b.createdAt || 0) - (a.createdAt || 0)
+      if (timeDiff !== 0) return timeDiff
+      const numA = Number(a.id)
+      const numB = Number(b.id)
+      if (!isNaN(numA) && !isNaN(numB)) return numB - numA
+      return b.id.localeCompare(a.id)
+    })
+
     return result
   }, [leads, selectedTele, searchQuery, dateFilter, isLockedToSelf, currentUser, currentFilter])
 
@@ -1223,7 +1233,7 @@ export function TeleSheet() {
       <Card className="bg-[#111520] border-white/[0.06]">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <Table>
+            <Table className="table-fixed">
               <TableHeader>
                 <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
                   <TableHead className="w-[40px] text-right text-[13px] font-bold text-[#4a5280]">
@@ -1236,14 +1246,14 @@ export function TeleSheet() {
                       className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
                     />
                   </TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">لينك المتجر</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">رقم الجوال</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">اسم العميل</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">البريف</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">حالة التواصل</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">حالة العميل</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">الحضور</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">تحويل</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[160px] max-w-[160px]">لينك المتجر</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[130px] max-w-[130px]">رقم الجوال</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[150px] max-w-[150px]">اسم العميل</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[180px] max-w-[180px]">البريف</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[110px]">حالة التواصل</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[110px]">حالة العميل</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[90px]">الحضور</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[120px]">تحويل</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[60px]">حذف</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1349,8 +1359,8 @@ export function TeleSheet() {
                         </TableCell>
 
                         {/* لينك المتجر — clickable link, editable */}
-                        <TableCell>
-                          <div className="flex items-center gap-1">
+                        <TableCell className="max-w-[160px]">
+                          <div className="flex items-center gap-1 max-w-[160px]">
                             <EditableCell
                               value={lead.storeUrl}
                               onSave={(v) => handleUpdateField(lead.id, 'storeUrl', v)}
@@ -1372,8 +1382,8 @@ export function TeleSheet() {
                         </TableCell>
 
                         {/* رقم الجوال — with tel: link, editable */}
-                        <TableCell>
-                          <div className="flex items-center gap-1.5">
+                        <TableCell className="max-w-[130px]">
+                          <div className="flex items-center gap-1.5 max-w-[130px]">
                             <a
                               href={`tel:${lead.phone}`}
                               className="w-6 h-6 rounded-md bg-[#00d4aa]/10 flex items-center justify-center text-[#00d4aa] hover:bg-[#00d4aa]/20 transition-colors shrink-0"
@@ -1390,7 +1400,7 @@ export function TeleSheet() {
                         </TableCell>
 
                         {/* اسم العميل — editable */}
-                        <TableCell>
+                        <TableCell className="max-w-[150px]">
                           <EditableCell
                             value={lead.customerName}
                             onSave={(v) => handleUpdateField(lead.id, 'customerName', v)}
@@ -1399,7 +1409,7 @@ export function TeleSheet() {
                         </TableCell>
 
                         {/* البريف — editable */}
-                        <TableCell>
+                        <TableCell className="max-w-[180px]">
                           <EditableCell
                             value={lead.brief}
                             onSave={(v) => handleUpdateField(lead.id, 'brief', v)}
@@ -1430,12 +1440,12 @@ export function TeleSheet() {
                         </TableCell>
 
                         {/* الحضور — READ-ONLY badge */}
-                        <TableCell>
+                        <TableCell className="w-[90px]">
                           <AttendanceBadge value={lead.attended} isTransferred={transferred} />
                         </TableCell>
 
                         {/* تحويل — Transfer button / transferred info */}
-                        <TableCell>
+                        <TableCell className="w-[120px]">
                           {lead.sales ? (
                             <div className="space-y-1.5">
                               <Badge className="bg-emerald-500/15 text-emerald-400 text-[11px] font-bold border-0 gap-1">

@@ -240,7 +240,7 @@ export async function apiGetSession() {
 export async function apiGetTeam() {
   const { data, error } = await supabase
     .from('team_members')
-    .select('*')
+    .select('name, role')
     .eq('is_active', true)
     .order('name')
   if (error) throw error
@@ -289,7 +289,7 @@ export async function apiGetLeads(includeArchived = false): Promise<Lead[]> {
   while (hasMore) {
     let query = supabase
       .from('leads')
-      .select('*')
+      .select('id,store_url,phone,customer_name,customer_type,brief,contact_result,contact_result_at,tele_name,sales_name,meeting_date,meeting_time,meeting_type,meeting_link,status,sales_status,attended,attendance_marked_at,attendance_marked_by,cancelled_from,cancelled_at,created_at,assigned_at,is_archived,archived_at,archived_by')
       .order('id', { ascending: true })
       .range(from, from + PAGE_SIZE - 1)
 
@@ -341,7 +341,7 @@ export async function apiGetArchivedLeads(): Promise<Lead[]> {
   while (hasMore) {
     const { data, error } = await supabase
       .from('leads')
-      .select('*')
+      .select('id,store_url,phone,customer_name,customer_type,brief,contact_result,contact_result_at,tele_name,sales_name,meeting_date,meeting_time,meeting_type,meeting_link,status,sales_status,attended,attendance_marked_at,attendance_marked_by,cancelled_from,cancelled_at,created_at,assigned_at,is_archived,archived_at,archived_by')
       .eq('is_archived', true)
       .order('archived_at', { ascending: false })
       .range(from, from + PAGE_SIZE - 1)
@@ -479,7 +479,7 @@ export async function apiUnarchiveLeads(ids: string[]) {
 export async function apiGetLeadNotes(leadId: string): Promise<LeadNote[]> {
   const { data, error } = await supabase
     .from('lead_notes')
-    .select('*')
+    .select('id,by_name,category,text,created_at')
     .eq('lead_id', leadId)
     .order('created_at', { ascending: true })
   if (error) throw error
@@ -520,7 +520,7 @@ export async function apiAddTeamMember(name: string, role: string) {
     console.warn('[apiAddTeamMember] Server API failed:', serverErr)
     const { data: existing } = await supabase
       .from('team_members')
-      .select('*')
+      .select('id')
       .eq('name', name)
       .eq('is_active', false)
       .maybeSingle()
@@ -564,7 +564,9 @@ export async function apiRenameTeamMember(oldName: string, newName: string) {
   }
 }
 
-// ===== Broadcast Channel for Cross-User Real-Time =====
+// ===== Broadcast removed — postgres_changes already sends updates to all clients =====
+// Previously we had a separate broadcast channel that DOUBLED the realtime messages.
+// Now we rely solely on postgres_changes which is sufficient for cross-user updates.
 export interface BroadcastMessage {
   type: 'attendance' | 'assignment' | 'status' | 'archive' | 'note' | 'delete' | 'reset-attendance'
   leadId: string
@@ -574,19 +576,9 @@ export interface BroadcastMessage {
   at: number
 }
 
-let broadcastChannelRef: ReturnType<typeof supabase.channel> | null = null
-
-export function apiBroadcastChange(message: BroadcastMessage): void {
-  if (!broadcastChannelRef) {
-    broadcastChannelRef = supabase.channel('leads_changes', {
-      config: { broadcast: { self: false } },
-    })
-  }
-  broadcastChannelRef.send({
-    type: 'broadcast',
-    event: 'lead_change',
-    payload: message,
-  })
+// No-op: broadcast is removed to halve realtime message count
+export function apiBroadcastChange(_message: BroadcastMessage): void {
+  // Intentionally empty — postgres_changes handles all real-time updates
 }
 
 // ===== Toast Deduplication =====
@@ -666,18 +658,8 @@ export function apiSubscribeToLeads(
     .on('postgres_changes', { event: '*', schema: 'public', table: 'lead_notes' }, (payload) =>
       callback({ ...payload, table: 'lead_notes' })
     )
-    .on('broadcast', { event: 'lead_change' }, (rawPayload) => {
-      const payload = rawPayload as Record<string, unknown>
-      const broadcastMsg = payload.payload as BroadcastMessage | undefined
-      if (broadcastMsg) {
-        callback({
-          eventType: 'BROADCAST',
-          source: 'broadcast',
-          table: 'leads',
-          broadcastMessage: broadcastMsg,
-        })
-      }
-    })
+    // NOTE: Broadcast listener removed — postgres_changes already sends all updates
+    // This halves the realtime message count
     .subscribe((status, err) => {
       console.log(`[realtime] Status: ${status}`, err || '')
       if (onStatusChange) {
@@ -685,7 +667,6 @@ export function apiSubscribeToLeads(
       }
     })
 
-  broadcastChannelRef = channel
   return channel
 }
 

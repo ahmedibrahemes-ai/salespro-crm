@@ -312,9 +312,10 @@ export async function GET() {
       overdueCount,
     }
 
-    // Cache for 30 seconds to avoid hammering the database on every dashboard load
+    // Cache for 5 minutes to avoid hammering the database on every dashboard load
+    // Previously 30s which caused excessive egress with full-table scans
     const response = NextResponse.json(stats)
-    response.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60')
+    response.headers.set('Cache-Control', 'private, max-age=300, stale-while-revalidate=600')
     return response
   } catch (error) {
     console.error('Error fetching stats:', error)

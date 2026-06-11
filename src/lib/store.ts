@@ -156,11 +156,13 @@ interface CrmStore {
   leadsVersion: number
   team: { tele: string[]; sales: string[]; admin: string[] }
   dataLoaded: boolean
+  archivedLoaded: boolean
   loading: boolean
   setLeads: (leads: Lead[]) => void
   setArchivedLeads: (leads: Lead[]) => void
   setTeam: (team: { tele: string[]; sales: string[]; admin: string[] }) => void
   setDataLoaded: (loaded: boolean) => void
+  setArchivedLoaded: (loaded: boolean) => void
   setLoading: (loading: boolean) => void
 
   // Actions
@@ -299,6 +301,7 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
   leadsVersion: 0,
   team: DEFAULT_TEAM,
   dataLoaded: false,
+  archivedLoaded: false,
   loading: false,
   setLeads: (leads) => {
     const seen = new Set<string>()
@@ -322,6 +325,7 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
   },
   setTeam: (team) => set({ team }),
   setDataLoaded: (dataLoaded) => set({ dataLoaded }),
+  setArchivedLoaded: (archivedLoaded) => set({ archivedLoaded }),
   setLoading: (loading) => set({ loading }),
 
   // Actions
@@ -343,6 +347,7 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
       leadsById: {},
       leadsVersion: 0,
       dataLoaded: false,
+      archivedLoaded: false,
       activeFilter: {},
       selectedLeadIds: {},
       searchQueries: {},

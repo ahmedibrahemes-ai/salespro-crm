@@ -237,6 +237,8 @@ export default function Home() {
   const setTeam = useCrmStore((s) => s.setTeam)
   const setDataLoaded = useCrmStore((s) => s.setDataLoaded)
   const setLoading = useCrmStore((s) => s.setLoading)
+  const archivedLoaded = useCrmStore((s) => s.archivedLoaded)
+  const setArchivedLoaded = useCrmStore((s) => s.setArchivedLoaded)
 
   // Hydrate auth from localStorage on first mount
   useEffect(() => {
@@ -274,14 +276,14 @@ export default function Home() {
     async function loadData() {
       setLoading(true)
       try {
-        const [active, archived, team] = await Promise.all([
+        // OPTIMIZATION: Don't load archived leads on login — lazy load when needed
+        // This cuts initial data transfer significantly
+        const [active, team] = await Promise.all([
           apiGetLeads(false).catch(() => []),
-          apiGetArchivedLeads().catch(() => []),
           apiGetTeam().catch(() => ({ tele: [], sales: [], admin: [] })),
         ])
 
         setLeads(active)
-        setArchivedLeads(archived)
         setTeam(team)
         setDataLoaded(true)
       } catch (err) {
@@ -292,7 +294,25 @@ export default function Home() {
     }
 
     loadData()
-  }, [isAuthenticated, dataLoaded, setLeads, setArchivedLeads, setTeam, setDataLoaded, setLoading])
+  }, [isAuthenticated, dataLoaded, setLeads, setTeam, setDataLoaded, setLoading])
+
+  // Lazy-load archived leads when user navigates to archive view
+  useEffect(() => {
+    if (!isAuthenticated || !dataLoaded || archivedLoaded) return
+    if (currentView !== 'my-archive' && currentView !== 'admin') return
+
+    async function loadArchived() {
+      try {
+        const archived = await apiGetArchivedLeads().catch(() => [])
+        setArchivedLeads(archived)
+        setArchivedLoaded(true)
+      } catch (err) {
+        console.error('Failed to load archived leads:', err)
+      }
+    }
+
+    loadArchived()
+  }, [isAuthenticated, dataLoaded, archivedLoaded, currentView, setArchivedLeads, setArchivedLoaded])
 
   // Subscribe to real-time updates
   useEffect(() => {

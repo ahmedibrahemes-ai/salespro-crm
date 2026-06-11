@@ -163,7 +163,7 @@ export async function GET(request: NextRequest) {
       page++
       let query = client
         .from('leads')
-        .select('*')
+        .select('id,store_url,phone,customer_name,customer_type,brief,contact_result,contact_result_at,tele_name,sales_name,meeting_date,meeting_time,meeting_type,meeting_link,status,sales_status,attended,attendance_marked_at,attendance_marked_by,cancelled_from,cancelled_at,created_at,assigned_at,is_archived,archived_at,archived_by')
         .order('id', { ascending: true })
         .range(from, from + PAGE_SIZE - 1)
 
@@ -534,7 +534,7 @@ export async function POST(request: NextRequest) {
         // Check if inactive member exists
         const { data: existing } = await client
           .from('team_members')
-          .select('*')
+          .select('id')
           .eq('name', name)
           .eq('is_active', false)
           .maybeSingle()

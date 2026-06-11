@@ -38,7 +38,7 @@ export async function GET() {
 
     const { data, error } = await client
       .from('team_members')
-      .select('*')
+      .select('name, role')
       .eq('is_active', true)
       .order('name', { ascending: true })
 
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
         // Check if inactive member exists — reactivate instead of creating duplicate
         const { data: existing } = await client
           .from('team_members')
-          .select('*')
+          .select('id')
           .eq('name', name)
           .eq('is_active', false)
           .maybeSingle()

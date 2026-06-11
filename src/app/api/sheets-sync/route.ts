@@ -108,8 +108,45 @@ export async function POST(request: NextRequest) {
     const skipped: Array<{ phone: string; reason: string }> = []
     const errors: string[] = []
 
-    for (const row of data) {
+    // OPTIMIZATION: Batch duplicate check — collect all phones first, then do a single query
+    const phoneVariants: string[] = []
+    const phoneToRowIdx: Map<string, number> = new Map()
+    for (let i = 0; i < data.length; i++) {
+      const phone = (data[i].phone || '').trim()
+      if (!phone) continue
+      const variants = generatePhoneVariants(phone)
+      for (const v of variants) {
+        if (!phoneVariants.includes(v)) {
+          phoneVariants.push(v)
+          phoneToRowIdx.set(v, i)
+        }
+      }
+    }
+
+    // Single batch query for all duplicate checks
+    const existingPhoneSet = new Set<string>()
+    if (phoneVariants.length > 0) {
+      const BATCH_SIZE = 500
+      for (let i = 0; i < phoneVariants.length; i += BATCH_SIZE) {
+        const batch = phoneVariants.slice(i, i + BATCH_SIZE)
+        const { data: existing } = await client
+          .from('leads')
+          .select('phone')
+          .eq('is_archived', false)
+          .in('phone', batch)
+        if (existing) {
+          for (const row of existing) {
+            if (row.phone) existingPhoneSet.add(row.phone)
+          }
+        }
+      }
+    }
+
+    // Now process each row, using the pre-computed duplicate set
+    const rowsToInsert: Record<string, unknown>[] = []
+    for (let idx = 0; idx < data.length; idx++) {
       try {
+        const row = data[idx]
         const phone = (row.phone || '').trim()
         const storeUrl = (row.storeUrl || '').trim()
         const customerName = (row.customerName || '').trim()
@@ -121,35 +158,24 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        // Check for duplicate phone
+        // Check for duplicate phone using pre-computed set
         if (phone) {
           const variants = generatePhoneVariants(phone)
-          if (variants.length > 0) {
-            const { data: existing } = await client
-              .from('leads')
-              .select('id, phone')
-              .eq('is_archived', false)
-              .in('phone', variants)
-              .limit(1)
-
-            if (existing && existing.length > 0) {
-              skipped.push({ phone, reason: `Duplicate phone (existing ID: ${existing[0].id})` })
-              continue
-            }
+          const isDuplicate = variants.some(v => existingPhoneSet.has(v))
+          if (isDuplicate) {
+            skipped.push({ phone, reason: 'Duplicate phone (already exists)' })
+            continue
           }
         }
 
         // Map employeeName to tele_name
         let teleName = ''
         if (employeeName) {
-          // Try exact match in tele members first
           if (teleNames.has(employeeName.trim())) {
             teleName = employeeName.trim()
           } else if (salesNames.has(employeeName.trim())) {
-            // If it's a sales name, assign as sales_name instead
             teleName = defaultTele || ''
           } else {
-            // Try case-insensitive match
             const lowerName = employeeName.toLowerCase().trim()
             let found = false
             for (const name of teleNames) {
@@ -169,20 +195,17 @@ export async function POST(request: NextRequest) {
               }
             }
             if (!found) {
-              // Employee not found — assign to default tele or leave unassigned
               teleName = defaultTele || ''
             }
           }
         } else {
-          // No employee name — assign to default tele
           teleName = defaultTele || ''
         }
 
         // Generate customer name if not provided
         const finalCustomerName = customerName || (phone ? `عميل ${phone}` : storeUrl ? `متجر ${storeUrl.replace(/^https?:\/\//, '').split('/')[0]}` : 'عميل جديد')
 
-        // Create the lead
-        const leadData: Record<string, unknown> = {
+        rowsToInsert.push({
           phone: phone || null,
           store_url: storeUrl || null,
           customer_name: finalCustomerName,
@@ -190,20 +213,26 @@ export async function POST(request: NextRequest) {
           status: 'new',
           contact_result: null,
           is_archived: false,
-        }
-
-        const { error } = await client
-          .from('leads')
-          .insert(leadData)
-
-        if (error) {
-          errors.push(`Failed to create lead for ${phone || storeUrl}: ${error.message}`)
-        } else {
-          created.push({ phone: phone || storeUrl, customerName: finalCustomerName, teleName: teleName || '—' })
-        }
+        })
       } catch (rowErr) {
         const msg = rowErr instanceof Error ? rowErr.message : String(rowErr)
         errors.push(`Row error: ${msg}`)
+      }
+    }
+
+    // Batch insert all valid rows at once
+    if (rowsToInsert.length > 0) {
+      const INSERT_BATCH = 500
+      for (let i = 0; i < rowsToInsert.length; i += INSERT_BATCH) {
+        const batch = rowsToInsert.slice(i, i + INSERT_BATCH)
+        const { error } = await client.from('leads').insert(batch)
+        if (error) {
+          errors.push(`Batch insert error: ${error.message}`)
+        } else {
+          for (const row of batch) {
+            created.push({ phone: String(row.phone || row.store_url || ''), customerName: String(row.customer_name || ''), teleName: String(row.tele_name || '—') })
+          }
+        }
       }
     }
 

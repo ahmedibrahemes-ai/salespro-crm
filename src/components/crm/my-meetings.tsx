@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback } from 'react'
 import { useCrmStore, ATTENDANCE_STATUSES, SALES_STATUSES, formatDate, formatRelativeTime, formatTime, getDateRange } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import { apiUpdateLead } from '@/lib/supabase'
-import { isTodayDateString, isThisWeek } from '@/lib/crm-utils'
+import { isTodayDateString, isTodayTimestamp, isThisWeek } from '@/lib/crm-utils'
 import {
   Calendar, Clock, Phone, ExternalLink,
   Check, X, CalendarDays,
@@ -65,6 +65,7 @@ function MeetingCard({
   const isTele = currentRole === 'tele'
   const todayStr = new Date().toISOString().split('T')[0]
   const isMeetingToday = lead.meetingDate === todayStr
+  const isTransferToday = isTele && lead.assignedAt ? isTodayTimestamp(lead.assignedAt) : false
   const isPastMeeting = lead.meetingDate ? new Date(lead.meetingDate) < new Date(todayStr) : false
 
   const attendanceColor = lead.attended === 'attended'
@@ -116,7 +117,12 @@ function MeetingCard({
               <div className="flex items-center gap-2 mt-1.5">
                 {isMeetingToday && (
                   <Badge className="bg-[#ffd166]/10 text-[#ffd166] border border-[#ffd166]/20 text-[11px] font-bold">
-                    اليوم
+                    الاجتماع اليوم
+                  </Badge>
+                )}
+                {isTele && isTransferToday && !isMeetingToday && (
+                  <Badge className="bg-[#00d4aa]/10 text-[#00d4aa] border border-[#00d4aa]/20 text-[11px] font-bold">
+                    تم التحويل اليوم
                   </Badge>
                 )}
               </div>
@@ -242,14 +248,19 @@ export function MyMeetings() {
 
   /* ─── Filtered meetings ─── */
   const meetingLeads = useMemo(() => {
-    let result = leads.filter((l) => !l.isArchived && l.meetingDate && l.meetingDate !== '')
+    // For tele: show transferred leads (has sales assigned)
+    // For sales: show leads with meetingDate
+    let result = leads.filter((l) => !l.isArchived)
 
-    // Filter by current user role
-    // For tele: show only transferred leads (has sales assigned)
     if (currentRole === 'tele' && currentUser) {
+      // Tele users: show leads they transferred to sales (with or without meetingDate)
       result = result.filter((l) => l.tele === currentUser && l.sales)
     } else if (currentRole === 'sales' && currentUser) {
-      result = result.filter((l) => l.sales === currentUser)
+      // Sales users: show leads assigned to them that have a meeting
+      result = result.filter((l) => l.sales === currentUser && l.meetingDate && l.meetingDate !== '')
+    } else {
+      // Admin: show all leads with meetingDate
+      result = result.filter((l) => l.meetingDate && l.meetingDate !== '')
     }
 
     // Date range filter
@@ -306,7 +317,14 @@ export function MyMeetings() {
   const stats = useMemo(() => {
     const allMyMeetings = meetingLeads
 
-    const today = allMyMeetings.filter((l) => isTodayDateString(l.meetingDate))
+    // For tele users: "today" means transferred today (by assignedAt)
+    // For sales users: "today" means meeting today (by meetingDate)
+    const today = isTele
+      ? allMyMeetings.filter((l) => {
+          const ts = l.assignedAt || l.createdAt || 0
+          return isTodayTimestamp(ts)
+        })
+      : allMyMeetings.filter((l) => isTodayDateString(l.meetingDate))
     const attended = allMyMeetings.filter((l) => l.attended === 'attended')
     const noShow = allMyMeetings.filter((l) => l.attended === 'no-show')
     const pending = allMyMeetings.filter((l) => !l.attended || l.attended === 'pending')
@@ -320,7 +338,7 @@ export function MyMeetings() {
       closedWonCount: closedWon.length,
       totalCount: allMyMeetings.length,
     }
-  }, [meetingLeads])
+  }, [meetingLeads, isTele])
 
   /* ─── Mark attendance ─── */
   const handleMarkAttendance = useCallback(async (id: string, value: string) => {
@@ -397,7 +415,7 @@ export function MyMeetings() {
       <div className={`grid gap-3 ${isTele ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-2 sm:grid-cols-4'}`}>
         {[
           ...(isTele ? [{ label: 'إجمالي التحويلات', value: stats.totalCount, color: '#a8a3ff' }] : []),
-          { label: 'اجتماعات اليوم', value: stats.todayCount, color: '#ffd166' },
+          { label: isTele ? 'تحويلات اليوم' : 'اجتماعات اليوم', value: stats.todayCount, color: '#ffd166' },
           { label: 'حضر', value: stats.attendedCount, color: '#00d4aa' },
           { label: 'لم يحضر', value: stats.noShowCount, color: '#ff6b6b' },
           ...(isTele ? [{ label: 'تم التقفيل', value: stats.closedWonCount, color: '#10b981' }] : [{ label: 'في الانتظار', value: stats.pendingCount, color: '#6c63ff' }]),

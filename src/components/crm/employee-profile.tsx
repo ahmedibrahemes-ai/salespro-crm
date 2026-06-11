@@ -300,7 +300,7 @@ export function EmployeeProfile() {
     const unansweredCalls = filteredLeads.filter((l) => l.contactResult === 'no-reply').length
 
     // Meeting stats
-    const meetings = filteredLeads.filter((l) => l.meetingDate).length
+    const meetings = filteredLeads.filter((l) => l.status === 'meeting' || l.meetingDate).length
     const attended = filteredLeads.filter((l) => l.attended === 'attended').length
     const waiting = filteredLeads.filter((l) => !l.attended || l.attended === 'pending' || l.attended === '').length
     const noShow = filteredLeads.filter((l) => l.attended === 'no-show').length
@@ -315,7 +315,7 @@ export function EmployeeProfile() {
     const followup3 = filteredLeads.filter((l) => l.status === 'followup-3').length
 
     // Transferred
-    const transferred = filteredLeads.filter((l) => l.sales && l.meetingDate).length
+    const transferred = filteredLeads.filter((l) => l.sales && l.assignedAt).length
 
     // Rates
     const contactRate = totalClients > 0 ? Math.round((contactedClients / totalClients) * 100) : 0
@@ -343,11 +343,11 @@ export function EmployeeProfile() {
     const yCalls = prevDayLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length
     const yAnswered = prevDayLeads.filter((l) => l.contactResult === 'replied').length
     const yUnanswered = prevDayLeads.filter((l) => l.contactResult === 'no-reply').length
-    const yMeetings = prevDayLeads.filter((l) => l.meetingDate).length
+    const yMeetings = prevDayLeads.filter((l) => l.status === 'meeting' || l.meetingDate).length
     const yAttended = prevDayLeads.filter((l) => l.attended === 'attended').length
     const yWaiting = prevDayLeads.filter((l) => !l.attended || l.attended === 'pending' || l.attended === '').length
     const yNoShow = prevDayLeads.filter((l) => l.attended === 'no-show').length
-    const yTransferred = prevDayLeads.filter((l) => l.sales && l.meetingDate).length
+    const yTransferred = prevDayLeads.filter((l) => l.sales && l.assignedAt).length
     const yTotalClients = prevDayLeads.length
     const yContactedClients = prevDayLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length
     const yNotInterested = prevDayLeads.filter((l) => l.status === 'not-interested').length

@@ -252,6 +252,7 @@ interface TransferData {
   storeUrl: string
   brief: string
   meetingType: string
+  meetingDate: string
   meetingTime: string
   sales: string
 }
@@ -263,6 +264,7 @@ function TransferModal({ lead, open, onClose, onSubmit, salesTeam, saving }: Tra
     storeUrl: lead?.storeUrl || '',
     brief: lead?.brief || '',
     meetingType: lead?.meetingType || '',
+    meetingDate: lead?.meetingDate || new Date().toISOString().split('T')[0],
     meetingTime: lead?.meetingTime || '',
     sales: lead?.sales || '',
   }))
@@ -390,6 +392,17 @@ function TransferModal({ lead, open, onClose, onSubmit, salesTeam, saving }: Tra
               </Select>
             </div>
           )}
+
+          {/* Meeting Date */}
+          <div className="space-y-1">
+            <label className="text-[12px] font-semibold text-[#8892b0]">تاريخ الاجتماع</label>
+            <Input
+              type="date"
+              value={form.meetingDate}
+              onChange={(e) => updateField('meetingDate', e.target.value)}
+              className="h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]"
+            />
+          </div>
 
           {/* Meeting Time */}
           <div className="space-y-1">
@@ -1046,7 +1059,7 @@ export function TeleSheet() {
   const stats = useMemo(() => {
     const total = filteredLeads.length
     const contacted = filteredLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length
-    const meetings = filteredLeads.filter((l) => l.meetingDate).length
+    const meetings = filteredLeads.filter((l) => l.status === 'meeting' || l.meetingDate).length
     const transferred = filteredLeads.filter((l) => l.sales).length
     return { total, contacted, meetings, transferred }
   }, [filteredLeads])
@@ -1094,13 +1107,20 @@ export function TeleSheet() {
     if (field === 'contactResult') {
       updates.contactResultAt = value ? Date.now() : null
     }
+    // Auto-set meetingDate when status changes to 'meeting'
+    if (field === 'status' && value === 'meeting') {
+      const lead = leads.find(l => l.id === id)
+      if (lead && !lead.meetingDate) {
+        updates.meetingDate = new Date().toISOString().split('T')[0]
+      }
+    }
     updateLeadInCache(id, updates)
     try {
       await apiUpdateLead(id, updates)
     } catch (err: unknown) {
       addToast('error', 'فشل التحديث')
     }
-  }, [updateLeadInCache, addToast])
+  }, [updateLeadInCache, addToast, leads])
 
   /* ─── Delete single lead — opens confirmation dialog ─── */
   const requestDeleteLead = useCallback((id: string, name: string) => {
@@ -1176,6 +1196,7 @@ export function TeleSheet() {
     setTransferSaving(true)
     const updates: Partial<Lead> = {
       sales: formData.sales,
+      meetingDate: formData.meetingDate || '',
       meetingTime: formData.meetingTime || '',
       assignedAt: Date.now(),
       salesStatus: 'new',
@@ -1199,6 +1220,7 @@ export function TeleSheet() {
         leadId: transferLeadId,
         data: {
           sales: formData.sales,
+          meetingDate: formData.meetingDate || '',
           meetingTime: formData.meetingTime || '',
           customerName: formData.customerName,
           salesStatus: 'new',

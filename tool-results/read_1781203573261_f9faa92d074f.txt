@@ -1,0 +1,1334 @@
+     1→'use client'
+     2→
+     3→import { useMemo, useState, useCallback, useEffect } from 'react'
+     4→import {
+     5→  useCrmStore, CONTACT_RESULTS, STATUSES, SALES_STATUSES, ATTENDANCE_STATUSES,
+     6→  formatDate, getDateRange, type AdminTab,
+     7→} from '@/lib/store'
+     8→import type { Lead } from '@/lib/supabase'
+     9→import {
+    10→  apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk, apiUnarchiveLeads,
+    11→  apiAddTeamMember, apiRemoveTeamMember, apiRenameTeamMember,
+    12→} from '@/lib/supabase'
+    13→// Framer Motion removed for performance
+    14→import {
+    15→  BarChart3, Phone, Users, Archive, Settings, UserCog, ChevronLeft,
+    16→  Search, Trash2, PhoneCall, Trophy, UserPlus, UserMinus, Pencil,
+    17→  Check, X, Plus, ArrowUpDown, LayoutGrid, Shield, KeyRound,
+    18→  Loader2, Eye, EyeOff, ToggleLeft, ToggleRight, Link2, AlertTriangle,
+    19→} from 'lucide-react'
+    20→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+    21→import { Button } from '@/components/ui/button'
+    22→import { Input } from '@/components/ui/input'
+    23→import { Badge } from '@/components/ui/badge'
+    24→import { Checkbox } from '@/components/ui/checkbox'
+    25→import {
+    26→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    27→} from '@/components/ui/select'
+    28→import {
+    29→  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+    30→} from '@/components/ui/table'
+    31→import {
+    32→  Tabs, TabsContent, TabsList, TabsTrigger,
+    33→} from '@/components/ui/tabs'
+    34→
+    35→// Animation variants removed - using CSS transitions for better performance
+    36→
+    37→/* ═══════════════════════════════════════════════════════
+    38→   Tab Config
+    39→   ═══════════════════════════════════════════════════════ */
+    40→const ADMIN_TABS: { key: AdminTab; label: string; icon: React.ElementType }[] = [
+    41→  { key: 'overview', label: 'نظرة عامة', icon: BarChart3 },
+    42→  { key: 'tele', label: 'التيلي', icon: Phone },
+    43→  { key: 'sales', label: 'السيلز', icon: Users },
+    44→  { key: 'all-leads', label: 'كل العملاء', icon: LayoutGrid },
+    45→  { key: 'archive', label: 'الأرشيف', icon: Archive },
+    46→  { key: 'team', label: 'الفريق', icon: UserCog },
+    47→  { key: 'users', label: 'المستخدمين', icon: Shield },
+    48→  { key: 'settings', label: 'الإعدادات', icon: Settings },
+    49→]
+    50→
+    51→/* ═══════════════════════════════════════════════════════
+    52→   Overview Tab
+    53→   ═══════════════════════════════════════════════════════ */
+    54→function OverviewTab() {
+    55→  const leads = useCrmStore((s) => s.leads)
+    56→  const archivedLeads = useCrmStore((s) => s.archivedLeads)
+    57→  const team = useCrmStore((s) => s.team)
+    58→  const activeLeads = useMemo(() => leads.filter((l) => !l.isArchived), [leads])
+    59→
+    60→  const teamStats = useMemo(() => {
+    61→    const stats: Record<string, { total: number; contacted: number; meetings: number; closed: number }> = {}
+    62→
+    63→    // Tele stats
+    64→    for (const name of team.tele) {
+    65→      const tLeads = activeLeads.filter((l) => l.tele === name)
+    66→      stats[name] = {
+    67→        total: tLeads.length,
+    68→        contacted: tLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length,
+    69→        meetings: tLeads.filter((l) => l.meetingDate).length,
+    70→        closed: tLeads.filter((l) => l.status === 'closed-won').length,
+    71→      }
+    72→    }
+    73→
+    74→    // Sales stats
+    75→    for (const name of team.sales) {
+    76→      const sLeads = activeLeads.filter((l) => l.sales === name)
+    77→      stats[name] = {
+    78→        total: sLeads.length,
+    79→        contacted: sLeads.filter((l) => l.attended === 'attended').length,
+    80→        meetings: sLeads.filter((l) => l.meetingDate).length,
+    81→        closed: sLeads.filter((l) => l.salesStatus === 'closed-won').length,
+    82→      }
+    83→    }
+    84→
+    85→    return stats
+    86→  }, [activeLeads, team])
+    87→
+    88→  const { totalLeads, totalClosed, totalMeetings, conversionRate } = useMemo(() => {
+    89→    const total = activeLeads.length
+    90→    const closed = activeLeads.filter((l) => l.status === 'closed-won' || l.salesStatus === 'closed-won').length
+    91→    const meetings = activeLeads.filter((l) => l.meetingDate).length
+    92→    const rate = total > 0 ? Math.round((closed / total) * 100) : 0
+    93→    return { totalLeads: total, totalClosed: closed, totalMeetings: meetings, conversionRate: rate }
+    94→  }, [activeLeads])
+    95→
+    96→  return (
+    97→    <div className="space-y-4">
+    98→      {/* Summary KPIs */}
+    99→      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+   100→        {[
+   101→          { label: 'إجمالي العملاء', value: totalLeads, color: '#6c63ff' },
+   102→          { label: 'اجتماعات محجوزة', value: totalMeetings, color: '#ffd166' },
+   103→          { label: 'تم التقفيل', value: totalClosed, color: '#00d4aa' },
+   104→          { label: 'نسبة التحويل', value: `${conversionRate}%`, color: '#ff6b6b' },
+   105→        ].map((k, i) => (
+   106→          <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-4 animate-in fade-in duration-300">
+   107→            <div className="text-[13px] font-semibold text-[#8892b0]">{k.label}</div>
+   108→            <div className="text-[22px] font-bold mt-1" style={{ color: k.color, fontFamily: 'Cairo, sans-serif' }}>
+   109→              {k.value}
+   110→            </div>
+   111→          </div>
+   112→        ))}
+   113→      </div>
+   114→
+   115→      {/* Team Performance Table */}
+   116→      <Card className="bg-[#111520] border-white/[0.06]">
+   117→        <CardHeader className="pb-3">
+   118→          <CardTitle className="text-[15px] font-bold text-[#f0f2ff] flex items-center gap-2">
+   119→            <Trophy size={16} className="text-[#ffd166]" />
+   120→            أداء الفريق
+   121→          </CardTitle>
+   122→        </CardHeader>
+   123→        <CardContent className="p-0">
+   124→          <Table>
+   125→            <TableHeader>
+   126→              <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
+   127→                <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">الاسم</TableHead>
+   128→                <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">الدور</TableHead>
+   129→                <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">عملاء</TableHead>
+   130→                <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">تواصل</TableHead>
+   131→                <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">اجتماعات</TableHead>
+   132→                <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">تقفيل</TableHead>
+   133→              </TableRow>
+   134→            </TableHeader>
+   135→            <TableBody>
+   136→              {team.tele.map((name) => {
+   137→                const s = teamStats[name] || { total: 0, contacted: 0, meetings: 0, closed: 0 }
+   138→                return (
+   139→                  <TableRow key={name} className="border-b border-white/[0.04] hover:bg-[#1c2234]/50">
+   140→                    <TableCell className="text-[13px] font-semibold text-[#f0f2ff]">{name}</TableCell>
+   141→                    <TableCell>
+   142→                      <Badge className="bg-[#6c63ff]/15 text-[#a8a3ff] text-[11px] font-bold border-0">تيلي</Badge>
+   143→                    </TableCell>
+   144→                    <TableCell className="text-[13px] font-semibold text-[#8892b0]">{s.total}</TableCell>
+   145→                    <TableCell className="text-[13px] font-semibold text-[#00d4aa]">{s.contacted}</TableCell>
+   146→                    <TableCell className="text-[13px] font-semibold text-[#ffd166]">{s.meetings}</TableCell>
+   147→                    <TableCell className="text-[13px] font-semibold text-[#00d4aa]">{s.closed}</TableCell>
+   148→                  </TableRow>
+   149→                )
+   150→              })}
+   151→              {team.sales.map((name) => {
+   152→                const s = teamStats[name] || { total: 0, contacted: 0, meetings: 0, closed: 0 }
+   153→                return (
+   154→                  <TableRow key={name} className="border-b border-white/[0.04] hover:bg-[#1c2234]/50">
+   155→                    <TableCell className="text-[13px] font-semibold text-[#f0f2ff]">{name}</TableCell>
+   156→                    <TableCell>
+   157→                      <Badge className="bg-[#00d4aa]/15 text-[#00d4aa] text-[11px] font-bold border-0">سيلز</Badge>
+   158→                    </TableCell>
+   159→                    <TableCell className="text-[13px] font-semibold text-[#8892b0]">{s.total}</TableCell>
+   160→                    <TableCell className="text-[13px] font-semibold text-[#00d4aa]">{s.contacted}</TableCell>
+   161→                    <TableCell className="text-[13px] font-semibold text-[#ffd166]">{s.meetings}</TableCell>
+   162→                    <TableCell className="text-[13px] font-semibold text-[#00d4aa]">{s.closed}</TableCell>
+   163→                  </TableRow>
+   164→                )
+   165→              })}
+   166→            </TableBody>
+   167→          </Table>
+   168→        </CardContent>
+   169→      </Card>
+   170→    </div>
+   171→  )
+   172→}
+   173→
+   174→/* ═══════════════════════════════════════════════════════
+   175→   All Leads Tab
+   176→   ═══════════════════════════════════════════════════════ */
+   177→function AllLeadsTab() {
+   178→  const leads = useCrmStore((s) => s.leads)
+   179→  const team = useCrmStore((s) => s.team)
+   180→  const currentUser = useCrmStore((s) => s.currentUser)
+   181→  const addToast = useCrmStore((s) => s.addToast)
+   182→  const selectedLeadIds = useCrmStore((s) => s.selectedLeadIds)
+   183→  const toggleLeadSelection = useCrmStore((s) => s.toggleLeadSelection)
+   184→  const clearSelectedLeadIds = useCrmStore((s) => s.clearSelectedLeadIds)
+   185→  const selectAllLeads = useCrmStore((s) => s.selectAllLeads)
+   186→  const searchQueries = useCrmStore((s) => s.searchQueries)
+   187→  const setSearchQuery = useCrmStore((s) => s.setSearchQuery)
+   188→  const updateLeadInCache = useCrmStore((s) => s.updateLeadInCache)
+   189→  const removeLeadFromCache = useCrmStore((s) => s.removeLeadFromCache)
+   190→  const batchRemoveLeadsFromCache = useCrmStore((s) => s.batchRemoveLeadsFromCache)
+   191→  const archiveLeadsInCache = useCrmStore((s) => s.archiveLeadsInCache)
+   192→
+   193→  const viewKey = 'admin-all-leads'
+   194→  const selected = selectedLeadIds[viewKey] || []
+   195→  const searchQuery = searchQueries[viewKey] || ''
+   196→  const [filterTele, setFilterTele] = useState('all')
+   197→  const [filterSales, setFilterSales] = useState('all')
+   198→  const [filterStatus, setFilterStatus] = useState('all')
+   199→
+   200→  const filteredLeads = useMemo(() => {
+   201→    let result = leads.filter((l) => !l.isArchived)
+   202→    if (filterTele !== 'all') result = result.filter((l) => l.tele === filterTele)
+   203→    if (filterSales !== 'all') result = result.filter((l) => l.sales === filterSales)
+   204→    if (filterStatus !== 'all') result = result.filter((l) => l.status === filterStatus || l.salesStatus === filterStatus)
+   205→    if (searchQuery.trim()) {
+   206→      const q = searchQuery.toLowerCase()
+   207→      result = result.filter(
+   208→        (l) => l.customerName?.toLowerCase().includes(q) || l.phone?.toLowerCase().includes(q)
+   209→      )
+   210→    }
+   211→    return result
+   212→  }, [leads, filterTele, filterSales, filterStatus, searchQuery])
+   213→
+   214→  const handleBulkArchive = useCallback(async () => {
+   215→    if (selected.length === 0) return
+   216→    archiveLeadsInCache(selected, currentUser || 'admin')
+   217→    try { await apiArchiveLeads(selected, currentUser || 'admin') } catch { /* */ }
+   218→    addToast('success', `تم أرشفة ${selected.length} عميل`)
+   219→    clearSelectedLeadIds(viewKey)
+   220→  }, [selected, currentUser, archiveLeadsInCache, addToast, clearSelectedLeadIds])
+   221→
+   222→  const handleBulkDelete = useCallback(async () => {
+   223→    if (selected.length === 0) return
+   224→    const ids = [...selected]
+   225→    batchRemoveLeadsFromCache(ids)
+   226→    try { await apiDeleteLeadsBulk(ids) } catch { /* */ }
+   227→    addToast('success', `تم حذف ${ids.length} عميل`)
+   228→    clearSelectedLeadIds(viewKey)
+   229→  }, [selected, batchRemoveLeadsFromCache, addToast, clearSelectedLeadIds])
+   230→
+   231→  return (
+   232→    <div className="space-y-3">
+   233→      {/* Filters */}
+   234→      <div className="flex flex-wrap items-center gap-2">
+   235→        <Select value={filterTele} onValueChange={setFilterTele}>
+   236→          <SelectTrigger className="w-[120px] h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
+   237→            <SelectValue placeholder="التيلي" />
+   238→          </SelectTrigger>
+   239→          <SelectContent className="bg-[#111520] border-white/[0.08]">
+   240→            <SelectItem value="all" className="text-[13px]">الكل</SelectItem>
+   241→            {team.tele.map((n) => <SelectItem key={n} value={n} className="text-[13px]">{n}</SelectItem>)}
+   242→          </SelectContent>
+   243→        </Select>
+   244→        <Select value={filterSales} onValueChange={setFilterSales}>
+   245→          <SelectTrigger className="w-[120px] h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
+   246→            <SelectValue placeholder="السيلز" />
+   247→          </SelectTrigger>
+   248→          <SelectContent className="bg-[#111520] border-white/[0.08]">
+   249→            <SelectItem value="all" className="text-[13px]">الكل</SelectItem>
+   250→            {team.sales.map((n) => <SelectItem key={n} value={n} className="text-[13px]">{n}</SelectItem>)}
+   251→          </SelectContent>
+   252→        </Select>
+   253→        <Select value={filterStatus} onValueChange={setFilterStatus}>
+   254→          <SelectTrigger className="w-[120px] h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
+   255→            <SelectValue placeholder="الحالة" />
+   256→          </SelectTrigger>
+   257→          <SelectContent className="bg-[#111520] border-white/[0.08]">
+   258→            <SelectItem value="all" className="text-[13px]">الكل</SelectItem>
+   259→            {STATUSES.map((s) => <SelectItem key={s.key} value={s.key} className="text-[13px]">{s.label}</SelectItem>)}
+   260→          </SelectContent>
+   261→        </Select>
+   262→        <div className="relative flex-1 min-w-[180px]">
+   263→          <Search size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#4a5280]" />
+   264→          <Input
+   265→            placeholder="بحث..."
+   266→            value={searchQuery}
+   267→            onChange={(e) => setSearchQuery(viewKey, e.target.value)}
+   268→            className="h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] pr-8"
+   269→          />
+   270→        </div>
+   271→        {selected.length > 0 && (
+   272→          <div className="flex items-center gap-1.5">
+   273→            <Button onClick={handleBulkArchive} size="sm" className="h-8 text-[13px] font-bold bg-amber-500/15 text-amber-400 border-0 gap-1 cursor-pointer">
+   274→              <Archive size={12} /> أرشفة ({selected.length})
+   275→            </Button>
+   276→            <Button onClick={handleBulkDelete} size="sm" className="h-8 text-[13px] font-bold bg-red-500/15 text-red-400 border-0 gap-1 cursor-pointer">
+   277→              <Trash2 size={12} /> حذف ({selected.length})
+   278→            </Button>
+   279→          </div>
+   280→        )}
+   281→      </div>
+   282→
+   283→      {/* Table */}
+   284→      <Card className="bg-[#111520] border-white/[0.06]">
+   285→        <CardContent className="p-0">
+   286→          <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+   287→            <Table>
+   288→              <TableHeader>
+   289→                <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
+   290→                  <TableHead className="w-[40px] text-right text-[13px] font-bold text-[#4a5280]">
+   291→                    <Checkbox
+   292→                      checked={selected.length === filteredLeads.length && filteredLeads.length > 0}
+   293→                      onCheckedChange={(checked) => {
+   294→                        if (checked) selectAllLeads(viewKey, filteredLeads.map((l) => l.id))
+   295→                        else clearSelectedLeadIds(viewKey)
+   296→                      }}
+   297→                      className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
+   298→                    />
+   299→                  </TableHead>
+   300→                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">العميل</TableHead>
+   301→                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">الهاتف</TableHead>
+   302→                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">التيلي</TableHead>
+   303→                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">السيلز</TableHead>
+   304→                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">الحالة</TableHead>
+   305→                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">حالة السيلز</TableHead>
+   306→                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">التاريخ</TableHead>
+   307→                </TableRow>
+   308→              </TableHeader>
+   309→              <TableBody>
+   310→                {filteredLeads.length === 0 ? (
+   311→                  <TableRow>
+   312→                    <TableCell colSpan={8} className="text-center py-8 text-[#4a5280] text-[13px] font-semibold">لا يوجد عملاء</TableCell>
+   313→                  </TableRow>
+   314→                ) : (
+   315→                  filteredLeads.map((lead) => (
+   316→                    <TableRow key={lead.id} className={`border-b border-white/[0.04] ${selected.includes(lead.id) ? 'bg-[#6c63ff]/5' : 'hover:bg-[#1c2234]/50'}`}>
+   317→                      <TableCell className="w-[40px]">
+   318→                        <Checkbox
+   319→                          checked={selected.includes(lead.id)}
+   320→                          onCheckedChange={() => toggleLeadSelection(viewKey, lead.id)}
+   321→                          className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
+   322→                        />
+   323→                      </TableCell>
+   324→                      <TableCell className="text-[13px] font-semibold text-[#f0f2ff]">{lead.customerName || '—'}</TableCell>
+   325→                      <TableCell className="text-[13px] font-semibold text-[#8892b0]">{lead.phone || '—'}</TableCell>
+   326→                      <TableCell className="text-[13px] font-semibold text-[#a8a3ff]">{lead.tele || '—'}</TableCell>
+   327→                      <TableCell className="text-[13px] font-semibold text-[#00d4aa]">{lead.sales || '—'}</TableCell>
+   328→                      <TableCell>
+   329→                        <Badge className="bg-[#6c63ff]/15 text-[#a8a3ff] text-[11px] font-bold border-0">
+   330→                          {STATUSES.find((s) => s.key === lead.status)?.label || lead.status}
+   331→                        </Badge>
+   332→                      </TableCell>
+   333→                      <TableCell>
+   334→                        <Badge className="bg-[#00d4aa]/15 text-[#00d4aa] text-[11px] font-bold border-0">
+   335→                          {SALES_STATUSES.find((s) => s.key === lead.salesStatus)?.label || lead.salesStatus || '—'}
+   336→                        </Badge>
+   337→                      </TableCell>
+   338→                      <TableCell className="text-[12px] text-[#4a5280]">{formatDate(lead.createdAt)}</TableCell>
+   339→                    </TableRow>
+   340→                  ))
+   341→                )}
+   342→              </TableBody>
+   343→            </Table>
+   344→          </div>
+   345→          {filteredLeads.length > 0 && (
+   346→            <div className="border-t border-white/[0.06] px-4 py-2 text-[12px] font-medium text-[#4a5280]">
+   347→              عرض {filteredLeads.length} عميل
+   348→            </div>
+   349→          )}
+   350→        </CardContent>
+   351→      </Card>
+   352→    </div>
+   353→  )
+   354→}
+   355→
+   356→/* ═══════════════════════════════════════════════════════
+   357→   Archive Tab
+   358→   ═══════════════════════════════════════════════════════ */
+   359→function ArchiveTab() {
+   360→  const archivedLeads = useCrmStore((s) => s.archivedLeads)
+   361→  const addToast = useCrmStore((s) => s.addToast)
+   362→  const unarchiveLeadsInCache = useCrmStore((s) => s.unarchiveLeadsInCache)
+   363→  const [searchQuery, setSearchQuery] = useState('')
+   364→
+   365→  const filtered = useMemo(() => {
+   366→    if (!searchQuery.trim()) return archivedLeads
+   367→    const q = searchQuery.toLowerCase()
+   368→    return archivedLeads.filter(
+   369→      (l) => l.customerName?.toLowerCase().includes(q) || l.phone?.toLowerCase().includes(q)
+   370→    )
+   371→  }, [archivedLeads, searchQuery])
+   372→
+   373→  const handleUnarchive = useCallback(async (ids: string[]) => {
+   374→    unarchiveLeadsInCache(ids)
+   375→    try {
+   376→      await apiUnarchiveLeads(ids)
+   377→      addToast('success', `تم إلغاء أرشفة ${ids.length} عميل`)
+   378→    } catch {
+   379→      addToast('error', 'فشل إلغاء الأرشفة')
+   380→    }
+   381→  }, [unarchiveLeadsInCache, addToast])
+   382→
+   383→  return (
+   384→    <div className="space-y-3">
+   385→      <div className="flex items-center gap-2">
+   386→        <div className="relative flex-1 min-w-[180px]">
+   387→          <Search size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#4a5280]" />
+   388→          <Input
+   389→            placeholder="بحث في الأرشيف..."
+   390→            value={searchQuery}
+   391→            onChange={(e) => setSearchQuery(e.target.value)}
+   392→            className="h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] pr-8"
+   393→          />
+   394→        </div>
+   395→        <Badge className="bg-[#1c2234] text-[#8892b0] text-[11px] font-bold border-0">{filtered.length} مؤرشف</Badge>
+   396→      </div>
+   397→
+   398→      <Card className="bg-[#111520] border-white/[0.06]">
+   399→        <CardContent className="p-0">
+   400→          <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+   401→            <Table>
+   402→              <TableHeader>
+   403→                <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
+   404→                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">العميل</TableHead>
+   405→                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">الهاتف</TableHead>
+   406→                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">التيلي</TableHead>
+   407→                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">السيلز</TableHead>
+   408→                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">أرشفته</TableHead>
+   409→                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">التاريخ</TableHead>
+   410→                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[80px]">إجراء</TableHead>
+   411→                </TableRow>
+   412→              </TableHeader>
+   413→              <TableBody>
+   414→                {filtered.length === 0 ? (
+   415→                  <TableRow>
+   416→                    <TableCell colSpan={7} className="text-center py-8 text-[#4a5280] text-[13px] font-semibold">لا يوجد عملاء مؤرشفين</TableCell>
+   417→                  </TableRow>
+   418→                ) : (
+   419→                  filtered.map((lead) => (
+   420→                    <TableRow key={lead.id} className="border-b border-white/[0.04] hover:bg-[#1c2234]/50">
+   421→                      <TableCell className="text-[13px] font-semibold text-[#f0f2ff]">{lead.customerName || '—'}</TableCell>
+   422→                      <TableCell className="text-[13px] font-semibold text-[#8892b0]">{lead.phone || '—'}</TableCell>
+   423→                      <TableCell className="text-[13px] font-semibold text-[#a8a3ff]">{lead.tele || '—'}</TableCell>
+   424→                      <TableCell className="text-[13px] font-semibold text-[#00d4aa]">{lead.sales || '—'}</TableCell>
+   425→                      <TableCell className="text-[13px] font-semibold text-[#4a5280]">{lead.archivedBy || '—'}</TableCell>
+   426→                      <TableCell className="text-[12px] text-[#4a5280]">{formatDate(lead.archivedAt)}</TableCell>
+   427→                      <TableCell>
+   428→                        <Button
+   429→                          onClick={() => handleUnarchive([lead.id])}
+   430→                          size="sm"
+   431→                          className="h-7 text-[13px] font-bold bg-[#00d4aa]/15 text-[#00d4aa] hover:bg-[#00d4aa]/25 border-0 gap-1 cursor-pointer"
+   432→                        >
+   433→                          <ChevronLeft size={12} />
+   434→                          استرجاع
+   435→                        </Button>
+   436→                      </TableCell>
+   437→                    </TableRow>
+   438→                  ))
+   439→                )}
+   440→              </TableBody>
+   441→            </Table>
+   442→          </div>
+   443→        </CardContent>
+   444→      </Card>
+   445→    </div>
+   446→  )
+   447→}
+   448→
+   449→/* ═══════════════════════════════════════════════════════
+   450→   Team Tab
+   451→   ═══════════════════════════════════════════════════════ */
+   452→function TeamTab() {
+   453→  const team = useCrmStore((s) => s.team)
+   454→  const addToast = useCrmStore((s) => s.addToast)
+   455→  const setTeam = useCrmStore((s) => s.setTeam)
+   456→  const [newName, setNewName] = useState('')
+   457→  const [newRole, setNewRole] = useState<'tele' | 'sales'>('tele')
+   458→  const [editingName, setEditingName] = useState<string | null>(null)
+   459→  const [editDraft, setEditDraft] = useState('')
+   460→
+   461→  const handleAdd = useCallback(async () => {
+   462→    if (!newName.trim()) return
+   463→    try {
+   464→      await apiAddTeamMember(newName.trim(), newRole)
+   465→      const updated = { ...team }
+   466→      updated[newRole] = [...updated[newRole], newName.trim()]
+   467→      setTeam(updated)
+   468→      addToast('success', `تم إضافة ${newName}`)
+   469→      setNewName('')
+   470→    } catch (err: unknown) {
+   471→      addToast('error', `فشل الإضافة: ${err instanceof Error ? err.message : 'خطأ'}`)
+   472→    }
+   473→  }, [newName, newRole, team, setTeam, addToast])
+   474→
+   475→  const handleRemove = useCallback(async (name: string, role: 'tele' | 'sales') => {
+   476→    try {
+   477→      await apiRemoveTeamMember(name)
+   478→      const updated = { ...team }
+   479→      updated[role] = updated[role].filter((n) => n !== name)
+   480→      setTeam(updated)
+   481→      addToast('success', `تم إزالة ${name}`)
+   482→    } catch {
+   483→      addToast('error', 'فشل الإزالة')
+   484→    }
+   485→  }, [team, setTeam, addToast])
+   486→
+   487→  const handleRename = useCallback(async (oldName: string) => {
+   488→    if (!editDraft.trim() || editDraft.trim() === oldName) {
+   489→      setEditingName(null)
+   490→      return
+   491→    }
+   492→    try {
+   493→      await apiRenameTeamMember(oldName, editDraft.trim())
+   494→      const updated = { ...team }
+   495→      const role = team.tele.includes(oldName) ? 'tele' : 'sales'
+   496→      updated[role] = updated[role].map((n) => (n === oldName ? editDraft.trim() : n))
+   497→      setTeam(updated)
+   498→      addToast('success', `تم إعادة تسمية ${oldName} إلى ${editDraft.trim()}`)
+   499→      setEditingName(null)
+   500→      setEditDraft('')
+   501→    } catch {
+   502→      addToast('error', 'فشل إعادة التسمية')
+   503→    }
+   504→  }, [editDraft, team, setTeam, addToast])
+   505→
+   506→  return (
+   507→    <div className="space-y-4">
+   508→      {/* Add member */}
+   509→      <Card className="bg-[#111520] border-white/[0.06]">
+   510→        <CardHeader className="pb-2">
+   511→          <CardTitle className="text-[15px] font-bold text-[#f0f2ff] flex items-center gap-2">
+   512→            <UserPlus size={16} className="text-[#6c63ff]" />
+   513→            إضافة عضو جديد
+   514→          </CardTitle>
+   515→        </CardHeader>
+   516→        <CardContent>
+   517→          <div className="flex items-center gap-2">
+   518→            <Input
+   519→              placeholder="الاسم"
+   520→              value={newName}
+   521→              onChange={(e) => setNewName(e.target.value)}
+   522→              className="h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] max-w-[200px]"
+   523→            />
+   524→            <Select value={newRole} onValueChange={(v: 'tele' | 'sales') => setNewRole(v)}>
+   525→              <SelectTrigger className="w-[100px] h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
+   526→                <SelectValue />
+   527→              </SelectTrigger>
+   528→              <SelectContent className="bg-[#111520] border-white/[0.08]">
+   529→                <SelectItem value="tele" className="text-[13px]">تيلي</SelectItem>
+   530→                <SelectItem value="sales" className="text-[13px]">سيلز</SelectItem>
+   531→              </SelectContent>
+   532→            </Select>
+   533→            <Button
+   534→              onClick={handleAdd}
+   535→              className="h-8 text-[13px] font-bold bg-[#6c63ff] hover:bg-[#5b54e6] text-white gap-1 cursor-pointer"
+   536→            >
+   537→              <Plus size={12} />
+   538→              إضافة
+   539→            </Button>
+   540→          </div>
+   541→        </CardContent>
+   542→      </Card>
+   543→
+   544→      {/* Tele Team */}
+   545→      <Card className="bg-[#111520] border-white/[0.06]">
+   546→        <CardHeader className="pb-2">
+   547→          <CardTitle className="text-[13px] text-[#f0f2ff] flex items-center gap-2">
+   548→            <Phone size={14} className="text-[#6c63ff]" />
+   549→            فريق التيلي ({team.tele.length})
+   550→          </CardTitle>
+   551→        </CardHeader>
+   552→        <CardContent>
+   553→          <div className="space-y-1.5">
+   554→            {team.tele.map((name) => (
+   555→              <div key={name} className="flex items-center gap-2 py-1.5 px-3 rounded-lg hover:bg-[#1c2234]/50 transition-colors">
+   556→                {editingName === name ? (
+   557→                  <>
+   558→                    <Input
+   559→                      value={editDraft}
+   560→                      onChange={(e) => setEditDraft(e.target.value)}
+   561→                      className="h-7 text-[13px] bg-[#0a0d14] border-[#6c63ff]/30 text-[#f0f2ff] max-w-[150px]"
+   562→                      autoFocus
+   563→                    />
+   564→                    <button onClick={() => handleRename(name)} className="w-6 h-6 rounded-md bg-[#00d4aa]/15 text-[#00d4aa] flex items-center justify-center cursor-pointer">
+   565→                      <Check size={12} />
+   566→                    </button>
+   567→                    <button onClick={() => setEditingName(null)} className="w-6 h-6 rounded-md bg-red-500/15 text-red-400 flex items-center justify-center cursor-pointer">
+   568→                      <X size={12} />
+   569→                    </button>
+   570→                  </>
+   571→                ) : (
+   572→                  <>
+   573→                    <div className="w-7 h-7 rounded-full bg-[#6c63ff]/15 flex items-center justify-center text-[12px] text-[#a8a3ff] font-bold shrink-0">
+   574→                      {name.slice(0, 2)}
+   575→                    </div>
+   576→                    <span className="text-[13px] font-bold text-[#f0f2ff] flex-1">{name}</span>
+   577→                    <button
+   578→                      onClick={() => { setEditingName(name); setEditDraft(name) }}
+   579→                      className="w-6 h-6 rounded-md bg-[#1c2234] text-[#4a5280] flex items-center justify-center hover:text-[#6c63ff] cursor-pointer"
+   580→                    >
+   581→                      <Pencil size={10} />
+   582→                    </button>
+   583→                    <button
+   584→                      onClick={() => handleRemove(name, 'tele')}
+   585→                      className="w-6 h-6 rounded-md bg-red-500/10 text-red-400/60 flex items-center justify-center hover:text-red-400 cursor-pointer"
+   586→                    >
+   587→                      <UserMinus size={10} />
+   588→                    </button>
+   589→                  </>
+   590→                )}
+   591→              </div>
+   592→            ))}
+   593→          </div>
+   594→        </CardContent>
+   595→      </Card>
+   596→
+   597→      {/* Sales Team */}
+   598→      <Card className="bg-[#111520] border-white/[0.06]">
+   599→        <CardHeader className="pb-2">
+   600→          <CardTitle className="text-[13px] text-[#f0f2ff] flex items-center gap-2">
+   601→            <Users size={14} className="text-[#00d4aa]" />
+   602→            فريق السيلز ({team.sales.length})
+   603→          </CardTitle>
+   604→        </CardHeader>
+   605→        <CardContent>
+   606→          <div className="space-y-1.5">
+   607→            {team.sales.map((name) => (
+   608→              <div key={name} className="flex items-center gap-2 py-1.5 px-3 rounded-lg hover:bg-[#1c2234]/50 transition-colors">
+   609→                {editingName === name ? (
+   610→                  <>
+   611→                    <Input
+   612→                      value={editDraft}
+   613→                      onChange={(e) => setEditDraft(e.target.value)}
+   614→                      className="h-7 text-[13px] bg-[#0a0d14] border-[#6c63ff]/30 text-[#f0f2ff] max-w-[150px]"
+   615→                      autoFocus
+   616→                    />
+   617→                    <button onClick={() => handleRename(name)} className="w-6 h-6 rounded-md bg-[#00d4aa]/15 text-[#00d4aa] flex items-center justify-center cursor-pointer">
+   618→                      <Check size={12} />
+   619→                    </button>
+   620→                    <button onClick={() => setEditingName(null)} className="w-6 h-6 rounded-md bg-red-500/15 text-red-400 flex items-center justify-center cursor-pointer">
+   621→                      <X size={12} />
+   622→                    </button>
+   623→                  </>
+   624→                ) : (
+   625→                  <>
+   626→                    <div className="w-7 h-7 rounded-full bg-[#00d4aa]/15 flex items-center justify-center text-[12px] text-[#00d4aa] font-bold shrink-0">
+   627→                      {name.slice(0, 2)}
+   628→                    </div>
+   629→                    <span className="text-[13px] font-bold text-[#f0f2ff] flex-1">{name}</span>
+   630→                    <button
+   631→                      onClick={() => { setEditingName(name); setEditDraft(name) }}
+   632→                      className="w-6 h-6 rounded-md bg-[#1c2234] text-[#4a5280] flex items-center justify-center hover:text-[#6c63ff] cursor-pointer"
+   633→                    >
+   634→                      <Pencil size={10} />
+   635→                    </button>
+   636→                    <button
+   637→                      onClick={() => handleRemove(name, 'sales')}
+   638→                      className="w-6 h-6 rounded-md bg-red-500/10 text-red-400/60 flex items-center justify-center hover:text-red-400 cursor-pointer"
+   639→                    >
+   640→                      <UserMinus size={10} />
+   641→                    </button>
+   642→                  </>
+   643→                )}
+   644→              </div>
+   645→            ))}
+   646→          </div>
+   647→        </CardContent>
+   648→      </Card>
+   649→    </div>
+   650→  )
+   651→}
+   652→
+   653→/* ═══════════════════════════════════════════════════════
+   654→   Users Management Tab
+   655→   Admin can create, list, toggle, reset passwords
+   656→   ═══════════════════════════════════════════════════════ */
+   657→interface AppUser {
+   658→  id: string
+   659→  username: string
+   660→  display_name: string
+   661→  role: string
+   662→  is_active: boolean
+   663→  last_login_at: string | null
+   664→  created_at: string
+   665→}
+   666→
+   667→function UsersTab() {
+   668→  const addToast = useCrmStore((s) => s.addToast)
+   669→  const team = useCrmStore((s) => s.team)
+   670→  const setTeam = useCrmStore((s) => s.setTeam)
+   671→  const [users, setUsers] = useState<AppUser[]>([])
+   672→  const [loading, setLoading] = useState(true)
+   673→  const [showAddForm, setShowAddForm] = useState(false)
+   674→  const [newUser, setNewUser] = useState({ username: '', password: '', displayName: '', role: 'tele' as 'tele' | 'sales' | 'admin' })
+   675→  const [showPassword, setShowPassword] = useState(false)
+   676→  const [saving, setSaving] = useState(false)
+   677→  const [resetUserId, setResetUserId] = useState<string | null>(null)
+   678→  const [resetPassword, setResetPassword] = useState('')
+   679→  const [resetSaving, setResetSaving] = useState(false)
+   680→  const [deleteUserId, setDeleteUserId] = useState<string | null>(null)
+   681→  const [deleteSaving, setDeleteSaving] = useState(false)
+   682→  const [linkingUser, setLinkingUser] = useState<AppUser | null>(null)
+   683→  const [linkTargetName, setLinkTargetName] = useState('')
+   684→  const [linkSaving, setLinkSaving] = useState(false)
+   685→
+   686→  /* ─── Fetch users ─── */
+   687→  const fetchUsers = useCallback(async () => {
+   688→    setLoading(true)
+   689→    try {
+   690→      const res = await fetch('/api/auth', {
+   691→        method: 'POST',
+   692→        headers: { 'Content-Type': 'application/json' },
+   693→        body: JSON.stringify({ action: 'list-users' }),
+   694→      })
+   695→      const data = await res.json()
+   696→      if (data.users) setUsers(data.users as AppUser[])
+   697→    } catch {
+   698→      addToast('error', 'فشل في تحميل المستخدمين')
+   699→    } finally {
+   700→      setLoading(false)
+   701→    }
+   702→  }, [addToast])
+   703→
+   704→  useEffect(() => { fetchUsers() }, [fetchUsers])
+   705→
+   706→  /* ─── Create user + auto-add to team ─── */
+   707→  const handleCreateUser = useCallback(async () => {
+   708→    if (!newUser.username.trim() || !newUser.password || !newUser.displayName.trim()) {
+   709→      addToast('warning', 'جميع الحقول مطلوبة')
+   710→      return
+   711→    }
+   712→    setSaving(true)
+   713→    try {
+   714→      const res = await fetch('/api/auth', {
+   715→        method: 'POST',
+   716→        headers: { 'Content-Type': 'application/json' },
+   717→        body: JSON.stringify({
+   718→          action: 'create-user',
+   719→          username: newUser.username.trim(),
+   720→          password: newUser.password,
+   721→          displayName: newUser.displayName.trim(),
+   722→          role: newUser.role,
+   723→        }),
+   724→      })
+   725→      const data = await res.json()
+   726→      if (!res.ok || data.error) {
+   727→        addToast('error', data.error || 'فشل في إنشاء المستخدم')
+   728→        return
+   729→      }
+   730→
+   731→      // Auto-add to team_members if role is tele or sales
+   732→      const memberRole = newUser.role as 'tele' | 'sales'
+   733→      if (memberRole === 'tele' || memberRole === 'sales') {
+   734→        try {
+   735→          // Check if a team member with this name already exists
+   736→          const existingMembers = team[memberRole] || []
+   737→          if (!existingMembers.includes(newUser.displayName.trim())) {
+   738→            await apiAddTeamMember(newUser.displayName.trim(), memberRole)
+   739→            // Update local team state
+   740→            const updated = { ...team }
+   741→            updated[memberRole] = [...updated[memberRole], newUser.displayName.trim()]
+   742→            setTeam(updated)
+   743→          }
+   744→        } catch {
+   745→          // Team member creation failed but user was created — non-critical
+   746→          console.warn('[UsersTab] Failed to auto-add team member')
+   747→        }
+   748→      }
+   749→
+   750→      addToast('success', `تم إنشاء المستخدم ${newUser.displayName} بنجاح ✅`)
+   751→      setNewUser({ username: '', password: '', displayName: '', role: 'tele' })
+   752→      setShowAddForm(false)
+   753→      fetchUsers()
+   754→    } catch {
+   755→      addToast('error', 'فشل في إنشاء المستخدم')
+   756→    } finally {
+   757→      setSaving(false)
+   758→    }
+   759→  }, [newUser, addToast, fetchUsers, team, setTeam])
+   760→
+   761→  /* ─── Toggle user active ─── */
+   762→  const handleToggleUser = useCallback(async (userId: string, isActive: boolean) => {
+   763→    try {
+   764→      await fetch('/api/auth', {
+   765→        method: 'POST',
+   766→        headers: { 'Content-Type': 'application/json' },
+   767→        body: JSON.stringify({ action: 'toggle-user', userId, isActive: !isActive }),
+   768→      })
+   769→      addToast('success', isActive ? 'تم تعطيل المستخدم' : 'تم تفعيل المستخدم')
+   770→      fetchUsers()
+   771→    } catch {
+   772→      addToast('error', 'فشل في تحديث حالة المستخدم')
+   773→    }
+   774→  }, [addToast, fetchUsers])
+   775→
+   776→  /* ─── Reset password ─── */
+   777→  const handleResetPassword = useCallback(async () => {
+   778→    if (!resetUserId || !resetPassword) {
+   779→      addToast('warning', 'كلمة المرور الجديدة مطلوبة')
+   780→      return
+   781→    }
+   782→    setResetSaving(true)
+   783→    try {
+   784→      const res = await fetch('/api/auth', {
+   785→        method: 'POST',
+   786→        headers: { 'Content-Type': 'application/json' },
+   787→        body: JSON.stringify({ action: 'reset-password', userId: resetUserId, newPassword: resetPassword }),
+   788→      })
+   789→      const data = await res.json()
+   790→      if (!res.ok || data.error) {
+   791→        addToast('error', data.error || 'فشل في إعادة تعيين كلمة المرور')
+   792→        return
+   793→      }
+   794→      addToast('success', 'تم إعادة تعيين كلمة المرور بنجاح ✅')
+   795→      setResetUserId(null)
+   796→      setResetPassword('')
+   797→    } catch {
+   798→      addToast('error', 'فشل في إعادة تعيين كلمة المرور')
+   799→    } finally {
+   800→      setResetSaving(false)
+   801→    }
+   802→  }, [resetUserId, resetPassword, addToast])
+   803→
+   804→  /* ─── Delete user ─── */
+   805→  const handleDeleteUser = useCallback(async () => {
+   806→    if (!deleteUserId) return
+   807→    setDeleteSaving(true)
+   808→    try {
+   809→      const res = await fetch('/api/auth', {
+   810→        method: 'POST',
+   811→        headers: { 'Content-Type': 'application/json' },
+   812→        body: JSON.stringify({ action: 'delete-user', userId: deleteUserId }),
+   813→      })
+   814→      const data = await res.json()
+   815→      if (!res.ok || data.error) {
+   816→        addToast('error', data.error || 'فشل في حذف المستخدم')
+   817→        return
+   818→      }
+   819→      addToast('success', 'تم حذف المستخدم بنجاح')
+   820→      setDeleteUserId(null)
+   821→      fetchUsers()
+   822→    } catch {
+   823→      addToast('error', 'فشل في حذف المستخدم')
+   824→    } finally {
+   825→      setDeleteSaving(false)
+   826→    }
+   827→  }, [deleteUserId, addToast, fetchUsers])
+   828→
+   829→  /* ─── Link user display name to existing team member ─── */
+   830→  // This renames all leads from the old name (team member) to the user's display_name
+   831→  // So that when the user logs in, their dashboard shows all their leads
+   832→  const handleLinkName = useCallback(async () => {
+   833→    if (!linkingUser || !linkTargetName) return
+   834→    setLinkSaving(true)
+   835→    try {
+   836→      await apiRenameTeamMember(linkTargetName, linkingUser.display_name)
+   837→      addToast('success', `تم ربط "${linkTargetName}" بـ "${linkingUser.display_name}" — تم تحديث البيانات ✅`)
+   838→      setLinkingUser(null)
+   839→      setLinkTargetName('')
+   840→    } catch (err) {
+   841→      addToast('error', err instanceof Error ? err.message : 'فشل في ربط الاسم')
+   842→    } finally {
+   843→      setLinkSaving(false)
+   844→    }
+   845→  }, [linkingUser, linkTargetName, addToast])
+   846→
+   847→  // Check if a user's display_name matches their team member list
+   848→  const isNameMismatched = useCallback((user: AppUser) => {
+   849→    if (user.role === 'admin') return false
+   850→    const members = team[user.role as 'tele' | 'sales'] || []
+   851→    // Name doesn't match any team member → potential mismatch
+   852→    return !members.includes(user.display_name)
+   853→  }, [team])
+   854→
+   855→  const roleLabels: Record<string, string> = { tele: 'تيلي', sales: 'سيلز', admin: 'أدمن' }
+   856→  const roleColors: Record<string, string> = { tele: 'bg-[#6c63ff]/15 text-[#a8a3ff]', sales: 'bg-[#00d4aa]/15 text-[#00d4aa]', admin: 'bg-amber-500/15 text-amber-400' }
+   857→
+   858→  return (
+   859→    <div className="space-y-4">
+   860→      {/* Add User Button */}
+   861→      <div className="flex items-center justify-between">
+   862→        <div className="flex items-center gap-2">
+   863→          <Badge className="bg-[#1c2234] text-[#8892b0] text-[11px] font-bold border-0">
+   864→            {users.length} مستخدم
+   865→          </Badge>
+   866→        </div>
+   867→        <Button
+   868→          onClick={() => setShowAddForm(!showAddForm)}
+   869→          className="bg-[#6c63ff] hover:bg-[#5b54e6] text-white gap-1.5 text-[13px] font-bold h-9 cursor-pointer"
+   870→        >
+   871→          <UserPlus size={14} />
+   872→          إنشاء مستخدم
+   873→        </Button>
+   874→      </div>
+   875→
+   876→      {/* Add User Form */}
+   877→      {showAddForm && (
+   878→        <Card className="bg-[#111520] border-[#6c63ff]/20">
+   879→          <CardHeader className="pb-2">
+   880→            <CardTitle className="text-[15px] font-bold text-[#f0f2ff] flex items-center gap-2">
+   881→              <Shield size={16} className="text-[#6c63ff]" />
+   882→              إنشاء مستخدم جديد
+   883→            </CardTitle>
+   884→          </CardHeader>
+   885→          <CardContent>
+   886→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   887→              <div>
+   888→                <label className="text-[13px] font-semibold text-[#8892b0] mb-1 block">اسم المستخدم (للدخول)</label>
+   889→                <Input
+   890→                  placeholder="مثال: amira2024"
+   891→                  value={newUser.username}
+   892→                  onChange={(e) => setNewUser((p) => ({ ...p, username: e.target.value }))}
+   893→                  className="h-9 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]"
+   894→                  dir="ltr"
+   895→                />
+   896→              </div>
+   897→              <div>
+   898→                <label className="text-[13px] font-semibold text-[#8892b0] mb-1 block">كلمة المرور</label>
+   899→                <div className="relative">
+   900→                  <Input
+   901→                    type={showPassword ? 'text' : 'password'}
+   902→                    placeholder="كلمة المرور"
+   903→                    value={newUser.password}
+   904→                    onChange={(e) => setNewUser((p) => ({ ...p, password: e.target.value }))}
+   905→                    className="h-9 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] pr-3 pl-9"
+   906→                    dir="ltr"
+   907→                  />
+   908→                  <button
+   909→                    type="button"
+   910→                    onClick={() => setShowPassword(!showPassword)}
+   911→                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#4a5280] hover:text-[#8892b0] cursor-pointer"
+   912→                  >
+   913→                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+   914→                  </button>
+   915→                </div>
+   916→              </div>
+   917→              <div>
+   918→                <label className="text-[13px] font-semibold text-[#8892b0] mb-1 block">الاسم المعروض</label>
+   919→                <Input
+   920→                  placeholder="مثال: أميرة"
+   921→                  value={newUser.displayName}
+   922→                  onChange={(e) => setNewUser((p) => ({ ...p, displayName: e.target.value }))}
+   923→                  className="h-9 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]"
+   924→                />
+   925→                {/* Show existing team members as clickable suggestions */}
+   926→                {(newUser.role === 'tele' || newUser.role === 'sales') && (
+   927→                  <div className="mt-1.5">
+   928→                    <span className="text-[11px] text-[#4a5280]">أعضاء التيم الموجودين ({newUser.role === 'tele' ? 'تيلي' : 'سيلز'}):</span>
+   929→                    <div className="flex flex-wrap gap-1 mt-1">
+   930→                      {(team[newUser.role] || []).map((name) => (
+   931→                        <button
+   932→                          key={name}
+   933→                          type="button"
+   934→                          onClick={() => setNewUser((p) => ({ ...p, displayName: name }))}
+   935→                          className={`px-2 py-0.5 rounded text-[11px] font-medium border cursor-pointer transition-colors ${
+   936→                            newUser.displayName === name
+   937→                              ? 'bg-[#6c63ff]/20 border-[#6c63ff]/40 text-[#a8a3ff]'
+   938→                              : 'bg-[#1c2234] border-white/[0.06] text-[#8892b0] hover:border-[#6c63ff]/30 hover:text-[#a8a3ff]'
+   939→                          }`}
+   940→                        >
+   941→                          {name}
+   942→                        </button>
+   943→                      ))}
+   944→                      {(team[newUser.role] || []).length === 0 && (
+   945→                        <span className="text-[11px] text-[#4a5280]">لا يوجد أعضاء</span>
+   946→                      )}
+   947→                    </div>
+   948→                  </div>
+   949→                )}
+   950→              </div>
+   951→              <div>
+   952→                <label className="text-[13px] font-semibold text-[#8892b0] mb-1 block">الدور</label>
+   953→                <Select value={newUser.role} onValueChange={(v: 'tele' | 'sales' | 'admin') => setNewUser((p) => ({ ...p, role: v }))}>
+   954→                  <SelectTrigger className="h-9 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
+   955→                    <SelectValue />
+   956→                  </SelectTrigger>
+   957→                  <SelectContent className="bg-[#111520] border-white/[0.08]">
+   958→                    <SelectItem value="tele" className="text-[13px]">تيلي</SelectItem>
+   959→                    <SelectItem value="sales" className="text-[13px]">سيلز</SelectItem>
+   960→                    <SelectItem value="admin" className="text-[13px]">أدمن</SelectItem>
+   961→                  </SelectContent>
+   962→                </Select>
+   963→              </div>
+   964→            </div>
+   965→            <div className="flex items-center gap-2 mt-4">
+   966→              <Button
+   967→                onClick={handleCreateUser}
+   968→                disabled={saving}
+   969→                className="bg-[#00d4aa] hover:bg-[#00b894] text-[#0a0d14] gap-1.5 text-[13px] font-bold h-9 cursor-pointer"
+   970→              >
+   971→                {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+   972→                إنشاء المستخدم
+   973→              </Button>
+   974→              <Button
+   975→                onClick={() => { setShowAddForm(false); setNewUser({ username: '', password: '', displayName: '', role: 'tele' }) }}
+   976→                className="bg-[#1c2234] text-[#8892b0] hover:text-[#f0f2ff] text-[13px] font-bold h-9 border-0 cursor-pointer"
+   977→              >
+   978→                إلغاء
+   979→              </Button>
+   980→            </div>
+   981→          </CardContent>
+   982→        </Card>
+   983→      )}
+   984→
+   985→      {/* Reset Password Form */}
+   986→      {resetUserId && (
+   987→        <Card className="bg-[#111520] border-amber-500/20">
+   988→          <CardContent className="p-4">
+   989→            <div className="flex items-center gap-2 mb-3">
+   990→              <KeyRound size={16} className="text-amber-400" />
+   991→              <span className="text-[13px] text-[#f0f2ff] font-semibold">إعادة تعيين كلمة المرور</span>
+   992→            </div>
+   993→            <div className="flex items-center gap-2">
+   994→              <Input
+   995→                type="password"
+   996→                placeholder="كلمة المرور الجديدة"
+   997→                value={resetPassword}
+   998→                onChange={(e) => setResetPassword(e.target.value)}
+   999→                className="h-9 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff] max-w-[250px]"
+  1000→                dir="ltr"
+  1001→              />
+  1002→              <Button
+  1003→                onClick={handleResetPassword}
+  1004→                disabled={resetSaving}
+  1005→                className="bg-amber-500 hover:bg-amber-600 text-[#0a0d14] gap-1.5 text-[13px] font-bold h-9 cursor-pointer"
+  1006→              >
+  1007→                {resetSaving ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />}
+  1008→                تحديث
+  1009→              </Button>
+  1010→              <Button
+  1011→                onClick={() => { setResetUserId(null); setResetPassword('') }}
+  1012→                className="bg-[#1c2234] text-[#8892b0] hover:text-[#f0f2ff] text-[13px] font-bold h-9 border-0 cursor-pointer"
+  1013→              >
+  1014→                إلغاء
+  1015→              </Button>
+  1016→            </div>
+  1017→          </CardContent>
+  1018→        </Card>
+  1019→      )}
+  1020→
+  1021→      {/* Users Table */}
+  1022→      <Card className="bg-[#111520] border-white/[0.06]">
+  1023→        <CardContent className="p-0">
+  1024→          {loading ? (
+  1025→            <div className="flex items-center justify-center py-12">
+  1026→              <Loader2 size={24} className="animate-spin text-[#6c63ff]" />
+  1027→            </div>
+  1028→          ) : users.length === 0 ? (
+  1029→            <div className="text-center py-12 text-[#4a5280]">
+  1030→              <div className="text-[30px] mb-2">👤</div>
+  1031→              <div className="text-[13px]">لا يوجد مستخدمين</div>
+  1032→              <div className="text-[12px] font-medium mt-1">اضغط &quot;إنشاء مستخدم&quot; لإضافة مستخدم جديد</div>
+  1033→            </div>
+  1034→          ) : (
+  1035→            <div className="overflow-x-auto">
+  1036→              <Table>
+  1037→                <TableHeader>
+  1038→                  <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
+  1039→                    <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">المستخدم</TableHead>
+  1040→                    <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">اسم الدخول</TableHead>
+  1041→                    <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">الدور</TableHead>
+  1042→                    <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">الحالة</TableHead>
+  1043→                    <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">آخر دخول</TableHead>
+  1044→                    <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[120px]">إجراءات</TableHead>
+  1045→                  </TableRow>
+  1046→                </TableHeader>
+  1047→                <TableBody>
+  1048→                  {users.map((user) => (
+  1049→                    <TableRow key={user.id} className={`border-b border-white/[0.04] ${!user.is_active ? 'opacity-50' : ''}`}>
+  1050→                      <TableCell>
+  1051→                        <div className="flex items-center gap-2">
+  1052→                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[12px] font-bold shrink-0 ${user.role === 'admin' ? 'bg-amber-500/15 text-amber-400' : user.role === 'tele' ? 'bg-[#6c63ff]/15 text-[#a8a3ff]' : 'bg-[#00d4aa]/15 text-[#00d4aa]'}`}>
+  1053→                            {(user.display_name || user.username).slice(0, 2).toUpperCase()}
+  1054→                          </div>
+  1055→                          <div>
+  1056→                            <div className="text-[13px] font-bold text-[#f0f2ff] flex items-center gap-1.5">
+  1057→                              {user.display_name || '—'}
+  1058→                              {isNameMismatched(user) && (
+  1059→                                <button
+  1060→                                  onClick={() => { setLinkingUser(user); setLinkTargetName('') }}
+  1061→                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[10px] font-bold hover:bg-amber-500/25 transition-colors cursor-pointer"
+  1062→                                  title="الاسم لا يطابق أعضاء التيم — اضغط لربط البيانات"
+  1063→                                >
+  1064→                                  <AlertTriangle size={10} />
+  1065→                                  غير مرتبط
+  1066→                                </button>
+  1067→                              )}
+  1068→                            </div>
+  1069→                            <div className="text-[11px] text-[#4a5280]">{user.created_at ? new Date(user.created_at).toLocaleDateString('ar-EG') : '—'}</div>
+  1070→                          </div>
+  1071→                        </div>
+  1072→                      </TableCell>
+  1073→                      <TableCell className="text-[13px] font-semibold text-[#8892b0] font-mono" dir="ltr">{user.username}</TableCell>
+  1074→                      <TableCell>
+  1075→                        <Badge className={`text-[11px] font-bold border-0 ${roleColors[user.role] || 'bg-[#1c2234] text-[#8892b0]'}`}>
+  1076→                          {roleLabels[user.role] || user.role}
+  1077→                        </Badge>
+  1078→                      </TableCell>
+  1079→                      <TableCell>
+  1080→                        <Badge className={`text-[11px] font-bold border-0 ${user.is_active ? 'bg-[#00d4aa]/15 text-[#00d4aa]' : 'bg-red-500/15 text-red-400'}`}>
+  1081→                          {user.is_active ? 'مفعّل' : 'معطّل'}
+  1082→                        </Badge>
+  1083→                      </TableCell>
+  1084→                      <TableCell className="text-[12px] text-[#4a5280]">
+  1085→                        {user.last_login_at ? new Date(user.last_login_at).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'لم يسجل دخول'}
+  1086→                      </TableCell>
+  1087→                      <TableCell>
+  1088→                        <div className="flex items-center gap-1.5">
+  1089→                          {isNameMismatched(user) && (
+  1090→                            <button
+  1091→                              onClick={() => { setLinkingUser(user); setLinkTargetName('') }}
+  1092→                              className="w-7 h-7 rounded-md bg-[#6c63ff]/10 text-[#6c63ff]/70 flex items-center justify-center hover:bg-[#6c63ff]/20 hover:text-[#6c63ff] transition-colors cursor-pointer"
+  1093→                              title="ربط بالبيانات — نقل ليدز الاسم القديم للحساب ده"
+  1094→                            >
+  1095→                              <Link2 size={12} />
+  1096→                            </button>
+  1097→                          )}
+  1098→                          <button
+  1099→                            onClick={() => setResetUserId(user.id)}
+  1100→                            className="w-7 h-7 rounded-md bg-amber-500/10 text-amber-400/70 flex items-center justify-center hover:bg-amber-500/20 hover:text-amber-400 transition-colors cursor-pointer"
+  1101→                            title="تغيير كلمة المرور"
+  1102→                          >
+  1103→                            <KeyRound size={12} />
+  1104→                          </button>
+  1105→                          <button
+  1106→                            onClick={() => handleToggleUser(user.id, user.is_active)}
+  1107→                            className="w-7 h-7 rounded-md flex items-center justify-center transition-colors cursor-pointer"
+  1108→                            title={user.is_active ? 'تعطيل' : 'تفعيل'}
+  1109→                          >
+  1110→                            {user.is_active ? (
+  1111→                              <ToggleRight size={16} className="text-[#00d4aa]" />
+  1112→                            ) : (
+  1113→                              <ToggleLeft size={16} className="text-red-400" />
+  1114→                            )}
+  1115→                          </button>
+  1116→                          <button
+  1117→                            onClick={() => setDeleteUserId(user.id)}
+  1118→                            className="w-7 h-7 rounded-md bg-red-500/10 text-red-400/60 flex items-center justify-center hover:text-red-400 hover:bg-red-500/20 transition-colors cursor-pointer"
+  1119→                            title="حذف المستخدم"
+  1120→                          >
+  1121→                            <Trash2 size={12} />
+  1122→                          </button>
+  1123→                        </div>
+  1124→                      </TableCell>
+  1125→                    </TableRow>
+  1126→                  ))}
+  1127→                </TableBody>
+  1128→              </Table>
+  1129→            </div>
+  1130→          )}
+  1131→        </CardContent>
+  1132→      </Card>
+  1133→
+  1134→      {/* Delete User Confirmation */}
+  1135→      {deleteUserId && (
+  1136→        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+  1137→          <div className="bg-[#111520] border border-red-500/20 rounded-xl p-6 max-w-sm w-full" style={{ fontFamily: 'Cairo, sans-serif' }}>
+  1138→            <h3 className="text-[15px] font-bold text-[#f0f2ff] mb-2">⚠️ حذف مستخدم</h3>
+  1139→            <p className="text-[13px] text-[#8892b0] mb-4">هل أنت متأكد من حذف هذا المستخدم؟ لا يمكن التراجع عن هذا الإجراء.</p>
+  1140→            <div className="flex gap-2">
+  1141→              <button
+  1142→                onClick={handleDeleteUser}
+  1143→                disabled={deleteSaving}
+  1144→                className="flex-1 h-9 rounded-lg bg-red-500/15 text-red-400 text-[13px] font-bold hover:bg-red-500/25 transition-colors disabled:opacity-60 cursor-pointer"
+  1145→              >
+  1146→                {deleteSaving ? 'جاري الحذف...' : 'حذف'}
+  1147→              </button>
+  1148→              <button
+  1149→                onClick={() => setDeleteUserId(null)}
+  1150→                className="flex-1 h-9 rounded-lg bg-[#1c2234] text-[#8892b0] text-[13px] font-bold hover:bg-[#252b3d] transition-colors cursor-pointer"
+  1151→              >
+  1152→                إلغاء
+  1153→              </button>
+  1154→            </div>
+  1155→          </div>
+  1156→        </div>
+  1157→      )}
+  1158→
+  1159→      {/* Link Name Dialog */}
+  1160→      {linkingUser && (
+  1161→        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+  1162→          <div className="bg-[#111520] border border-[#6c63ff]/20 rounded-xl p-6 max-w-md w-full" style={{ fontFamily: 'Cairo, sans-serif' }}>
+  1163→            <h3 className="text-[15px] font-bold text-[#f0f2ff] mb-1 flex items-center gap-2">
+  1164→              <Link2 size={16} className="text-[#6c63ff]" />
+  1165→              ربط البيانات بالحساب
+  1166→            </h3>
+  1167→            <p className="text-[12px] text-[#8892b0] mb-4">
+  1168→              اسم المستخدم <span className="text-[#f0f2ff] font-bold">&quot;{linkingUser.display_name}&quot;</span> لا يطابق أي اسم في قائمة التيم.
+  1169→              اختر اسم التيم القديم عشان ننقل البيانات للحساب ده.
+  1170→            </p>
+  1171→            <div className="bg-[#0a0d14] rounded-lg p-3 mb-4 border border-white/[0.06]">
+  1172→              <div className="text-[11px] text-[#4a5280] mb-2">أسماء التيم الموجودة ({linkingUser.role === 'tele' ? 'تيلي' : 'سيلز'}):</div>
+  1173→              <div className="flex flex-wrap gap-1.5">
+  1174→                {(team[linkingUser.role as 'tele' | 'sales'] || []).map((name) => (
+  1175→                  <button
+  1176→                    key={name}
+  1177→                    type="button"
+  1178→                    onClick={() => setLinkTargetName(name)}
+  1179→                    className={`px-3 py-1.5 rounded-lg text-[12px] font-bold border cursor-pointer transition-colors ${
+  1180→                      linkTargetName === name
+  1181→                        ? 'bg-[#6c63ff]/20 border-[#6c63ff]/40 text-[#a8a3ff]'
+  1182→                        : 'bg-[#1c2234] border-white/[0.06] text-[#8892b0] hover:border-[#6c63ff]/30 hover:text-[#a8a3ff]'
+  1183→                    }`}
+  1184→                  >
+  1185→                    {name}
+  1186→                  </button>
+  1187→                ))}
+  1188→                {(team[linkingUser.role as 'tele' | 'sales'] || []).length === 0 && (
+  1189→                  <span className="text-[12px] text-[#4a5280]">لا يوجد أسماء في التيم</span>
+  1190→                )}
+  1191→              </div>
+  1192→            </div>
+  1193→            {linkTargetName && (
+  1194→              <div className="bg-[#6c63ff]/5 rounded-lg p-3 mb-4 border border-[#6c63ff]/10">
+  1195→                <div className="text-[12px] text-[#8892b0]">
+  1196→                  سيتم تحويل كل الليدز من <span className="text-amber-400 font-bold">&quot;{linkTargetName}&quot;</span> إلى <span className="text-[#00d4aa] font-bold">&quot;{linkingUser.display_name}&quot;</span>
+  1197→                </div>
+  1198→              </div>
+  1199→            )}
+  1200→            <div className="flex gap-2">
+  1201→              <button
+  1202→                onClick={handleLinkName}
+  1203→                disabled={linkSaving || !linkTargetName}
+  1204→                className="flex-1 h-9 rounded-lg bg-[#6c63ff]/15 text-[#a8a3ff] text-[13px] font-bold hover:bg-[#6c63ff]/25 transition-colors disabled:opacity-40 cursor-pointer flex items-center justify-center gap-1.5"
+  1205→              >
+  1206→                {linkSaving ? <Loader2 size={14} className="animate-spin" /> : <Link2 size={14} />}
+  1207→                {linkSaving ? 'جاري الربط...' : 'ربط وتحديث البيانات'}
+  1208→              </button>
+  1209→              <button
+  1210→                onClick={() => { setLinkingUser(null); setLinkTargetName('') }}
+  1211→                className="flex-1 h-9 rounded-lg bg-[#1c2234] text-[#8892b0] text-[13px] font-bold hover:bg-[#252b3d] transition-colors cursor-pointer"
+  1212→              >
+  1213→                إلغاء
+  1214→              </button>
+  1215→            </div>
+  1216→          </div>
+  1217→        </div>
+  1218→      )}
+  1219→    </div>
+  1220→  )
+  1221→}
+  1222→
+  1223→/* ═══════════════════════════════════════════════════════
+  1224→   Settings Tab (Placeholder)
+  1225→   ═══════════════════════════════════════════════════════ */
+  1226→function SettingsTab() {
+  1227→  const theme = useCrmStore((s) => s.theme)
+  1228→  const toggleTheme = useCrmStore((s) => s.toggleTheme)
+  1229→
+  1230→  return (
+  1231→    <div className="space-y-4">
+  1232→      <Card className="bg-[#111520] border-white/[0.06]">
+  1233→        <CardHeader>
+  1234→          <CardTitle className="text-[15px] font-bold text-[#f0f2ff] flex items-center gap-2">
+  1235→            <Settings size={16} className="text-[#6c63ff]" />
+  1236→            إعدادات التطبيق
+  1237→          </CardTitle>
+  1238→        </CardHeader>
+  1239→        <CardContent className="space-y-4">
+  1240→          <div className="flex items-center justify-between py-2">
+  1241→            <span className="text-[13px] font-semibold text-[#8892b0]">الوضع الداكن</span>
+  1242→            <button
+  1243→              onClick={toggleTheme}
+  1244→              className={`w-10 h-6 rounded-full transition-colors cursor-pointer ${theme === 'dark' ? 'bg-[#6c63ff]' : 'bg-[#1c2234]'}`}
+  1245→            >
+  1246→              <div className={`w-4 h-4 rounded-full bg-white transition-transform ${theme === 'dark' ? 'translate-x-1' : 'translate-x-5'}`} />
+  1247→            </button>
+  1248→          </div>
+  1249→          <div className="flex items-center justify-between py-2">
+  1250→            <span className="text-[13px] font-semibold text-[#8892b0]">الإشعارات</span>
+  1251→            <Badge className="bg-[#00d4aa]/15 text-[#00d4aa] text-[11px] font-bold border-0">مفعّلة</Badge>
+  1252→          </div>
+  1253→          <div className="flex items-center justify-between py-2">
+  1254→            <span className="text-[13px] font-semibold text-[#8892b0]">المزامنة الفورية</span>
+  1255→            <Badge className="bg-[#00d4aa]/15 text-[#00d4aa] text-[11px] font-bold border-0">مفعّلة</Badge>
+  1256→          </div>
+  1257→        </CardContent>
+  1258→      </Card>
+  1259→    </div>
+  1260→  )
+  1261→}
+  1262→
+  1263→/* ═══════════════════════════════════════════════════════
+  1264→   Admin Panel Component
+  1265→   ═══════════════════════════════════════════════════════ */
+  1266→export function AdminPanel() {
+  1267→  const adminTab = useCrmStore((s) => s.adminTab)
+  1268→  const setAdminTab = useCrmStore((s) => s.setAdminTab)
+  1269→
+  1270→  return (
+  1271→    <div className="space-y-4 animate-in fade-in duration-300">
+  1272→      {/* Header */}
+  1273→      <div>
+  1274→        <h2 className="text-[19px] font-extrabold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+  1275→          لوحة التحكم
+  1276→        </h2>
+  1277→        <p className="text-[13px] font-semibold text-[#8892b0] mt-0.5">إدارة شاملة للنظام والفريق والعملاء</p>
+  1278→      </div>
+  1279→
+  1280→      {/* Tabs */}
+  1281→      <Tabs value={adminTab} onValueChange={(v) => setAdminTab(v as AdminTab)}>
+  1282→        <TabsList className="bg-[#111520] border border-white/[0.06] h-auto p-1 flex-wrap gap-1">
+  1283→          {ADMIN_TABS.map((tab) => {
+  1284→            const Icon = tab.icon
+  1285→            return (
+  1286→              <TabsTrigger
+  1287→                key={tab.key}
+  1288→                value={tab.key}
+  1289→                className="text-[13px] font-bold data-[state=active]:bg-[#6c63ff]/15 data-[state=active]:text-[#a8a3ff] text-[#8892b0] gap-1 px-3 py-1.5"
+  1290→              >
+  1291→                <Icon size={12} />
+  1292→                <span className="hidden sm:inline">{tab.label}</span>
+  1293→              </TabsTrigger>
+  1294→            )
+  1295→          })}
+  1296→        </TabsList>
+  1297→
+  1298→        <TabsContent value="overview" className="mt-4">
+  1299→          <OverviewTab />
+  1300→        </TabsContent>
+  1301→        <TabsContent value="tele" className="mt-4">
+  1302→          <Card className="bg-[#111520] border-white/[0.06] p-4">
+  1303→            <p className="text-[13px] text-[#8892b0] text-center py-8">
+  1304→              شيت التيلي — استخدم &quot;شيت التيلي&quot; من القائمة الجانبية للعرض الكامل
+  1305→            </p>
+  1306→          </Card>
+  1307→        </TabsContent>
+  1308→        <TabsContent value="sales" className="mt-4">
+  1309→          <Card className="bg-[#111520] border-white/[0.06] p-4">
+  1310→            <p className="text-[13px] text-[#8892b0] text-center py-8">
+  1311→              شيت السيلز — استخدم &quot;شيت السيلز&quot; من القائمة الجانبية للعرض الكامل
+  1312→            </p>
+  1313→          </Card>
+  1314→        </TabsContent>
+  1315→        <TabsContent value="all-leads" className="mt-4">
+  1316→          <AllLeadsTab />
+  1317→        </TabsContent>
+  1318→        <TabsContent value="archive" className="mt-4">
+  1319→          <ArchiveTab />
+  1320→        </TabsContent>
+  1321→        <TabsContent value="team" className="mt-4">
+  1322→          <TeamTab />
+  1323→        </TabsContent>
+  1324→        <TabsContent value="users" className="mt-4">
+  1325→          <UsersTab />
+  1326→        </TabsContent>
+  1327→        <TabsContent value="settings" className="mt-4">
+  1328→          <SettingsTab />
+  1329→        </TabsContent>
+  1330→      </Tabs>
+  1331→    </div>
+  1332→  )
+  1333→}
+  1334→

@@ -1,0 +1,1348 @@
+     1→'use client'
+     2→
+     3→import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+     4→import { useCrmStore, getDateRange } from '@/lib/store'
+     5→import type { Lead } from '@/lib/supabase'
+     6→import {
+     7→  Flame, UserPlus, Phone, CalendarCheck, UserCheck, Percent,
+     8→  TrendingUp, TrendingDown, PhoneCall, MessageCircle, Trophy,
+     9→  Target, ArrowLeft, Clock, Users, Settings2, Save, PhoneOff,
+    10→  PhoneIncoming, Calendar, CheckCircle2, Hourglass,
+    11→} from 'lucide-react'
+    12→import {
+    13→  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose,
+    14→} from '@/components/ui/dialog'
+    15→
+    16→/* ═══════════════════════════════════════════════════════
+    17→   Types
+    18→   ═══════════════════════════════════════════════════════ */
+    19→
+    20→interface TargetSettings {
+    21→  type: 'meetings' | 'money' | 'closings'
+    22→  value: number
+    23→}
+    24→
+    25→/* ═══════════════════════════════════════════════════════
+    26→   Helpers
+    27→   ═══════════════════════════════════════════════════════ */
+    28→
+    29→function getInitials(name: string): string {
+    30→  if (!name) return '؟'
+    31→  const parts = name.trim().split(/\s+/)
+    32→  if (parts.length >= 2) return parts[0][0] + parts[1][0]
+    33→  return name.slice(0, 2)
+    34→}
+    35→
+    36→function getCurrentMonthAr(): string {
+    37→  const months = [
+    38→    'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+    39→    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+    40→  ]
+    41→  return months[new Date().getMonth()]
+    42→}
+    43→
+    44→function getDaysRemainingInMonth(): number {
+    45→  const now = new Date()
+    46→  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    47→  return end.getDate() - now.getDate()
+    48→}
+    49→
+    50→function formatCurrency(val: number): string {
+    51→  if (val >= 1000000) return `${(val / 1000000).toFixed(1)}M`
+    52→  if (val >= 1000) return `${Math.round(val / 1000)}K`
+    53→  return val.toString()
+    54→}
+    55→
+    56→/**
+    57→ * Get the start of the current Arabic work week (Saturday).
+    58→ * Week runs Saturday(6) to Friday(5).
+    59→ */
+    60→function getWeekRange(): { satStart: number; friEnd: number } {
+    61→  const now = new Date()
+    62→  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    63→  const dayOfWeek = today.getDay() // 0=Sun, 6=Sat
+    64→
+    65→  // Days since last Saturday (if today is Saturday, offset = 0)
+    66→  const daysSinceSaturday = dayOfWeek === 6 ? 0 : dayOfWeek + 1
+    67→  const satStart = new Date(today.getTime() - daysSinceSaturday * 86400000).getTime()
+    68→  const friEnd = satStart + 7 * 86400000
+    69→
+    70→  return { satStart, friEnd }
+    71→}
+    72→
+    73→/** Get the day-of-week index (0=Sat, 1=Sun, ..., 6=Fri) for a timestamp */
+    74→function getArabicDayIndex(ts: number): number {
+    75→  const d = new Date(ts).getDay() // 0=Sun, 1=Mon, ..., 6=Sat
+    76→  // Convert to Sat=0, Sun=1, ..., Fri=6
+    77→  return d === 6 ? 0 : d + 1
+    78→}
+    79→
+    80→const ARABIC_DAYS = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
+    81→
+    82→function getPositionLabelAr(pos: number): string {
+    83→  if (pos === 1) return 'المركز الأول'
+    84→  if (pos === 2) return 'المركز الثاني'
+    85→  if (pos === 3) return 'المركز الثالث'
+    86→  return `المركز ${pos}`
+    87→}
+    88→
+    89→/** Get motivational message based on performance */
+    90→function getMotivationalMessage(meetingsBooked: number, callsMade: number, targetPct: number): { text: string; emoji: string } {
+    91→  if (targetPct >= 100) return { text: '🎉 هدف محقق! أداء أسطوري!', emoji: '🏆' }
+    92→  if (targetPct >= 80) return { text: '🔥 أداء ممتاز! قريب من الهدف!', emoji: '🔥' }
+    93→  if (targetPct >= 50) return { text: '💪 أداء جيد! استمر!', emoji: '💪' }
+    94→  if (meetingsBooked === 0 && callsMade === 0) return { text: '🚀 ابدأ الأسبوع بقوة!', emoji: '🚀' }
+    95→  if (meetingsBooked < 3) return { text: '💪 يمكنك تحقيق المزيد!', emoji: '💪' }
+    96→  return { text: '⭐ استمر في العمل الجاد!', emoji: '⭐' }
+    97→}
+    98→
+    99→/* ═══════════════════════════════════════════════════════
+   100→   Animated Counter Component
+   101→   Uses ref + DOM manipulation to avoid setState in effect
+   102→   ═══════════════════════════════════════════════════════ */
+   103→
+   104→function AnimatedCounter({ value, duration = 1200 }: { value: number; duration?: number }) {
+   105→  const spanRef = useRef<HTMLSpanElement>(null)
+   106→  const prevValue = useRef(value)
+   107→  const animationRef = useRef<number | null>(null)
+   108→
+   109→  useEffect(() => {
+   110→    const start = prevValue.current
+   111→    const end = value
+   112→    const el = spanRef.current
+   113→    if (!el) return
+   114→
+   115→    if (start === end) {
+   116→      el.textContent = String(end)
+   117→      return
+   118→    }
+   119→
+   120→    const startTime = performance.now()
+   121→
+   122→    function animate(currentTime: number) {
+   123→      const elapsed = currentTime - startTime
+   124→      const progress = Math.min(elapsed / duration, 1)
+   125→      // Ease out cubic
+   126→      const eased = 1 - Math.pow(1 - progress, 3)
+   127→      const current = Math.round(start + (end - start) * eased)
+   128→      if (spanRef.current) spanRef.current.textContent = String(current)
+   129→
+   130→      if (progress < 1) {
+   131→        animationRef.current = requestAnimationFrame(animate)
+   132→      } else {
+   133→        prevValue.current = end
+   134→      }
+   135→    }
+   136→
+   137→    animationRef.current = requestAnimationFrame(animate)
+   138→
+   139→    return () => {
+   140→      if (animationRef.current) cancelAnimationFrame(animationRef.current)
+   141→    }
+   142→  }, [value, duration])
+   143→
+   144→  return <span ref={spanRef}>{value}</span>
+   145→}
+   146→
+   147→/* ═══════════════════════════════════════════════════════
+   148→   Animated Progress Bar Component
+   149→   ═══════════════════════════════════════════════════════ */
+   150→
+   151→function AnimatedProgressBar({
+   152→  percentage,
+   153→  color = '#8b83ff',
+   154→  height = 6,
+   155→  pulse = false,
+   156→  delay = 0,
+   157→}: {
+   158→  percentage: number
+   159→  color?: string
+   160→  height?: number
+   161→  pulse?: boolean
+   162→  delay?: number
+   163→}) {
+   164→  const [width, setWidth] = useState(0)
+   165→
+   166→  useEffect(() => {
+   167→    const timer = setTimeout(() => {
+   168→      setWidth(percentage)
+   169→    }, 100 + delay)
+   170→    return () => clearTimeout(timer)
+   171→  }, [percentage, delay])
+   172→
+   173→  return (
+   174→    <div
+   175→      className="rounded-full overflow-hidden"
+   176→      style={{ height, background: 'rgba(255,255,255,0.06)' }}
+   177→    >
+   178→      <div
+   179→        className={`h-full rounded-full transition-all ease-out ${pulse ? 'animate-pulse' : ''}`}
+   180→        style={{
+   181→          width: `${width}%`,
+   182→          background: color,
+   183→          transitionDuration: '1.2s',
+   184→        }}
+   185→      />
+   186→    </div>
+   187→  )
+   188→}
+   189→
+   190→/* ═══════════════════════════════════════════════════════
+   191→   API helpers for target settings
+   192→   ═══════════════════════════════════════════════════════ */
+   193→
+   194→async function apiGetTarget(): Promise<TargetSettings | null> {
+   195→  try {
+   196→    const res = await fetch('/api/leads', {
+   197→      method: 'POST',
+   198→      headers: { 'Content-Type': 'application/json' },
+   199→      body: JSON.stringify({ operation: 'getSetting', data: 'target' }),
+   200→    })
+   201→    if (res.ok) {
+   202→      const json = await res.json()
+   203→      if (json.data) {
+   204→        return json.data as TargetSettings
+   205→      }
+   206→    }
+   207→  } catch (err) {
+   208→    console.warn('[Dashboard] Failed to load target settings:', err)
+   209→  }
+   210→  return null
+   211→}
+   212→
+   213→async function apiSaveTarget(settings: TargetSettings): Promise<boolean> {
+   214→  try {
+   215→    const res = await fetch('/api/leads', {
+   216→      method: 'POST',
+   217→      headers: { 'Content-Type': 'application/json' },
+   218→      body: JSON.stringify({ operation: 'saveSetting', data: { key: 'target', value: settings } }),
+   219→    })
+   220→    return res.ok
+   221→  } catch (err) {
+   222→    console.warn('[Dashboard] Failed to save target settings:', err)
+   223→    return false
+   224→  }
+   225→}
+   226→
+   227→/* ═══════════════════════════════════════════════════════
+   228→   CSS Keyframes for animations (injected once)
+   229→   ═══════════════════════════════════════════════════════ */
+   230→
+   231→function InjectAnimations() {
+   232→  return (
+   233→    <style>{`
+   234→      @keyframes kpi-card-enter {
+   235→        from { opacity: 0; transform: translateY(16px) scale(0.96); }
+   236→        to { opacity: 1; transform: translateY(0) scale(1); }
+   237→      }
+   238→      @keyframes section-enter {
+   239→        from { opacity: 0; transform: translateY(12px); }
+   240→        to { opacity: 1; transform: translateY(0); }
+   241→      }
+   242→      @keyframes progress-fill {
+   243→        from { width: 0%; }
+   244→      }
+   245→      @keyframes glow-pulse {
+   246→        0%, 100% { box-shadow: 0 0 8px var(--glow-color, rgba(108,99,255,0.2)); }
+   247→        50% { box-shadow: 0 0 20px var(--glow-color, rgba(108,99,255,0.4)); }
+   248→      }
+   249→      @keyframes target-pulse {
+   250→        0%, 100% { opacity: 1; }
+   251→        50% { opacity: 0.7; }
+   252→      }
+   253→      .kpi-card-animate {
+   254→        animation: kpi-card-enter 0.5s ease-out both;
+   255→      }
+   256→      .section-animate {
+   257→        animation: section-enter 0.6s ease-out both;
+   258→      }
+   259→      .kpi-card-animate:hover {
+   260→        transform: translateY(-3px) scale(1.02);
+   261→      }
+   262→      .motivational-banner {
+   263→        animation: section-enter 0.8s ease-out both;
+   264→      }
+   265→    `}</style>
+   266→  )
+   267→}
+   268→
+   269→/* ═══════════════════════════════════════════════════════
+   270→   Dashboard Component — COMPLETE REWRITE
+   271→   - No Framer Motion — CSS transitions only
+   272→   - Event-timestamp based stats (contactResultAt, assignedAt)
+   273→   - Current-month KPI stats (not today-based)
+   274→   - RTL layout, Cairo font, dark theme
+   275→   - Interactive animations & progress indicators
+   276→   ═══════════════════════════════════════════════════════ */
+   277→
+   278→export function Dashboard() {
+   279→  const leads = useCrmStore((s) => s.leads)
+   280→  const currentUser = useCrmStore((s) => s.currentUser)
+   281→  const currentRole = useCrmStore((s) => s.currentRole)
+   282→  const team = useCrmStore((s) => s.team)
+   283→  const setCurrentView = useCrmStore((s) => s.setCurrentView)
+   284→  const setActiveFilter = useCrmStore((s) => s.setActiveFilter)
+   285→  const targetSettings = useCrmStore((s) => s.targetSettings)
+   286→  const setTargetSettings = useCrmStore((s) => s.setTargetSettings)
+   287→
+   288→  /* ─── Target settings dialog state ─── */
+   289→  const [targetDialogOpen, setTargetDialogOpen] = useState(false)
+   290→  const [editTargetType, setEditTargetType] = useState<TargetSettings['type']>('meetings')
+   291→  const [editTargetValue, setEditTargetValue] = useState<number>(50)
+   292→  const [savingTarget, setSavingTarget] = useState(false)
+   293→
+   294→  /* ─── Load target from Supabase on mount ─── */
+   295→  useEffect(() => {
+   296→    let cancelled = false
+   297→    async function loadTarget() {
+   298→      const settings = await apiGetTarget()
+   299→      if (!cancelled && settings) {
+   300→        setTargetSettings(settings)
+   301→      }
+   302→    }
+   303→    loadTarget()
+   304→    return () => { cancelled = true }
+   305→  }, [setTargetSettings])
+   306→
+   307→  /* ─── Single-pass: Filter leads by role ─── */
+   308→  const myLeads = useMemo(() => {
+   309→    if (currentRole === 'tele' && currentUser) {
+   310→      return leads.filter((l) => l.tele === currentUser && !l.isArchived)
+   311→    }
+   312→    if (currentRole === 'sales' && currentUser) {
+   313→      return leads.filter((l) => l.sales === currentUser && !l.isArchived)
+   314→    }
+   315→    return leads.filter((l) => !l.isArchived)
+   316→  }, [leads, currentUser, currentRole])
+   317→
+   318→  /* ─── All leads (admin sees all, others see own) ─── */
+   319→  const allActiveLeads = useMemo(() => {
+   320→    return leads.filter((l) => !l.isArchived)
+   321→  }, [leads])
+   322→
+   323→  /* ─── Current month range ─── */
+   324→  const monthRange = useMemo(() => getDateRange('month'), [])
+   325→
+   326→  /* ─── KPI computation — CURRENT MONTH based ─── */
+   327→  const kpiValues = useMemo(() => {
+   328→    const { from, to } = monthRange
+   329→
+   330→    let leadsCreatedMonth = 0
+   331→    let callsMonth = 0
+   332→    let meetingsBooked = 0
+   333→    let attendedConfirmed = 0
+   334→    let closedWon = 0
+   335→
+   336→    for (const l of myLeads) {
+   337→      // Leads created this month
+   338→      if (l.createdAt >= from && l.createdAt < to) leadsCreatedMonth++
+   339→
+   340→      // Calls this month: based on contactResultAt
+   341→      if (l.contactResultAt && l.contactResultAt >= from && l.contactResultAt < to) {
+   342→        if (l.contactResult && l.contactResult !== 'none' && l.contactResult !== '') {
+   343→          callsMonth++
+   344→        }
+   345→      }
+   346→
+   347→      // Meetings this month: based on assignedAt
+   348→      if (l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
+   349→        meetingsBooked++
+   350→      }
+   351→
+   352→      // Attended confirmed this month (based on assignedAt within month)
+   353→      if (l.attended === 'attended' && l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
+   354→        attendedConfirmed++
+   355→      }
+   356→
+   357→      // Closed won (all-time for conversion rate)
+   358→      if (l.status === 'closed-won') closedWon++
+   359→    }
+   360→
+   361→    // Conversion rate: this month meetings → closed-won
+   362→    const conversionRate = meetingsBooked > 0 ? Math.round((attendedConfirmed / meetingsBooked) * 1000) / 10 : 0
+   363→
+   364→    return { leadsCreatedMonth, callsMonth, meetingsBooked, attendedConfirmed, closedWon, conversionRate }
+   365→  }, [myLeads, monthRange])
+   366→
+   367→  /* ─── Uncontacted leads count (for urgent strip) ─── */
+   368→  const uncontactedCount = useMemo(() => {
+   369→    return myLeads.filter((l) => !l.contactResult || l.contactResult === 'none' || l.contactResult === '').length
+   370→  }, [myLeads])
+   371→
+   372→  /* ─── PENDING CLIENTS TRACKING (عملاء في الانتظار) ─── */
+   373→  const pendingClients = useMemo(() => {
+   374→    let filtered: Lead[]
+   375→    if (currentRole === 'tele' && currentUser) {
+   376→      filtered = myLeads.filter(
+   377→        (l) => l.sales && l.sales.trim() !== '' && (!l.attended || l.attended === 'pending')
+   378→      )
+   379→    } else {
+   380→      filtered = allActiveLeads.filter(
+   381→        (l) => l.sales && l.sales.trim() !== '' && (!l.attended || l.attended === 'pending')
+   382→      )
+   383→    }
+   384→    return filtered.slice(0, 5)
+   385→  }, [myLeads, allActiveLeads, currentRole, currentUser])
+   386→
+   387→  const pendingClientsTotal = useMemo(() => {
+   388→    if (currentRole === 'tele' && currentUser) {
+   389→      return myLeads.filter(
+   390→        (l) => l.sales && l.sales.trim() !== '' && (!l.attended || l.attended === 'pending')
+   391→      ).length
+   392→    }
+   393→    return allActiveLeads.filter(
+   394→      (l) => l.sales && l.sales.trim() !== '' && (!l.attended || l.attended === 'pending')
+   395→    ).length
+   396→  }, [myLeads, allActiveLeads, currentRole, currentUser])
+   397→
+   398→  /* ─── Target progress (admin-controlled) ─── */
+   399→  const targetProgress = useMemo(() => {
+   400→    const { type, value } = targetSettings
+   401→    const { from, to } = monthRange
+   402→    let achieved = 0
+   403→
+   404→    if (type === 'meetings') {
+   405→      // Count meetings this month based on assignedAt
+   406→      achieved = myLeads.filter((l) => l.assignedAt && l.assignedAt >= from && l.assignedAt < to).length
+   407→    } else if (type === 'closings') {
+   408→      // Count closed-won deals
+   409→      achieved = myLeads.filter((l) => l.status === 'closed-won').length
+   410→    } else if (type === 'money') {
+   411→      achieved = myLeads.filter((l) => l.status === 'closed-won').length
+   412→    }
+   413→
+   414→    const pct = value > 0 ? Math.min(Math.round((achieved / value) * 100), 100) : 0
+   415→    const remaining = Math.max(value - achieved, 0)
+   416→
+   417→    return { achieved, pct, remaining, type, value }
+   418→  }, [targetSettings, myLeads, monthRange])
+   419→
+   420→  const daysLeft = getDaysRemainingInMonth()
+   421→  const monthAr = getCurrentMonthAr()
+   422→
+   423→  /* ─── Weekly Performance (Saturday to Friday) ─── */
+   424→  const weeklyCallsData = useMemo(() => {
+   425→    const { satStart, friEnd } = getWeekRange()
+   426→    const dayCounts = [0, 0, 0, 0, 0, 0, 0]
+   427→
+   428→    for (const l of myLeads) {
+   429→      if (l.contactResultAt && l.contactResultAt >= satStart && l.contactResultAt < friEnd) {
+   430→        if (l.contactResult && l.contactResult !== 'none' && l.contactResult !== '') {
+   431→          const dayIdx = getArabicDayIndex(l.contactResultAt)
+   432→          dayCounts[dayIdx]++
+   433→        }
+   434→      }
+   435→    }
+   436→
+   437→    return ARABIC_DAYS.map((day, i) => ({ day, count: dayCounts[i] }))
+   438→  }, [myLeads])
+   439→
+   440→  const maxWeeklyCall = useMemo(
+   441→    () => Math.max(...weeklyCallsData.map((d) => d.count), 1),
+   442→    [weeklyCallsData]
+   443→  )
+   444→
+   445→  /* ─── Call Stats Period Filter ─── */
+   446→  const [callStatsPeriod, setCallStatsPeriod] = useState<'today' | 'month' | '3months'>('today')
+   447→
+   448→  /* ─── Meeting Stats Period Filter ─── */
+   449→  const [meetingStatsPeriod, setMeetingStatsPeriod] = useState<'today' | 'month' | '3months'>('month')
+   450→
+   451→  /* ─── Call Stats (إحصائيات المكالمات) ─── */
+   452→  const callStats = useMemo(() => {
+   453→    const { from, to } = getDateRange(callStatsPeriod)
+   454→
+   455→    let totalCalls = 0
+   456→    let answered = 0
+   457→    let unanswered = 0
+   458→
+   459→    for (const l of myLeads) {
+   460→      if (l.contactResult && l.contactResult !== 'none' && l.contactResult !== '') {
+   461→        if (l.contactResultAt && l.contactResultAt >= from && l.contactResultAt < to) {
+   462→          totalCalls++
+   463→          if (l.contactResult === 'replied') {
+   464→            answered++
+   465→          }
+   466→          if (l.contactResult === 'no-reply' || l.contactResult === 'busy') {
+   467→            unanswered++
+   468→          }
+   469→        }
+   470→      }
+   471→    }
+   472→
+   473→    const answerRate = totalCalls > 0 ? Math.round((answered / totalCalls) * 100) : 0
+   474→
+   475→    return { totalCalls, answered, unanswered, answerRate }
+   476→  }, [myLeads, callStatsPeriod])
+   477→
+   478→  /* ─── Meeting Stats (إحصائيات الاجتماعات) ─── */
+   479→  const meetingStats = useMemo(() => {
+   480→    const { from, to } = getDateRange(meetingStatsPeriod)
+   481→
+   482→    let totalMeetings = 0
+   483→    let attendedMeetings = 0
+   484→    let pendingMeetings = 0
+   485→    let noShowMeetings = 0
+   486→
+   487→    for (const l of myLeads) {
+   488→      // Filter by assignedAt within the selected period
+   489→      if (l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
+   490→        totalMeetings++
+   491→        if (l.attended === 'attended') {
+   492→          attendedMeetings++
+   493→        } else if (l.attended === 'no-show') {
+   494→          noShowMeetings++
+   495→        } else {
+   496→          pendingMeetings++
+   497→        }
+   498→      }
+   499→    }
+   500→
+   501→    const attendanceRate = totalMeetings > 0 ? Math.round((attendedMeetings / totalMeetings) * 100) : 0
+   502→
+   503→    return { totalMeetings, attendedMeetings, pendingMeetings, noShowMeetings, attendanceRate }
+   504→  }, [myLeads, meetingStatsPeriod])
+   505→
+   506→  /* ─── RANK (مركزك) — Tele team only, based on meetings booked ─── */
+   507→  const rankInfo = useMemo(() => {
+   508→    if (currentRole !== 'tele' || !currentUser) {
+   509→      return { position: 0, totalMembers: 0, meetingsCount: 0, percentile: 0 }
+   510→    }
+   511→
+   512→    const meetingCounts: Record<string, number> = {}
+   513→    for (const member of team.tele) {
+   514→      meetingCounts[member] = 0
+   515→    }
+   516→
+   517→    for (const l of allActiveLeads) {
+   518→      if (l.assignedAt && l.tele && team.tele.includes(l.tele)) {
+   519→        meetingCounts[l.tele] = (meetingCounts[l.tele] || 0) + 1
+   520→      }
+   521→    }
+   522→
+   523→    const sorted = Object.entries(meetingCounts).sort((a, b) => b[1] - a[1])
+   524→    const idx = sorted.findIndex(([name]) => name === currentUser)
+   525→    const position = idx >= 0 ? idx + 1 : sorted.length
+   526→    const meetingsCount = meetingCounts[currentUser] || 0
+   527→    const totalMembers = sorted.length
+   528→
+   529→    const membersBelow = sorted.filter(([_, count]) => count < meetingsCount).length
+   530→    const percentile = totalMembers > 1 ? Math.round((membersBelow / (totalMembers - 1)) * 100) : 0
+   531→
+   532→    return { position, totalMembers, meetingsCount, percentile }
+   533→  }, [currentRole, currentUser, team.tele, allActiveLeads])
+   534→
+   535→  /* ─── Motivational message ─── */
+   536→  const motivation = useMemo(() => {
+   537→    return getMotivationalMessage(kpiValues.meetingsBooked, kpiValues.callsMonth, targetProgress.pct)
+   538→  }, [kpiValues.meetingsBooked, kpiValues.callsMonth, targetProgress.pct])
+   539→
+   540→  /* ─── KPI Cards Config — MONTH BASED ─── */
+   541→  const kpis = [
+   542→    {
+   543→      icon: <UserPlus size={20} />,
+   544→      color: '#6c63ff',
+   545→      colorBg: 'rgba(108,99,255,.15)',
+   546→      value: kpiValues.leadsCreatedMonth,
+   547→      label: 'ليدز جديدة الشهر',
+   548→      target: 100, // default monthly target for progress bar
+   549→    },
+   550→    {
+   551→      icon: <Phone size={20} />,
+   552→      color: '#00d4aa',
+   553→      colorBg: 'rgba(0,212,170,.15)',
+   554→      value: kpiValues.callsMonth,
+   555→      label: 'مكالمات الشهر',
+   556→      target: 200,
+   557→    },
+   558→    {
+   559→      icon: <CalendarCheck size={20} />,
+   560→      color: '#ffd166',
+   561→      colorBg: 'rgba(255,209,102,.15)',
+   562→      value: kpiValues.meetingsBooked,
+   563→      label: 'اجتماعات الشهر',
+   564→      target: 50,
+   565→    },
+   566→    {
+   567→      icon: <UserCheck size={20} />,
+   568→      color: '#00d4aa',
+   569→      colorBg: 'rgba(0,212,170,.15)',
+   570→      value: kpiValues.attendedConfirmed,
+   571→      label: 'حضور مؤكد',
+   572→      target: 30,
+   573→    },
+   574→    {
+   575→      icon: <Percent size={20} />,
+   576→      color: '#ff6b6b',
+   577→      colorBg: 'rgba(255,107,107,.15)',
+   578→      value: kpiValues.conversionRate,
+   579→      label: 'نسبة التحويل',
+   580→      target: 50, // 50% target
+   581→      isPercentage: true,
+   582→    },
+   583→  ]
+   584→
+   585→  /* ─── Important Ratios (نسب مهمة) ─── */
+   586→  const importantRatios = useMemo(() => {
+   587→    const { from, to } = monthRange
+   588→
+   589→    let totalLeads = 0
+   590→    let contactedLeads = 0
+   591→    let repliedLeads = 0
+   592→    let meetingsBooked = 0
+   593→    let attendedLeads = 0
+   594→
+   595→    for (const l of myLeads) {
+   596→      if (l.createdAt >= from && l.createdAt < to) {
+   597→        totalLeads++
+   598→        if (l.contactResult && l.contactResult !== 'none' && l.contactResult !== '') {
+   599→          contactedLeads++
+   600→        }
+   601→        if (l.contactResult === 'replied') {
+   602→          repliedLeads++
+   603→        }
+   604→      }
+   605→      if (l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
+   606→        meetingsBooked++
+   607→        if (l.attended === 'attended') {
+   608→          attendedLeads++
+   609→        }
+   610→      }
+   611→    }
+   612→
+   613→    return [
+   614→      {
+   615→        label: 'نسبة التواصل',
+   616→        value: totalLeads > 0 ? Math.round((contactedLeads / totalLeads) * 100) : 0,
+   617→        color: '#6c63ff',
+   618→        description: 'العملاء الذين تم التواصل معهم من إجمالي الليدز',
+   619→      },
+   620→      {
+   621→        label: 'نسبة الرد',
+   622→        value: contactedLeads > 0 ? Math.round((repliedLeads / contactedLeads) * 100) : 0,
+   623→        color: '#00d4aa',
+   624→        description: 'العملاء الذين ردوا من إجمالي المتواصل معهم',
+   625→      },
+   626→      {
+   627→        label: 'نسبة الاجتماعات',
+   628→        value: contactedLeads > 0 ? Math.round((meetingsBooked / contactedLeads) * 100) : 0,
+   629→        color: '#ffd166',
+   630→        description: 'الاجتماعات المحجوزة من إجمالي المتواصل معهم',
+   631→      },
+   632→      {
+   633→        label: 'نسبة الحضور',
+   634→        value: meetingsBooked > 0 ? Math.round((attendedLeads / meetingsBooked) * 100) : 0,
+   635→        color: '#ff6b6b',
+   636→        description: 'العملاء الذين حضروا من إجمالي الاجتماعات',
+   637→      },
+   638→    ]
+   639→  }, [myLeads, monthRange])
+   640→
+   641→  /* ─── Target dialog handlers ─── */
+   642→  const openTargetDialog = useCallback(() => {
+   643→    setEditTargetType(targetSettings.type)
+   644→    setEditTargetValue(targetSettings.value)
+   645→    setTargetDialogOpen(true)
+   646→  }, [targetSettings])
+   647→
+   648→  const handleSaveTarget = useCallback(async () => {
+   649→    setSavingTarget(true)
+   650→    const newSettings: TargetSettings = { type: editTargetType, value: editTargetValue }
+   651→    const success = await apiSaveTarget(newSettings)
+   652→    if (success) {
+   653→      setTargetSettings(newSettings)
+   654→    }
+   655→    setSavingTarget(false)
+   656→    setTargetDialogOpen(false)
+   657→  }, [editTargetType, editTargetValue, setTargetSettings])
+   658→
+   659→  /* ─── Urgent strip handler ─── */
+   660→  const handleShowUncontacted = useCallback(() => {
+   661→    setCurrentView('my-sheet')
+   662→    setActiveFilter('tele-sheet', 'uncontacted')
+   663→  }, [setCurrentView, setActiveFilter])
+   664→
+   665→  /* ─── Pending clients handler ─── */
+   666→  const handleShowPendingClients = useCallback(() => {
+   667→    setCurrentView('transfers')
+   668→  }, [setCurrentView])
+   669→
+   670→  /* ─── Target type labels ─── */
+   671→  const targetTypeLabel = useMemo(() => {
+   672→    switch (targetSettings.type) {
+   673→      case 'meetings': return 'اجتماعات'
+   674→      case 'money': return 'إيرادات'
+   675→      case 'closings': return 'تقفيلات'
+   676→    }
+   677→  }, [targetSettings.type])
+   678→
+   679→  /* ═══════════════ RENDER ═══════════════ */
+   680→  return (
+   681→    <div dir="rtl" className="space-y-6" style={{ fontFamily: 'Cairo, sans-serif' }}>
+   682→      <InjectAnimations />
+   683→
+   684→      {/* ══════════════════════════════════════════════════
+   685→          1. URGENT STRIP — Uncontacted leads
+   686→          ══════════════════════════════════════════════════ */}
+   687→      {currentRole === 'tele' && uncontactedCount > 0 && (
+   688→        <div className="section-animate" style={{ animationDelay: '0.1s' }}>
+   689→          <div className="relative flex items-center gap-3 bg-gradient-to-br from-[#ff6b6b]/10 to-[#ff6b6b]/4 border border-[#ff6b6b]/20 rounded-2xl px-5 md:px-6 py-4 overflow-hidden">
+   690→            {/* Ping indicator */}
+   691→            <span className="absolute -top-1 -right-1 w-3 h-3">
+   692→              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#ff6b6b] opacity-75" />
+   693→              <span className="relative inline-flex h-3 w-3 rounded-full bg-[#ff6b6b]" />
+   694→            </span>
+   695→
+   696→            {/* Fire icon */}
+   697→            <div className="w-12 h-12 rounded-xl bg-[#ff6b6b]/15 flex items-center justify-center shrink-0">
+   698→              <Flame size={24} className="text-[#ff6b6b]" />
+   699→            </div>
+   700→
+   701→            {/* Text */}
+   702→            <div className="flex-1 min-w-0">
+   703→              <div className="text-[19px] font-extrabold text-[#ffffff]">
+   704→                {uncontactedCount} عملاء لم يتم التواصل معهم!
+   705→              </div>
+   706→              <div className="text-[14px] font-bold text-[#b0b8d0] mt-0.5 truncate">
+   707→                ابدأ بالتواصل معهم الآن
+   708→              </div>
+   709→            </div>
+   710→
+   711→            {/* CTA button */}
+   712→            <button
+   713→              onClick={handleShowUncontacted}
+   714→              className="bg-[#161b28] border border-[#ff6b6b]/50 text-[#ff6b6b] px-4 py-2 rounded-xl text-[13px] font-bold hover:bg-[#ff6b6b]/10 transition-all cursor-pointer shrink-0 hidden sm:flex items-center gap-1.5"
+   715→            >
+   716→              عرض الكل
+   717→              <ArrowLeft size={12} />
+   718→            </button>
+   719→          </div>
+   720→        </div>
+   721→      )}
+   722→
+   723→      {/* ══════════════════════════════════════════════════
+   724→          2. MOTIVATIONAL BANNER
+   725→          ══════════════════════════════════════════════════ */}
+   726→      <div className="motivational-banner" style={{ animationDelay: '0.2s' }}>
+   727→        <div className="bg-gradient-to-br from-[#6c63ff]/10 to-[#00d4aa]/5 border border-[#6c63ff]/15 rounded-2xl px-5 py-3.5 flex items-center gap-3">
+   728→          <span className="text-[28px]">{motivation.emoji}</span>
+   729→          <span className="text-[16px] font-bold text-[#f0f2ff]">{motivation.text}</span>
+   730→          <span className="text-[13px] font-bold text-[#8b83ff] mr-auto">
+   731→            {monthAr} {new Date().getFullYear()}
+   732→          </span>
+   733→        </div>
+   734→      </div>
+   735→
+   736→      {/* ══════════════════════════════════════════════════
+   737→          3. KPI CARDS ROW — Current Month Based
+   738→          ══════════════════════════════════════════════════ */}
+   739→      <div
+   740→        className="grid gap-4"
+   741→        style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}
+   742→      >
+   743→        {kpis.map((kpi, i) => {
+   744→          const progressPct = kpi.isPercentage
+   745→            ? kpi.value
+   746→            : Math.min(Math.round((kpi.value / kpi.target) * 100), 100)
+   747→
+   748→          return (
+   749→            <div
+   750→              key={i}
+   751→              className="kpi-card-animate bg-[#111520] border border-white/[0.06] rounded-2xl p-5 relative overflow-hidden transition-all duration-300 cursor-default group"
+   752→              style={{
+   753→                animationDelay: `${0.1 + i * 0.08}s`,
+   754→                '--glow-color': `${kpi.color}33` as string,
+   755→              }}
+   756→              onMouseEnter={(e) => {
+   757→                e.currentTarget.style.boxShadow = `0 0 24px ${kpi.color}22`
+   758→                e.currentTarget.style.borderColor = `${kpi.color}44`
+   759→              }}
+   760→              onMouseLeave={(e) => {
+   761→                e.currentTarget.style.boxShadow = 'none'
+   762→                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'
+   763→              }}
+   764→            >
+   765→              {/* Decorative corner */}
+   766→              <div
+   767→                className="absolute top-0 right-0 w-[64px] h-[64px] rounded-t-2xl rounded-bl-[64px] opacity-[0.07]"
+   768→                style={{ background: kpi.color }}
+   769→              />
+   770→
+   771→              {/* Icon */}
+   772→              <div
+   773→                className="w-11 h-11 rounded-xl flex items-center justify-center mb-3"
+   774→                style={{ background: kpi.colorBg, color: kpi.color }}
+   775→              >
+   776→                {kpi.icon}
+   777→              </div>
+   778→
+   779→              {/* Value — animated counter */}
+   780→              <div
+   781→                className="text-[30px] md:text-[32px] font-black leading-tight"
+   782→                style={{ color: kpi.color, fontFamily: 'Cairo, sans-serif' }}
+   783→              >
+   784→                {kpi.isPercentage ? (
+   785→                  <><AnimatedCounter value={kpi.value} />%</>
+   786→                ) : (
+   787→                  <AnimatedCounter value={kpi.value} />
+   788→                )}
+   789→              </div>
+   790→
+   791→              {/* Label */}
+   792→              <div className="text-[14px] font-bold text-[#b0b8d0] mt-1">{kpi.label}</div>
+   793→
+   794→              {/* Progress bar at bottom */}
+   795→              <div className="mt-3">
+   796→                <AnimatedProgressBar
+   797→                  percentage={progressPct}
+   798→                  color={kpi.color}
+   799→                  height={3}
+   800→                  delay={i * 80}
+   801→                />
+   802→                <div className="flex justify-between mt-1">
+   803→                  <span className="text-[10px] font-bold text-[#6b7394]">
+   804→                    {kpi.isPercentage ? `${kpi.value}%` : `${progressPct}% من الهدف`}
+   805→                  </span>
+   806→                </div>
+   807→              </div>
+   808→            </div>
+   809→          )
+   810→        })}
+   811→      </div>
+   812→
+   813→      {/* ══════════════════════════════════════════════════
+   814→          4. IMPORTANT RATIOS (نسب مهمة) — Animated Progress Bars
+   815→          ══════════════════════════════════════════════════ */}
+   816→      <div className="section-animate" style={{ animationDelay: '0.5s' }}>
+   817→        <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 md:p-6">
+   818→          <div className="flex items-center gap-2 text-[19px] font-extrabold text-[#ffffff] mb-4">
+   819→            <TrendingUp size={20} className="text-[#8b83ff]" />
+   820→            نسب مهمة — {monthAr}
+   821→          </div>
+   822→
+   823→          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   824→            {importantRatios.map((ratio, i) => (
+   825→              <div key={i} className="bg-[#0a0d14] rounded-xl p-4">
+   826→                <div className="flex items-center justify-between mb-2">
+   827→                  <span className="text-[15px] font-bold text-[#f0f2ff]">{ratio.label}</span>
+   828→                  <span
+   829→                    className="text-[20px] font-black"
+   830→                    style={{ color: ratio.color, fontFamily: 'Cairo, sans-serif' }}
+   831→                  >
+   832→                    <AnimatedCounter value={ratio.value} />%
+   833→                  </span>
+   834→                </div>
+   835→                <AnimatedProgressBar
+   836→                  percentage={ratio.value}
+   837→                  color={ratio.color}
+   838→                  height={8}
+   839→                  delay={i * 120}
+   840→                />
+   841→                <div className="text-[12px] font-bold text-[#6b7394] mt-2">
+   842→                  {ratio.description}
+   843→                </div>
+   844→              </div>
+   845→            ))}
+   846→          </div>
+   847→        </div>
+   848→      </div>
+   849→
+   850→      {/* ══════════════════════════════════════════════════
+   851→          5. TARGET PROGRESS BAR — Admin-controlled
+   852→          ══════════════════════════════════════════════════ */}
+   853→      <div className="section-animate" style={{ animationDelay: '0.6s' }}>
+   854→        <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 md:p-6">
+   855→          <div className="flex justify-between items-center mb-4">
+   856→            <div>
+   857→              <div className="text-[19px] font-extrabold text-[#ffffff] flex items-center gap-2">
+   858→                <Target size={20} className="text-[#8b83ff]" />
+   859→                تارجت الشهر — {monthAr} {new Date().getFullYear()}
+   860→                {currentRole === 'admin' && (
+   861→                  <button
+   862→                    onClick={openTargetDialog}
+   863→                    className="w-8 h-8 rounded-lg bg-[#8b83ff]/10 flex items-center justify-center text-[#8b83ff] hover:bg-[#8b83ff]/20 transition-colors cursor-pointer"
+   864→                    title="تعديل التارجت"
+   865→                  >
+   866→                    <Settings2 size={16} />
+   867→                  </button>
+   868→                )}
+   869→              </div>
+   870→              <div className="text-[14px] font-bold text-[#b0b8d0] mt-1">
+   871→                {targetProgress.achieved} من أصل {targetProgress.value} {targetTypeLabel}
+   872→              </div>
+   873→            </div>
+   874→            <div
+   875→              className="text-[34px] font-black text-[#8b83ff]"
+   876→              style={{ fontFamily: 'Cairo, sans-serif' }}
+   877→            >
+   878→              {targetProgress.pct}%
+   879→            </div>
+   880→          </div>
+   881→
+   882→          {/* Progress bar — pulses when near target */}
+   883→          <div className="h-3 bg-[#0a0d14] rounded-full overflow-hidden mb-2.5 relative">
+   884→            <div
+   885→              className={`h-full rounded-full transition-all duration-1000 ease-out ${targetProgress.pct >= 80 ? 'animate-pulse' : ''}`}
+   886→              style={{
+   887→                background: targetProgress.pct >= 80
+   888→                  ? 'linear-gradient(to left, #00ffbb, #8b83ff, #ffd166)'
+   889→                  : 'linear-gradient(to left, #8b83ff, #00ffbb)',
+   890→                width: `${targetProgress.pct}%`,
+   891→              }}
+   892→            />
+   893→            {targetProgress.pct >= 80 && (
+   894→              <div className="absolute inset-0 rounded-full" style={{
+   895→                background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent)',
+   896→                animation: 'target-pulse 2s ease-in-out infinite',
+   897→              }} />
+   898→            )}
+   899→          </div>
+   900→
+   901→          <div className="flex items-center justify-between text-[14px] font-bold text-[#b0b8d0]">
+   902→            <span>تبقى {targetProgress.remaining} {targetTypeLabel} للوصول للهدف</span>
+   903→            <span>{daysLeft} يوم متبقي</span>
+   904→          </div>
+   905→        </div>
+   906→      </div>
+   907→
+   908→      {/* ══════════════════════════════════════════════════
+   909→          6. TWO-COLUMN GRID
+   910→          ══════════════════════════════════════════════════ */}
+   911→      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 section-animate" style={{ animationDelay: '0.7s' }}>
+   912→        {/* ─── LEFT: Pending Clients (عملاء في الانتظار) ─── */}
+   913→        <div>
+   914→          <div
+   915→            className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 md:p-6 h-full cursor-pointer hover:border-[#ffd166]/20 transition-all"
+   916→            onClick={handleShowPendingClients}
+   917→          >
+   918→            <div className="flex items-center justify-between mb-4">
+   919→              <div className="flex items-center gap-2 text-[19px] font-extrabold text-[#ffffff]">
+   920→                <Clock size={20} className="text-[#ffd166]" />
+   921→                عملاء في الانتظار
+   922→              </div>
+   923→              {pendingClientsTotal > 0 && (
+   924→                <button
+   925→                  onClick={(e) => { e.stopPropagation(); handleShowPendingClients() }}
+   926→                  className="bg-[#161b28] border border-[#ffd166]/50 text-[#ffd166] px-3 py-1.5 rounded-xl text-[12px] font-bold hover:bg-[#ffd166]/10 transition-all cursor-pointer flex items-center gap-1"
+   927→                >
+   928→                  عرض الكل
+   929→                  <ArrowLeft size={10} />
+   930→                </button>
+   931→              )}
+   932→            </div>
+   933→
+   934→            {pendingClients.length > 0 ? (
+   935→              <div className="space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
+   936→                {pendingClients.map((lead) => {
+   937→                  const initials = getInitials(lead.customerName || lead.phone)
+   938→                  return (
+   939→                    <div
+   940→                      key={lead.id}
+   941→                      className="flex items-center gap-3 py-2.5 px-3 border border-white/[0.04] rounded-xl hover:bg-white/[0.02] transition-colors"
+   942→                    >
+   943→                      {/* Avatar */}
+   944→                      <div
+   945→                        className="w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0"
+   946→                        style={{
+   947→                          background: 'rgba(255,209,102,0.15)',
+   948→                          color: '#ffd166',
+   949→                          border: '1px solid rgba(255,209,102,0.2)',
+   950→                        }}
+   951→                      >
+   952→                        {initials}
+   953→                      </div>
+   954→
+   955→                      {/* Info */}
+   956→                      <div className="flex-1 min-w-0">
+   957→                        <div className="text-[15px] font-bold text-[#ffffff] truncate">
+   958→                          {lead.customerName || 'عميل'}
+   959→                        </div>
+   960→                        <div className="text-[13px] font-bold text-[#b0b8d0] truncate">
+   961→                          {lead.sales && (
+   962→                            <span className="text-[#00d4aa]">السيلز: {lead.sales}</span>
+   963→                          )}
+   964→                          {lead.meetingDate && (
+   965→                            <span className="mr-2">📅 {lead.meetingDate}{lead.meetingTime ? ` ${lead.meetingTime}` : ''}</span>
+   966→                          )}
+   967→                        </div>
+   968→                      </div>
+   969→
+   970→                      {/* Pending badge */}
+   971→                      <span
+   972→                        className="text-[12px] font-bold px-2.5 py-1 rounded-full shrink-0"
+   973→                        style={{ background: 'rgba(255,209,102,0.15)', color: '#ffd166' }}
+   974→                      >
+   975→                        ⏳ انتظار
+   976→                      </span>
+   977→
+   978→                      {/* Phone action */}
+   979→                      <a
+   980→                        href={`tel:${lead.phone}`}
+   981→                        className="w-9 h-9 rounded-lg bg-[#00d4aa]/10 flex items-center justify-center text-[#00d4aa] hover:bg-[#00d4aa]/20 transition-colors shrink-0"
+   982→                        title="اتصال"
+   983→                        onClick={(e) => e.stopPropagation()}
+   984→                      >
+   985→                        <Phone size={15} />
+   986→                      </a>
+   987→                    </div>
+   988→                  )
+   989→                })}
+   990→              </div>
+   991→            ) : (
+   992→              <div className="text-[13px] font-semibold text-[#8892b0] py-6 text-center">
+   993→                لا يوجد عملاء في الانتظار 🎉
+   994→              </div>
+   995→            )}
+   996→
+   997→            {pendingClientsTotal > 0 && (
+   998→              <div className="mt-3 pt-3 border-t border-white/[0.06] flex items-center justify-between">
+   999→                <span className="text-[14px] font-bold text-[#b0b8d0]">إجمالي العملاء في الانتظار</span>
+  1000→                <span className="text-[17px] font-bold text-[#ffd166]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+  1001→                  {pendingClientsTotal}
+  1002→                </span>
+  1003→              </div>
+  1004→            )}
+  1005→          </div>
+  1006→        </div>
+  1007→
+  1008→        {/* ─── RIGHT: Weekly Performance (Saturday to Friday) ─── */}
+  1009→        <div>
+  1010→          <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 md:p-6 h-full">
+  1011→            <div className="flex items-center gap-2 text-[19px] font-extrabold text-[#ffffff] mb-4">
+  1012→              <PhoneCall size={20} className="text-[#8b83ff]" />
+  1013→              أداء الأسبوع
+  1014→            </div>
+  1015→
+  1016→            <div className="space-y-3">
+  1017→              {weeklyCallsData.map((dayData) => {
+  1018→                const pct = (dayData.count / maxWeeklyCall) * 100
+  1019→                const isMax = dayData.count === maxWeeklyCall && dayData.count > 0
+  1020→                return (
+  1021→                  <div key={dayData.day} className="flex items-center gap-3">
+  1022→                    {/* Day label */}
+  1023→                    <div className="w-16 text-[14px] font-bold text-[#b0b8d0] text-left shrink-0">
+  1024→                      {dayData.day}
+  1025→                    </div>
+  1026→
+  1027→                    {/* Bar */}
+  1028→                    <div className="flex-1 h-6 bg-[#0a0d14] rounded-lg overflow-hidden relative">
+  1029→                      <div
+  1030→                        className="h-full rounded-lg transition-all duration-700 ease-out"
+  1031→                        style={{
+  1032→                          background: isMax
+  1033→                            ? 'linear-gradient(to left, #6c63ff, #00d4aa)'
+  1034→                            : 'rgba(108,99,255,0.5)',
+  1035→                          width: `${pct}%`,
+  1036→                        }}
+  1037→                      />
+  1038→                      {/* Count inside bar */}
+  1039→                      <div className="absolute inset-0 flex items-center justify-end px-2">
+  1040→                        <span className="text-[14px] font-bold text-[#ffffff]">
+  1041→                          {dayData.count}
+  1042→                        </span>
+  1043→                      </div>
+  1044→                    </div>
+  1045→                  </div>
+  1046→                )
+  1047→              })}
+  1048→            </div>
+  1049→
+  1050→            {/* Weekly total */}
+  1051→            <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center justify-between">
+  1052→              <span className="text-[14px] font-bold text-[#b0b8d0]">إجمالي الأسبوع</span>
+  1053→              <span
+  1054→                className="text-[17px] font-bold text-[#8b83ff]"
+  1055→                style={{ fontFamily: 'Cairo, sans-serif' }}
+  1056→              >
+  1057→                {weeklyCallsData.reduce((s, d) => s + d.count, 0)} مكالمة
+  1058→              </span>
+  1059→            </div>
+  1060→          </div>
+  1061→        </div>
+  1062→      </div>
+  1063→
+  1064→      {/* ══════════════════════════════════════════════════
+  1065→          7. THREE-COLUMN GRID
+  1066→          ══════════════════════════════════════════════════ */}
+  1067→      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 section-animate" style={{ animationDelay: '0.8s' }}>
+  1068→        {/* ─── Call Stats (إحصائيات المكالمات) ─── */}
+  1069→        <div>
+  1070→          <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 md:p-6 text-center">
+  1071→            <div className="flex items-center justify-center gap-2 text-[19px] font-extrabold text-[#ffffff] mb-4">
+  1072→              <Phone size={20} className="text-[#8b83ff]" />
+  1073→              إحصائيات المكالمات
+  1074→            </div>
+  1075→
+  1076→            {/* Period filter tabs */}
+  1077→            <div className="flex justify-center gap-2 mb-4">
+  1078→              {([
+  1079→                { key: 'today' as const, label: 'اليوم' },
+  1080→                { key: 'month' as const, label: 'الشهر' },
+  1081→                { key: '3months' as const, label: '3 شهور' },
+  1082→              ]).map((opt) => (
+  1083→                <button
+  1084→                  key={opt.key}
+  1085→                  onClick={() => setCallStatsPeriod(opt.key)}
+  1086→                  className={`px-3 py-1.5 rounded-xl text-[13px] font-bold transition-all cursor-pointer border ${
+  1087→                    callStatsPeriod === opt.key
+  1088→                      ? 'bg-[#6c63ff]/20 border-[#6c63ff] text-[#6c63ff]'
+  1089→                      : 'bg-[#0a0d14] border-white/[0.06] text-[#8892b0] hover:border-white/[0.12]'
+  1090→                  }`}
+  1091→                >
+  1092→                  {opt.label}
+  1093→                </button>
+  1094→              ))}
+  1095→            </div>
+  1096→
+  1097→            {/* Total calls */}
+  1098→            <div className="text-[34px] font-black text-[#00ffbb]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+  1099→              <AnimatedCounter value={callStats.totalCalls} />
+  1100→            </div>
+  1101→            <div className="text-[14px] font-bold text-[#b0b8d0] mt-1">إجمالي المكالمات</div>
+  1102→
+  1103→            <div className="flex justify-center gap-5 mt-4 pt-3 border-t border-white/[0.06]">
+  1104→              <div>
+  1105→                <div className="flex items-center justify-center gap-1 text-[#00d4aa]">
+  1106→                  <PhoneIncoming size={14} />
+  1107→                  <span className="text-[20px] font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>
+  1108→                    <AnimatedCounter value={callStats.answered} />
+  1109→                  </span>
+  1110→                </div>
+  1111→                <div className="text-[13px] font-bold text-[#b0b8d0]">مجابة</div>
+  1112→              </div>
+  1113→              <div>
+  1114→                <div className="flex items-center justify-center gap-1 text-[#ff6b6b]">
+  1115→                  <PhoneOff size={14} />
+  1116→                  <span className="text-[20px] font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>
+  1117→                    <AnimatedCounter value={callStats.unanswered} />
+  1118→                  </span>
+  1119→                </div>
+  1120→                <div className="text-[13px] font-bold text-[#b0b8d0]">غير مجابة</div>
+  1121→              </div>
+  1122→            </div>
+  1123→
+  1124→            {/* Answer rate */}
+  1125→            <div className="mt-4 pt-3 border-t border-white/[0.06]">
+  1126→              <div className="flex items-center justify-center gap-1.5">
+  1127→                <Percent size={14} className="text-[#8b83ff]" />
+  1128→                <span className="text-[16px] font-bold text-[#8b83ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+  1129→                  نسبة الإجابة: <AnimatedCounter value={callStats.answerRate} />%
+  1130→                </span>
+  1131→              </div>
+  1132→            </div>
+  1133→          </div>
+  1134→        </div>
+  1135→
+  1136→        {/* ─── Meeting Stats (إحصائيات الاجتماعات) ─── */}
+  1137→        <div>
+  1138→          <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 md:p-6 text-center">
+  1139→            <div className="flex items-center justify-center gap-2 text-[19px] font-extrabold text-[#ffffff] mb-4">
+  1140→              <Calendar size={20} className="text-[#ffd166]" />
+  1141→              إحصائيات الاجتماعات
+  1142→            </div>
+  1143→
+  1144→            {/* Period filter tabs — same as call stats */}
+  1145→            <div className="flex justify-center gap-2 mb-4">
+  1146→              {([
+  1147→                { key: 'today' as const, label: 'اليوم' },
+  1148→                { key: 'month' as const, label: 'الشهر' },
+  1149→                { key: '3months' as const, label: '3 شهور' },
+  1150→              ]).map((opt) => (
+  1151→                <button
+  1152→                  key={opt.key}
+  1153→                  onClick={() => setMeetingStatsPeriod(opt.key)}
+  1154→                  className={`px-3 py-1.5 rounded-xl text-[13px] font-bold transition-all cursor-pointer border ${
+  1155→                    meetingStatsPeriod === opt.key
+  1156→                      ? 'bg-[#ffd166]/20 border-[#ffd166] text-[#ffd166]'
+  1157→                      : 'bg-[#0a0d14] border-white/[0.06] text-[#8892b0] hover:border-white/[0.12]'
+  1158→                  }`}
+  1159→                >
+  1160→                  {opt.label}
+  1161→                </button>
+  1162→              ))}
+  1163→            </div>
+  1164→
+  1165→            {/* Total meetings */}
+  1166→            <div className="text-[34px] font-black text-[#ffd166]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+  1167→              <AnimatedCounter value={meetingStats.totalMeetings} />
+  1168→            </div>
+  1169→            <div className="text-[14px] font-bold text-[#b0b8d0] mt-1">إجمالي الاجتماعات</div>
+  1170→
+  1171→            <div className="flex justify-center gap-4 mt-4 pt-3 border-t border-white/[0.06]">
+  1172→              <div>
+  1173→                <div className="flex items-center justify-center gap-1 text-[#00d4aa]">
+  1174→                  <CheckCircle2 size={14} />
+  1175→                  <span className="text-[20px] font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>
+  1176→                    <AnimatedCounter value={meetingStats.attendedMeetings} />
+  1177→                  </span>
+  1178→                </div>
+  1179→                <div className="text-[13px] font-bold text-[#b0b8d0]">حضروا</div>
+  1180→              </div>
+  1181→              <div>
+  1182→                <div className="flex items-center justify-center gap-1 text-[#ffd166]">
+  1183→                  <Hourglass size={14} />
+  1184→                  <span className="text-[20px] font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>
+  1185→                    <AnimatedCounter value={meetingStats.pendingMeetings} />
+  1186→                  </span>
+  1187→                </div>
+  1188→                <div className="text-[13px] font-bold text-[#b0b8d0]">انتظار</div>
+  1189→              </div>
+  1190→              <div>
+  1191→                <div className="flex items-center justify-center gap-1 text-[#ff6b6b]">
+  1192→                  <PhoneOff size={14} />
+  1193→                  <span className="text-[20px] font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>
+  1194→                    <AnimatedCounter value={meetingStats.noShowMeetings} />
+  1195→                  </span>
+  1196→                </div>
+  1197→                <div className="text-[13px] font-bold text-[#b0b8d0]">لم يحضروا</div>
+  1198→              </div>
+  1199→            </div>
+  1200→
+  1201→            {/* Attendance rate */}
+  1202→            <div className="mt-4 pt-3 border-t border-white/[0.06]">
+  1203→              <div className="flex items-center justify-center gap-1.5">
+  1204→                <Percent size={14} className="text-[#ffd166]" />
+  1205→                <span className="text-[16px] font-bold text-[#ffd166]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+  1206→                  نسبة الحضور: <AnimatedCounter value={meetingStats.attendanceRate} />%
+  1207→                </span>
+  1208→              </div>
+  1209→              {/* Mini progress bar for attendance rate */}
+  1210→              <div className="mt-2">
+  1211→                <AnimatedProgressBar
+  1212→                  percentage={meetingStats.attendanceRate}
+  1213→                  color="#ffd166"
+  1214→                  height={4}
+  1215→                  delay={200}
+  1216→                />
+  1217→              </div>
+  1218→            </div>
+  1219→          </div>
+  1220→        </div>
+  1221→
+  1222→        {/* ─── مركزك (Your Rank) — Tele team only ─── */}
+  1223→        <div>
+  1224→          <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 md:p-6 text-center">
+  1225→            <div className="flex items-center justify-center gap-2 text-[19px] font-extrabold text-[#ffffff] mb-4">
+  1226→              <Trophy size={20} className="text-[#ffdd88]" />
+  1227→              مركزك
+  1228→            </div>
+  1229→
+  1230→            {currentRole === 'tele' && currentUser ? (
+  1231→              <>
+  1232→                <div className="text-[46px] leading-none">
+  1233→                  {rankInfo.position === 1 ? '🥇' : rankInfo.position === 2 ? '🥈' : rankInfo.position === 3 ? '🥉' : '🏆'}
+  1234→                </div>
+  1235→                <div
+  1236→                  className="text-[22px] font-bold text-[#ffdd88] mt-2"
+  1237→                  style={{ fontFamily: 'Cairo, sans-serif' }}
+  1238→                >
+  1239→                  {getPositionLabelAr(rankInfo.position)}
+  1240→                </div>
+  1241→                <div className="text-[14px] font-bold text-[#b0b8d0] mt-1">
+  1242→                  {rankInfo.meetingsCount} اجتماع — {monthAr} {new Date().getFullYear()}
+  1243→                </div>
+  1244→                {rankInfo.totalMembers > 1 && (
+  1245→                  <div className="mt-3 pt-3 border-t border-white/[0.06]">
+  1246→                    <div className="flex items-center justify-center gap-1.5 mb-2">
+  1247→                      <span className="w-2 h-2 rounded-full bg-[#00ffbb]" />
+  1248→                      <span className="text-[14px] font-bold text-[#00ffbb]">
+  1249→                        أعلى من {rankInfo.percentile}% من الفريق
+  1250→                      </span>
+  1251→                    </div>
+  1252→                    {/* Percentile progress bar */}
+  1253→                    <AnimatedProgressBar
+  1254→                      percentage={rankInfo.percentile}
+  1255→                      color="#00ffbb"
+  1256→                      height={4}
+  1257→                      delay={300}
+  1258→                    />
+  1259→                  </div>
+  1260→                )}
+  1261→              </>
+  1262→            ) : (
+  1263→              <>
+  1264→                <div className="text-[46px] leading-none">🏆</div>
+  1265→                <div
+  1266→                  className="text-[18px] font-bold text-[#8892b0] mt-2"
+  1267→                  style={{ fontFamily: 'Cairo, sans-serif' }}
+  1268→                >
+  1269→                  متاح لفريق التلي فقط
+  1270→                </div>
+  1271→                <div className="text-[14px] font-bold text-[#b0b8d0] mt-1">
+  1272→                  تصنيف بناءً على عدد الاجتماعات
+  1273→                </div>
+  1274→              </>
+  1275→            )}
+  1276→          </div>
+  1277→        </div>
+  1278→      </div>
+  1279→
+  1280→      {/* ══════════════════════════════════════════════════
+  1281→          TARGET SETTINGS DIALOG (Admin only)
+  1282→          ══════════════════════════════════════════════════ */}
+  1283→      <Dialog open={targetDialogOpen} onOpenChange={setTargetDialogOpen}>
+  1284→        <DialogContent className="bg-[#111520] border-white/[0.06] text-[#f0f2ff]" dir="rtl" style={{ fontFamily: 'Cairo, sans-serif' }}>
+  1285→          <DialogHeader>
+  1286→            <DialogTitle className="text-[#f0f2ff] text-right">إعدادات التارجت</DialogTitle>
+  1287→          </DialogHeader>
+  1288→
+  1289→          <div className="space-y-4 py-2">
+  1290→            {/* Target type */}
+  1291→            <div>
+  1292→              <label className="text-[14px] font-bold text-[#b0b8d0] block mb-2">نوع التارجت</label>
+  1293→              <div className="flex gap-2">
+  1294→                {([
+  1295→                  { key: 'meetings', label: 'اجتماعات' },
+  1296→                  { key: 'money', label: 'إيرادات' },
+  1297→                  { key: 'closings', label: 'تقفيلات' },
+  1298→                ] as const).map((opt) => (
+  1299→                  <button
+  1300→                    key={opt.key}
+  1301→                    onClick={() => setEditTargetType(opt.key)}
+  1302→                    className={`flex-1 px-4 py-2.5 rounded-xl text-[14px] font-bold transition-all cursor-pointer border ${
+  1303→                      editTargetType === opt.key
+  1304→                        ? 'bg-[#6c63ff]/20 border-[#6c63ff] text-[#6c63ff]'
+  1305→                        : 'bg-[#0a0d14] border-white/[0.06] text-[#8892b0] hover:border-white/[0.12]'
+  1306→                    }`}
+  1307→                  >
+  1308→                    {opt.label}
+  1309→                  </button>
+  1310→                ))}
+  1311→              </div>
+  1312→            </div>
+  1313→
+  1314→            {/* Target value */}
+  1315→            <div>
+  1316→              <label className="text-[14px] font-bold text-[#b0b8d0] block mb-2">القيمة المستهدفة</label>
+  1317→              <input
+  1318→                type="number"
+  1319→                value={editTargetValue}
+  1320→                onChange={(e) => setEditTargetValue(Number(e.target.value))}
+  1321→                className="w-full bg-[#0a0d14] border border-white/[0.06] rounded-xl px-4 py-2.5 text-[16px] font-bold text-[#f0f2ff] focus:border-[#6c63ff] focus:outline-none transition-colors"
+  1322→                min={1}
+  1323→                dir="ltr"
+  1324→              />
+  1325→            </div>
+  1326→          </div>
+  1327→
+  1328→          <DialogFooter className="gap-2">
+  1329→            <DialogClose asChild>
+  1330→              <button className="px-4 py-2 rounded-xl text-[14px] font-bold bg-[#0a0d14] border border-white/[0.06] text-[#8892b0] hover:text-[#b0b8d0] transition-colors cursor-pointer">
+  1331→                إلغاء
+  1332→              </button>
+  1333→            </DialogClose>
+  1334→            <button
+  1335→              onClick={handleSaveTarget}
+  1336→              disabled={savingTarget || editTargetValue < 1}
+  1337→              className="px-4 py-2 rounded-xl text-[14px] font-bold bg-[#6c63ff] text-white hover:bg-[#5a52e0] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+  1338→            >
+  1339→              <Save size={14} />
+  1340→              {savingTarget ? 'جاري الحفظ...' : 'حفظ'}
+  1341→            </button>
+  1342→          </DialogFooter>
+  1343→        </DialogContent>
+  1344→      </Dialog>
+  1345→    </div>
+  1346→  )
+  1347→}
+  1348→

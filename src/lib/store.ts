@@ -144,6 +144,8 @@ interface CrmStore {
   isAuthenticated: boolean
   userId: string | null
   username: string | null
+  hydrating: boolean
+  setHydrating: (h: boolean) => void
 
   // Navigation
   currentView: ViewName
@@ -283,15 +285,19 @@ function persistAuth(user: string | null, role: 'tele' | 'sales' | 'admin' | nul
 
 // ===== Store Implementation =====
 export const useCrmStore = create<CrmStore>((set, get) => ({
-  // Auth (starts as logged out, will hydrate from localStorage on client)
+  // Auth (starts as logged out — will be hydrated from localStorage on first client mount)
   currentUser: null,
   currentRole: null,
   isAuthenticated: false,
   userId: null,
   username: null,
+  // Hydrating flag — true until first client mount restores auth from localStorage
+  // This prevents showing login screen during the brief moment before hydration
+  hydrating: true,
+  setHydrating: (h: boolean) => set({ hydrating: h }),
 
   // Navigation
-  currentView: 'login',
+  currentView: 'login' as ViewName,
   setCurrentView: (view) => set({ currentView: view }),
 
   // Data
@@ -341,6 +347,7 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
       isAuthenticated: false,
       userId: null,
       username: null,
+      hydrating: false,
       currentView: 'login',
       leads: [],
       archivedLeads: [],
@@ -719,22 +726,28 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
 }))
 
 // ===== Session Validation =====
-export async function validateSession(): Promise<boolean> {
-  if (typeof window === 'undefined') return false
+// Returns: 'valid' | 'invalid' | 'error'
+// 'valid' = server confirmed session is active
+// 'invalid' = server confirmed session is NOT active (user disabled, etc.)
+// 'error' = network/server error — do NOT logout on error (optimistic)
+export async function validateSession(): Promise<'valid' | 'invalid' | 'error'> {
+  if (typeof window === 'undefined') return 'error'
   try {
     const auth = getPersistedAuth()
-    if (!auth.userId) return false
+    if (!auth.userId) return 'invalid'
     // Demo mode: if userId starts with "demo-", skip server validation
-    if (auth.userId.startsWith('demo-')) return true
+    if (auth.userId.startsWith('demo-')) return 'valid'
     const res = await fetch('/api/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'validate-session', userId: auth.userId }),
     })
+    if (!res.ok) return 'error' // Server error — don't logout
     const data = await res.json()
-    return data.valid === true
+    return data.valid === true ? 'valid' : 'invalid'
   } catch {
-    return false
+    // Network error — don't logout, keep the session optimistically
+    return 'error'
   }
 }
 
@@ -750,13 +763,18 @@ export function hydrateAuth() {
       currentView: 'dashboard',
       userId: auth.userId || null,
       username: auth.username || null,
+      hydrating: false,
     })
-    // Validate session in background — if invalid, logout
-    validateSession().then((valid) => {
-      if (!valid) {
+    // Validate session in background — only logout if server explicitly says invalid
+    // Network errors are ignored to prevent forced logout on connectivity issues
+    validateSession().then((result) => {
+      if (result === 'invalid') {
         useCrmStore.getState().logout()
       }
     })
+  } else {
+    // No saved session — mark hydration as complete
+    useCrmStore.setState({ hydrating: false })
   }
 }
 

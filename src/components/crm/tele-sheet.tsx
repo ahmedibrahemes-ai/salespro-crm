@@ -611,11 +611,7 @@ function QuickPasteDialog({ open, onClose, leads, teleName, onSaved, addToast }:
       const leadsToCreate: Partial<Lead>[] = selectedValidRows.map((r) => ({
         phone: r.phone || undefined,
         storeUrl: r.storeUrl || undefined,
-        customerName: r.phone
-          ? `عميل ${r.phone}`
-          : r.storeUrl
-            ? `متجر ${r.storeUrl.replace(/^https?:\/\//, '').split('/')[0]}`
-            : 'عميل جديد',
+        customerName: r.customerName || undefined,
         tele: teleName,
         status: 'new',
         contactResult: '',

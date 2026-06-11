@@ -227,6 +227,7 @@ function ToastContainer() {
 /* ------------------------------------------------------------------ */
 export default function Home() {
   const isAuthenticated = useCrmStore((s) => s.isAuthenticated)
+  const hydrating = useCrmStore((s) => s.hydrating)
   const currentView = useCrmStore((s) => s.currentView)
   const currentRole = useCrmStore((s) => s.currentRole)
   const setCurrentView = useCrmStore((s) => s.setCurrentView)
@@ -434,7 +435,16 @@ export default function Home() {
     }
   }, [isAuthenticated, dataLoaded])
 
-  // Show login screen if not authenticated
+  // Show loading screen while hydrating auth from localStorage
+  if (hydrating) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#0a0d14]" dir="rtl">
+        <LoadingScreen />
+      </div>
+    )
+  }
+
+  // Show login screen if not authenticated (after hydration complete)
   if (!isAuthenticated) {
     return <LoginScreen />
   }

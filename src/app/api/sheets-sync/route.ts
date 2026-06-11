@@ -202,8 +202,8 @@ export async function POST(request: NextRequest) {
           teleName = defaultTele || ''
         }
 
-        // Generate customer name if not provided
-        const finalCustomerName = customerName || (phone ? `عميل ${phone}` : storeUrl ? `متجر ${storeUrl.replace(/^https?:\/\//, '').split('/')[0]}` : 'عميل جديد')
+        // Use customer name if provided, otherwise leave empty
+        const finalCustomerName = customerName || ''
 
         rowsToInsert.push({
           phone: phone || null,

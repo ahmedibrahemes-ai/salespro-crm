@@ -738,7 +738,7 @@ export function BulkAdd() {
       const leadsToCreate: Partial<Lead>[] = validatedRows.map((r) => ({
         storeUrl: r.storeUrl || undefined,
         phone: r.phone || undefined,
-        customerName: r.customerName || (r.phone ? `عميل ${r.phone}` : r.storeUrl ? `متجر ${r.storeUrl.replace(/^https?:\/\//, '').split('/')[0]}` : 'عميل جديد'),
+        customerName: r.customerName || undefined,
         customerType: r.customerType,
         brief: r.brief,
         tele: isTele ? currentUser! : r.tele,

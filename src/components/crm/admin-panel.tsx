@@ -8,7 +8,7 @@ import {
 import type { Lead } from '@/lib/supabase'
 import {
   apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk, apiUnarchiveLeads,
-  apiAddTeamMember, apiRemoveTeamMember, apiRenameTeamMember,
+  apiAddTeamMember, apiRemoveTeamMember, apiRenameTeamMember, apiSaveAccessPermissions,
 } from '@/lib/supabase'
 // Framer Motion removed for performance
 import {
@@ -1221,14 +1221,52 @@ function UsersTab() {
 }
 
 /* ═══════════════════════════════════════════════════════
-   Settings Tab (Placeholder)
+   Settings Tab
    ═══════════════════════════════════════════════════════ */
 function SettingsTab() {
   const theme = useCrmStore((s) => s.theme)
   const toggleTheme = useCrmStore((s) => s.toggleTheme)
+  const team = useCrmStore((s) => s.team)
+  const teleAccess = useCrmStore((s) => s.teleAccess)
+  const salesAccess = useCrmStore((s) => s.salesAccess)
+  const setTeleAccess = useCrmStore((s) => s.setTeleAccess)
+  const setSalesAccess = useCrmStore((s) => s.setSalesAccess)
+  const addToast = useCrmStore((s) => s.addToast)
+  const [saving, setSaving] = useState(false)
+
+  /* ─── Toggle access for a viewer to see a target's sheet ─── */
+  const toggleAccess = useCallback((role: 'tele' | 'sales', viewer: string, target: string) => {
+    if (role === 'tele') {
+      const current = teleAccess[viewer] || []
+      const updated = current.includes(target)
+        ? current.filter((t) => t !== target)
+        : [...current, target]
+      setTeleAccess({ ...teleAccess, [viewer]: updated })
+    } else {
+      const current = salesAccess[viewer] || []
+      const updated = current.includes(target)
+        ? current.filter((t) => t !== target)
+        : [...current, target]
+      setSalesAccess({ ...salesAccess, [viewer]: updated })
+    }
+  }, [teleAccess, salesAccess, setTeleAccess, setSalesAccess])
+
+  /* ─── Save permissions to Supabase ─── */
+  const handleSave = useCallback(async () => {
+    setSaving(true)
+    try {
+      await apiSaveAccessPermissions(teleAccess, salesAccess)
+      addToast('success', 'تم حفظ الصلاحيات بنجاح ✅')
+    } catch (err) {
+      addToast('error', err instanceof Error ? err.message : 'فشل في حفظ الصلاحيات')
+    } finally {
+      setSaving(false)
+    }
+  }, [teleAccess, salesAccess, addToast])
 
   return (
     <div className="space-y-4">
+      {/* App Settings */}
       <Card className="bg-[#111520] border-white/[0.06]">
         <CardHeader>
           <CardTitle className="text-[15px] font-bold text-[#f0f2ff] flex items-center gap-2">
@@ -1256,6 +1294,114 @@ function SettingsTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Tele Access Permissions */}
+      <Card className="bg-[#111520] border-white/[0.06]">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-[15px] font-bold text-[#f0f2ff] flex items-center gap-2">
+            <Eye size={16} className="text-[#6c63ff]" />
+            صلاحيات مشاهدة شيتات التيلي
+          </CardTitle>
+          <p className="text-[11px] text-[#4a5280]">تحديد إيه موظف تيلي يقدر يشوف شيت مين — الأدمن بيشوف الكل تلقائياً</p>
+        </CardHeader>
+        <CardContent>
+          {team.tele.length === 0 ? (
+            <div className="text-[12px] text-[#4a5280] py-2">لا يوجد أعضاء تيلي</div>
+          ) : (
+            <div className="space-y-3">
+              {team.tele.map((viewer) => (
+                <div key={viewer} className="bg-[#0a0d14] rounded-lg p-3 border border-white/[0.04]">
+                  <div className="text-[13px] font-bold text-[#f0f2ff] mb-2">{viewer}</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {team.tele
+                      .filter((t) => t !== viewer)
+                      .map((target) => {
+                        const hasAccess = (teleAccess[viewer] || []).includes(target)
+                        return (
+                          <button
+                            key={target}
+                            type="button"
+                            onClick={() => toggleAccess('tele', viewer, target)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border cursor-pointer transition-colors ${
+                              hasAccess
+                                ? 'bg-[#6c63ff]/20 border-[#6c63ff]/30 text-[#a8a3ff]'
+                                : 'bg-[#1c2234] border-white/[0.04] text-[#4a5280] hover:text-[#8892b0]'
+                            }`}
+                          >
+                            {target}
+                          </button>
+                        )
+                      })}
+                    {team.tele.filter((t) => t !== viewer).length === 0 && (
+                      <span className="text-[11px] text-[#4a5280]">موظف واحد فقط — لا يوجد آخرين</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Sales Access Permissions */}
+      <Card className="bg-[#111520] border-white/[0.06]">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-[15px] font-bold text-[#f0f2ff] flex items-center gap-2">
+            <Eye size={16} className="text-[#00d4aa]" />
+            صلاحيات مشاهدة شيتات السيلز
+          </CardTitle>
+          <p className="text-[11px] text-[#4a5280]">تحديد إيه موظف سيلز يقدر يشوف شيت مين — الأدمن بيشوف الكل تلقائياً</p>
+        </CardHeader>
+        <CardContent>
+          {team.sales.length === 0 ? (
+            <div className="text-[12px] text-[#4a5280] py-2">لا يوجد أعضاء سيلز</div>
+          ) : (
+            <div className="space-y-3">
+              {team.sales.map((viewer) => (
+                <div key={viewer} className="bg-[#0a0d14] rounded-lg p-3 border border-white/[0.04]">
+                  <div className="text-[13px] font-bold text-[#f0f2ff] mb-2">{viewer}</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {team.sales
+                      .filter((t) => t !== viewer)
+                      .map((target) => {
+                        const hasAccess = (salesAccess[viewer] || []).includes(target)
+                        return (
+                          <button
+                            key={target}
+                            type="button"
+                            onClick={() => toggleAccess('sales', viewer, target)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border cursor-pointer transition-colors ${
+                              hasAccess
+                                ? 'bg-[#00d4aa]/20 border-[#00d4aa]/30 text-[#00d4aa]'
+                                : 'bg-[#1c2234] border-white/[0.04] text-[#4a5280] hover:text-[#8892b0]'
+                            }`}
+                          >
+                            {target}
+                          </button>
+                        )
+                      })}
+                    {team.sales.filter((t) => t !== viewer).length === 0 && (
+                      <span className="text-[11px] text-[#4a5280]">موظف واحد فقط — لا يوجد آخرين</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Save Button */}
+      <div className="flex justify-end">
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+          className="bg-[#6c63ff] hover:bg-[#5b54e6] text-white gap-1.5 text-[13px] font-bold h-9 cursor-pointer"
+        >
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+          {saving ? 'جاري الحفظ...' : 'حفظ الصلاحيات'}
+        </Button>
+      </div>
     </div>
   )
 }

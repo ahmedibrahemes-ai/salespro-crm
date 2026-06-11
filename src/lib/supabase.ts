@@ -564,6 +564,70 @@ export async function apiRenameTeamMember(oldName: string, newName: string) {
   }
 }
 
+// ===== Access Permissions (who can view whose sheets) =====
+export async function apiGetAccessPermissions(): Promise<{ teleAccess: Record<string, string[]>; salesAccess: Record<string, string[]> }> {
+  try {
+    const { data, error } = await supabase
+      .from('access_permissions')
+      .select('viewer_name, target_name, role')
+      .eq('is_active', true)
+
+    if (error) {
+      console.warn('[apiGetAccessPermissions] Query error:', error.message)
+      return { teleAccess: {}, salesAccess: {} }
+    }
+
+    const teleAccess: Record<string, string[]> = {}
+    const salesAccess: Record<string, string[]> = {}
+
+    for (const row of (data || []) as Array<{ viewer_name: string; target_name: string; role: string }>) {
+      const access = row.role === 'sales' ? salesAccess : teleAccess
+      if (!access[row.viewer_name]) access[row.viewer_name] = []
+      access[row.viewer_name].push(row.target_name)
+    }
+
+    return { teleAccess, salesAccess }
+  } catch {
+    return { teleAccess: {}, salesAccess: {} }
+  }
+}
+
+export async function apiSaveAccessPermissions(
+  teleAccess: Record<string, string[]>,
+  salesAccess: Record<string, string[]>
+): Promise<void> {
+  try {
+    // Use the server API for atomic operations
+    await serverOp('saveAccessPermissions', { teleAccess, salesAccess })
+  } catch (serverErr) {
+    console.warn('[apiSaveAccessPermissions] Server API failed, trying direct:', serverErr)
+    // Fallback: delete all and re-insert
+    const admin = getSupabaseAdmin()
+    if (!admin) throw new Error('Supabase admin not available')
+
+    // Delete all existing
+    await admin.from('access_permissions').delete().neq('id', 0)
+
+    // Insert new
+    const rows: Array<{ viewer_name: string; target_name: string; role: string; is_active: boolean }> = []
+    for (const [viewer, targets] of Object.entries(teleAccess)) {
+      for (const target of targets) {
+        rows.push({ viewer_name: viewer, target_name: target, role: 'tele', is_active: true })
+      }
+    }
+    for (const [viewer, targets] of Object.entries(salesAccess)) {
+      for (const target of targets) {
+        rows.push({ viewer_name: viewer, target_name: target, role: 'sales', is_active: true })
+      }
+    }
+
+    if (rows.length > 0) {
+      const { error } = await admin.from('access_permissions').insert(rows)
+      if (error) throw new Error(`فشل حفظ الصلاحيات: ${error.message}`)
+    }
+  }
+}
+
 // ===== Broadcast removed — postgres_changes already sends updates to all clients =====
 // Previously we had a separate broadcast channel that DOUBLED the realtime messages.
 // Now we rely solely on postgres_changes which is sufficient for cross-user updates.

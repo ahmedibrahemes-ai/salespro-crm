@@ -2,7 +2,7 @@
 
 import { useEffect, Component, lazy, Suspense, useMemo } from 'react'
 import { useCrmStore, hydrateAuth, canAccessView, getDefaultViewForRole, type ViewName } from '@/lib/store'
-import { apiGetLeads, apiGetArchivedLeads, apiGetTeam, apiSubscribeToLeads, apiUnsubscribe, type BroadcastMessage } from '@/lib/supabase'
+import { apiGetLeads, apiGetArchivedLeads, apiGetTeam, apiGetAccessPermissions, apiSubscribeToLeads, apiUnsubscribe, type BroadcastMessage } from '@/lib/supabase'
 import { LoginScreen } from '@/components/crm/login-screen'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Topbar } from '@/components/layout/topbar'
@@ -236,6 +236,8 @@ export default function Home() {
   const setLeads = useCrmStore((s) => s.setLeads)
   const setArchivedLeads = useCrmStore((s) => s.setArchivedLeads)
   const setTeam = useCrmStore((s) => s.setTeam)
+  const setTeleAccess = useCrmStore((s) => s.setTeleAccess)
+  const setSalesAccess = useCrmStore((s) => s.setSalesAccess)
   const setDataLoaded = useCrmStore((s) => s.setDataLoaded)
   const setLoading = useCrmStore((s) => s.setLoading)
   const archivedLoaded = useCrmStore((s) => s.archivedLoaded)
@@ -279,13 +281,16 @@ export default function Home() {
       try {
         // OPTIMIZATION: Don't load archived leads on login — lazy load when needed
         // This cuts initial data transfer significantly
-        const [active, team] = await Promise.all([
+        const [active, team, permissions] = await Promise.all([
           apiGetLeads(false).catch(() => []),
           apiGetTeam().catch(() => ({ tele: [], sales: [], admin: [] })),
+          apiGetAccessPermissions().catch(() => ({ teleAccess: {}, salesAccess: {} })),
         ])
 
         setLeads(active)
         setTeam(team)
+        setTeleAccess(permissions.teleAccess)
+        setSalesAccess(permissions.salesAccess)
         setDataLoaded(true)
       } catch (err) {
         console.error('Failed to load data:', err)

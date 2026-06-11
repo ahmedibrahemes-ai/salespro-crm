@@ -283,6 +283,31 @@ SELECT username, password_hash, password_salt, display_name, role, is_active FRO
 WHERE NOT EXISTS (SELECT 1 FROM app_users LIMIT 1);
 
 -- ════════════════════════════════════════════════════════════════
+-- Access Permissions Table (who can view whose sheets)
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS access_permissions (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  viewer_name TEXT NOT NULL,
+  target_name TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('tele', 'sales')),
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_access_permissions_unique
+  ON access_permissions (viewer_name, target_name, role);
+
+-- RLS
+ALTER TABLE access_permissions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow public read access on access_permissions" ON access_permissions;
+DROP POLICY IF EXISTS "Allow admin write access on access_permissions" ON access_permissions;
+
+CREATE POLICY "Allow public read access on access_permissions"
+  ON access_permissions FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "Allow admin write access on access_permissions"
+  ON access_permissions FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
 -- ✅ DONE! Your database is ready.
 -- ════════════════════════════════════════════════════════════════
 -- If this is an EXISTING project, all your customer data is preserved.

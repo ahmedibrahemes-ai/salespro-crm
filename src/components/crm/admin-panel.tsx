@@ -15,7 +15,7 @@ import {
   BarChart3, Phone, Users, Archive, Settings, UserCog, ChevronLeft,
   Search, Trash2, PhoneCall, Trophy, UserPlus, UserMinus, Pencil,
   Check, X, Plus, ArrowUpDown, LayoutGrid, Shield, KeyRound,
-  Loader2, Eye, EyeOff, ToggleLeft, ToggleRight,
+  Loader2, Eye, EyeOff, ToggleLeft, ToggleRight, Link2, AlertTriangle,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -679,6 +679,9 @@ function UsersTab() {
   const [resetSaving, setResetSaving] = useState(false)
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null)
   const [deleteSaving, setDeleteSaving] = useState(false)
+  const [linkingUser, setLinkingUser] = useState<AppUser | null>(null)
+  const [linkTargetName, setLinkTargetName] = useState('')
+  const [linkSaving, setLinkSaving] = useState(false)
 
   /* ─── Fetch users ─── */
   const fetchUsers = useCallback(async () => {
@@ -729,10 +732,12 @@ function UsersTab() {
       const memberRole = newUser.role as 'tele' | 'sales'
       if (memberRole === 'tele' || memberRole === 'sales') {
         try {
-          await apiAddTeamMember(newUser.displayName.trim(), memberRole)
-          // Update local team state
-          const updated = { ...team }
-          if (!updated[memberRole].includes(newUser.displayName.trim())) {
+          // Check if a team member with this name already exists
+          const existingMembers = team[memberRole] || []
+          if (!existingMembers.includes(newUser.displayName.trim())) {
+            await apiAddTeamMember(newUser.displayName.trim(), memberRole)
+            // Update local team state
+            const updated = { ...team }
             updated[memberRole] = [...updated[memberRole], newUser.displayName.trim()]
             setTeam(updated)
           }
@@ -821,6 +826,32 @@ function UsersTab() {
     }
   }, [deleteUserId, addToast, fetchUsers])
 
+  /* ─── Link user display name to existing team member ─── */
+  // This renames all leads from the old name (team member) to the user's display_name
+  // So that when the user logs in, their dashboard shows all their leads
+  const handleLinkName = useCallback(async () => {
+    if (!linkingUser || !linkTargetName) return
+    setLinkSaving(true)
+    try {
+      await apiRenameTeamMember(linkTargetName, linkingUser.display_name)
+      addToast('success', `تم ربط "${linkTargetName}" بـ "${linkingUser.display_name}" — تم تحديث البيانات ✅`)
+      setLinkingUser(null)
+      setLinkTargetName('')
+    } catch (err) {
+      addToast('error', err instanceof Error ? err.message : 'فشل في ربط الاسم')
+    } finally {
+      setLinkSaving(false)
+    }
+  }, [linkingUser, linkTargetName, addToast])
+
+  // Check if a user's display_name matches their team member list
+  const isNameMismatched = useCallback((user: AppUser) => {
+    if (user.role === 'admin') return false
+    const members = team[user.role as 'tele' | 'sales'] || []
+    // Name doesn't match any team member → potential mismatch
+    return !members.includes(user.display_name)
+  }, [team])
+
   const roleLabels: Record<string, string> = { tele: 'تيلي', sales: 'سيلز', admin: 'أدمن' }
   const roleColors: Record<string, string> = { tele: 'bg-[#6c63ff]/15 text-[#a8a3ff]', sales: 'bg-[#00d4aa]/15 text-[#00d4aa]', admin: 'bg-amber-500/15 text-amber-400' }
 
@@ -891,6 +922,31 @@ function UsersTab() {
                   onChange={(e) => setNewUser((p) => ({ ...p, displayName: e.target.value }))}
                   className="h-9 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]"
                 />
+                {/* Show existing team members as clickable suggestions */}
+                {(newUser.role === 'tele' || newUser.role === 'sales') && (
+                  <div className="mt-1.5">
+                    <span className="text-[11px] text-[#4a5280]">أعضاء التيم الموجودين ({newUser.role === 'tele' ? 'تيلي' : 'سيلز'}):</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {(team[newUser.role] || []).map((name) => (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => setNewUser((p) => ({ ...p, displayName: name }))}
+                          className={`px-2 py-0.5 rounded text-[11px] font-medium border cursor-pointer transition-colors ${
+                            newUser.displayName === name
+                              ? 'bg-[#6c63ff]/20 border-[#6c63ff]/40 text-[#a8a3ff]'
+                              : 'bg-[#1c2234] border-white/[0.06] text-[#8892b0] hover:border-[#6c63ff]/30 hover:text-[#a8a3ff]'
+                          }`}
+                        >
+                          {name}
+                        </button>
+                      ))}
+                      {(team[newUser.role] || []).length === 0 && (
+                        <span className="text-[11px] text-[#4a5280]">لا يوجد أعضاء</span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="text-[13px] font-semibold text-[#8892b0] mb-1 block">الدور</label>
@@ -997,7 +1053,19 @@ function UsersTab() {
                             {(user.display_name || user.username).slice(0, 2).toUpperCase()}
                           </div>
                           <div>
-                            <div className="text-[13px] font-bold text-[#f0f2ff]">{user.display_name || '—'}</div>
+                            <div className="text-[13px] font-bold text-[#f0f2ff] flex items-center gap-1.5">
+                              {user.display_name || '—'}
+                              {isNameMismatched(user) && (
+                                <button
+                                  onClick={() => { setLinkingUser(user); setLinkTargetName('') }}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[10px] font-bold hover:bg-amber-500/25 transition-colors cursor-pointer"
+                                  title="الاسم لا يطابق أعضاء التيم — اضغط لربط البيانات"
+                                >
+                                  <AlertTriangle size={10} />
+                                  غير مرتبط
+                                </button>
+                              )}
+                            </div>
                             <div className="text-[11px] text-[#4a5280]">{user.created_at ? new Date(user.created_at).toLocaleDateString('ar-EG') : '—'}</div>
                           </div>
                         </div>
@@ -1018,6 +1086,15 @@ function UsersTab() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5">
+                          {isNameMismatched(user) && (
+                            <button
+                              onClick={() => { setLinkingUser(user); setLinkTargetName('') }}
+                              className="w-7 h-7 rounded-md bg-[#6c63ff]/10 text-[#6c63ff]/70 flex items-center justify-center hover:bg-[#6c63ff]/20 hover:text-[#6c63ff] transition-colors cursor-pointer"
+                              title="ربط بالبيانات — نقل ليدز الاسم القديم للحساب ده"
+                            >
+                              <Link2 size={12} />
+                            </button>
+                          )}
                           <button
                             onClick={() => setResetUserId(user.id)}
                             className="w-7 h-7 rounded-md bg-amber-500/10 text-amber-400/70 flex items-center justify-center hover:bg-amber-500/20 hover:text-amber-400 transition-colors cursor-pointer"
@@ -1070,6 +1147,67 @@ function UsersTab() {
               </button>
               <button
                 onClick={() => setDeleteUserId(null)}
+                className="flex-1 h-9 rounded-lg bg-[#1c2234] text-[#8892b0] text-[13px] font-bold hover:bg-[#252b3d] transition-colors cursor-pointer"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Link Name Dialog */}
+      {linkingUser && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+          <div className="bg-[#111520] border border-[#6c63ff]/20 rounded-xl p-6 max-w-md w-full" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            <h3 className="text-[15px] font-bold text-[#f0f2ff] mb-1 flex items-center gap-2">
+              <Link2 size={16} className="text-[#6c63ff]" />
+              ربط البيانات بالحساب
+            </h3>
+            <p className="text-[12px] text-[#8892b0] mb-4">
+              اسم المستخدم <span className="text-[#f0f2ff] font-bold">&quot;{linkingUser.display_name}&quot;</span> لا يطابق أي اسم في قائمة التيم.
+              اختر اسم التيم القديم عشان ننقل البيانات للحساب ده.
+            </p>
+            <div className="bg-[#0a0d14] rounded-lg p-3 mb-4 border border-white/[0.06]">
+              <div className="text-[11px] text-[#4a5280] mb-2">أسماء التيم الموجودة ({linkingUser.role === 'tele' ? 'تيلي' : 'سيلز'}):</div>
+              <div className="flex flex-wrap gap-1.5">
+                {(team[linkingUser.role as 'tele' | 'sales'] || []).map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => setLinkTargetName(name)}
+                    className={`px-3 py-1.5 rounded-lg text-[12px] font-bold border cursor-pointer transition-colors ${
+                      linkTargetName === name
+                        ? 'bg-[#6c63ff]/20 border-[#6c63ff]/40 text-[#a8a3ff]'
+                        : 'bg-[#1c2234] border-white/[0.06] text-[#8892b0] hover:border-[#6c63ff]/30 hover:text-[#a8a3ff]'
+                    }`}
+                  >
+                    {name}
+                  </button>
+                ))}
+                {(team[linkingUser.role as 'tele' | 'sales'] || []).length === 0 && (
+                  <span className="text-[12px] text-[#4a5280]">لا يوجد أسماء في التيم</span>
+                )}
+              </div>
+            </div>
+            {linkTargetName && (
+              <div className="bg-[#6c63ff]/5 rounded-lg p-3 mb-4 border border-[#6c63ff]/10">
+                <div className="text-[12px] text-[#8892b0]">
+                  سيتم تحويل كل الليدز من <span className="text-amber-400 font-bold">&quot;{linkTargetName}&quot;</span> إلى <span className="text-[#00d4aa] font-bold">&quot;{linkingUser.display_name}&quot;</span>
+                </div>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={handleLinkName}
+                disabled={linkSaving || !linkTargetName}
+                className="flex-1 h-9 rounded-lg bg-[#6c63ff]/15 text-[#a8a3ff] text-[13px] font-bold hover:bg-[#6c63ff]/25 transition-colors disabled:opacity-40 cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                {linkSaving ? <Loader2 size={14} className="animate-spin" /> : <Link2 size={14} />}
+                {linkSaving ? 'جاري الربط...' : 'ربط وتحديث البيانات'}
+              </button>
+              <button
+                onClick={() => { setLinkingUser(null); setLinkTargetName('') }}
                 className="flex-1 h-9 rounded-lg bg-[#1c2234] text-[#8892b0] text-[13px] font-bold hover:bg-[#252b3d] transition-colors cursor-pointer"
               >
                 إلغاء

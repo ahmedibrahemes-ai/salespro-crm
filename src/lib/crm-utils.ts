@@ -47,15 +47,18 @@ export function isTodayDateString(dateStr: string): boolean {
   return dateStr === today
 }
 
-/** Check if a date string (YYYY-MM-DD) falls within the current week (Sun-Sat) */
+/** Check if a date string (YYYY-MM-DD) falls within the current week (Sat-Fri, Arabic week) */
 export function isThisWeek(dateStr: string): boolean {
   if (!dateStr) return false
   const date = new Date(dateStr)
   if (isNaN(date.getTime())) return false
 
   const now = new Date()
+  // Arabic week starts on Saturday (day 6 in JS, where 0=Sunday)
+  const dayOfWeek = now.getDay() // 0=Sun, 1=Mon, ..., 6=Sat
+  const daysSinceSaturday = dayOfWeek === 6 ? 0 : dayOfWeek + 1
   const startOfWeek = new Date(now)
-  startOfWeek.setDate(now.getDate() - now.getDay()) // Sunday
+  startOfWeek.setDate(now.getDate() - daysSinceSaturday)
   startOfWeek.setHours(0, 0, 0, 0)
 
   const endOfWeek = new Date(startOfWeek)

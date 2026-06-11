@@ -7,7 +7,7 @@ import { apiUpdateLead } from '@/lib/supabase'
 import { isTodayDateString, isTodayTimestamp, isThisWeek } from '@/lib/crm-utils'
 import {
   Calendar, Clock, Phone, ExternalLink,
-  Check, X, CalendarDays,
+  Check, X, CalendarDays, XCircle,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -46,6 +46,11 @@ function formatMeetingTime(timeStr: string): string {
   const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
   return `${displayHour}:${m} ${period}`
 }
+
+/* ═══════════════════════════════════════════════════════
+   Stat filter type — which stat card is active
+   ═══════════════════════════════════════════════════════ */
+type StatFilter = 'all' | 'today' | 'attended' | 'no-show' | 'pending' | 'closed-won' | 'total'
 
 /* ═══════════════════════════════════════════════════════
    Meeting Card — OPTIMIZED: removed Framer Motion
@@ -217,6 +222,7 @@ function MeetingCard({
    - Removed Framer Motion (was creating stagger timers)
    - Using CSS transitions instead
    - Targeted Zustand selectors to prevent unnecessary re-renders
+   - Interactive stat cards: click to filter, click again to unfilter
    ═══════════════════════════════════════════════════════ */
 export function MyMeetings() {
   const leads = useCrmStore((s) => s.leads)
@@ -232,6 +238,13 @@ export function MyMeetings() {
 
   const isTele = currentRole === 'tele'
 
+  /* ─── Stat filter state ─── */
+  const [activeStat, setActiveStat] = useState<StatFilter>('all')
+
+  const handleStatClick = useCallback((stat: StatFilter) => {
+    setActiveStat((prev) => prev === stat ? 'all' : stat)
+  }, [])
+
   /* ─── Custom date state ─── */
   const [customFrom, setCustomFrom] = useState(dateFilter.customFrom || '')
   const [customTo, setCustomTo] = useState(dateFilter.customTo || '')
@@ -244,10 +257,12 @@ export function MyMeetings() {
       setCustomFrom('')
       setCustomTo('')
     }
+    // Reset stat filter when date filter changes
+    setActiveStat('all')
   }, [customFrom, customTo, setDateRangeFilter])
 
-  /* ─── Filtered meetings ─── */
-  const meetingLeads = useMemo(() => {
+  /* ─── Filtered meetings (by date) ─── */
+  const dateFilteredLeads = useMemo(() => {
     // For tele: show transferred leads (has sales assigned)
     // For sales: show leads with meetingDate
     let result = leads.filter((l) => !l.isArchived)
@@ -315,7 +330,7 @@ export function MyMeetings() {
 
   /* ─── Stats (respect date range filter) ─── */
   const stats = useMemo(() => {
-    const allMyMeetings = meetingLeads
+    const allMyMeetings = dateFilteredLeads
 
     // For tele users: "today" means transferred today (by assignedAt)
     // For sales users: "today" means meeting today (by meetingDate)
@@ -331,6 +346,12 @@ export function MyMeetings() {
     const closedWon = allMyMeetings.filter((l) => l.salesStatus === 'closed-won')
 
     return {
+      today: today,
+      attended: attended,
+      noShow: noShow,
+      pending: pending,
+      closedWon: closedWon,
+      all: allMyMeetings,
       todayCount: today.length,
       attendedCount: attended.length,
       noShowCount: noShow.length,
@@ -338,7 +359,13 @@ export function MyMeetings() {
       closedWonCount: closedWon.length,
       totalCount: allMyMeetings.length,
     }
-  }, [meetingLeads, isTele])
+  }, [dateFilteredLeads, isTele])
+
+  /* ─── Final displayed meetings (date + stat filter) ─── */
+  const displayedLeads = useMemo(() => {
+    if (activeStat === 'all') return dateFilteredLeads
+    return stats[activeStat] || dateFilteredLeads
+  }, [activeStat, dateFilteredLeads, stats])
 
   /* ─── Mark attendance ─── */
   const handleMarkAttendance = useCallback(async (id: string, value: string) => {
@@ -355,6 +382,25 @@ export function MyMeetings() {
       addToast('error', 'فشل تسجيل الحضور')
     }
   }, [updateLeadInCache, currentUser, addToast])
+
+  /* ─── Stat card config ─── */
+  const statCards = useMemo(() => {
+    const cards: Array<{ key: StatFilter; label: string; value: number; color: string; activeBg: string }> = []
+
+    if (isTele) {
+      cards.push({ key: 'total', label: 'إجمالي التحويلات', value: stats.totalCount, color: '#a8a3ff', activeBg: 'bg-[#a8a3ff]/10 border-[#a8a3ff]/30' })
+    }
+    cards.push({ key: 'today', label: isTele ? 'تحويلات اليوم' : 'اجتماعات اليوم', value: stats.todayCount, color: '#ffd166', activeBg: 'bg-[#ffd166]/10 border-[#ffd166]/30' })
+    cards.push({ key: 'attended', label: 'حضر', value: stats.attendedCount, color: '#00d4aa', activeBg: 'bg-emerald-500/10 border-emerald-500/30' })
+    cards.push({ key: 'no-show', label: 'لم يحضر', value: stats.noShowCount, color: '#ff6b6b', activeBg: 'bg-red-500/10 border-red-500/30' })
+    if (isTele) {
+      cards.push({ key: 'closed-won', label: 'تم التقفيل', value: stats.closedWonCount, color: '#10b981', activeBg: 'bg-emerald-500/10 border-emerald-500/30' })
+    } else {
+      cards.push({ key: 'pending', label: 'في الانتظار', value: stats.pendingCount, color: '#6c63ff', activeBg: 'bg-[#6c63ff]/10 border-[#6c63ff]/30' })
+    }
+
+    return cards
+  }, [isTele, stats])
 
   /* ═══════════════ RENDER ═══════════════ */
   return (
@@ -411,41 +457,85 @@ export function MyMeetings() {
         </div>
       </div>
 
-      {/* Stats Row */}
+      {/* Stats Row — Interactive Cards */}
       <div className={`grid gap-3 ${isTele ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-2 sm:grid-cols-4'}`}>
-        {[
-          ...(isTele ? [{ label: 'إجمالي التحويلات', value: stats.totalCount, color: '#a8a3ff' }] : []),
-          { label: isTele ? 'تحويلات اليوم' : 'اجتماعات اليوم', value: stats.todayCount, color: '#ffd166' },
-          { label: 'حضر', value: stats.attendedCount, color: '#00d4aa' },
-          { label: 'لم يحضر', value: stats.noShowCount, color: '#ff6b6b' },
-          ...(isTele ? [{ label: 'تم التقفيل', value: stats.closedWonCount, color: '#10b981' }] : [{ label: 'في الانتظار', value: stats.pendingCount, color: '#6c63ff' }]),
-        ].map((s, i) => (
-          <div key={i} className="bg-[#111520] border border-white/[0.06] rounded-xl p-3">
-            <div className="text-[13px] font-semibold text-[#8892b0]">{s.label}</div>
-            <div className="text-[19px] font-bold mt-0.5" style={{ color: s.color, fontFamily: 'Cairo, sans-serif' }}>
-              {s.value}
-            </div>
-          </div>
-        ))}
+        {statCards.map((s) => {
+          const isActive = activeStat === s.key
+          return (
+            <button
+              key={s.key}
+              onClick={() => handleStatClick(s.key)}
+              className={`relative bg-[#111520] border rounded-xl p-3 text-right transition-all duration-200 cursor-pointer group ${
+                isActive
+                  ? `${s.activeBg} shadow-lg`
+                  : 'border-white/[0.06] hover:border-white/[0.12] hover:bg-[#151b2e]'
+              }`}
+            >
+              {/* Active indicator dot */}
+              {isActive && (
+                <div
+                  className="absolute top-2 left-2 w-2 h-2 rounded-full animate-pulse"
+                  style={{ backgroundColor: s.color }}
+                />
+              )}
+              <div className={`text-[13px] font-semibold transition-colors ${isActive ? 'text-[#f0f2ff]' : 'text-[#8892b0]'}`}>
+                {s.label}
+              </div>
+              <div className="text-[19px] font-bold mt-0.5 flex items-center gap-2" style={{ color: s.color, fontFamily: 'Cairo, sans-serif' }}>
+                {s.value}
+                {isActive && (
+                  <XCircle size={14} className="opacity-50 group-hover:opacity-100 transition-opacity" style={{ color: s.color }} />
+                )}
+              </div>
+            </button>
+          )
+        })}
       </div>
 
+      {/* Active filter indicator */}
+      {activeStat !== 'all' && (
+        <div className="flex items-center gap-2 text-[12px] font-semibold text-[#8892b0]">
+          <span>عرض:</span>
+          <Badge
+            className="text-[11px] font-bold cursor-pointer hover:opacity-80 transition-opacity"
+            style={{
+              backgroundColor: `${statCards.find(s => s.key === activeStat)?.color}15`,
+              color: statCards.find(s => s.key === activeStat)?.color,
+              borderColor: `${statCards.find(s => s.key === activeStat)?.color}30`,
+            }}
+          >
+            {statCards.find(s => s.key === activeStat)?.label} ({displayedLeads.length})
+          </Badge>
+          <button
+            onClick={() => setActiveStat('all')}
+            className="text-[#4a5280] hover:text-[#f0f2ff] transition-colors cursor-pointer"
+          >
+            إلغاء الفلتر
+          </button>
+        </div>
+      )}
+
       {/* Meeting Cards */}
-      {meetingLeads.length === 0 ? (
+      {displayedLeads.length === 0 ? (
         <Card className="bg-[#111520] border-white/[0.06]">
           <CardContent className="py-16 text-center">
             <div className="text-[36px] mb-3">📅</div>
-            <div className="text-[15px] font-bold text-[#8892b0] mb-1">لا يوجد اجتماعات</div>
+            <div className="text-[15px] font-bold text-[#8892b0] mb-1">
+              {activeStat !== 'all' ? 'لا يوجد نتائج للفلتر المحدد' : 'لا يوجد اجتماعات'}
+            </div>
             <div className="text-[13px] font-medium text-[#4a5280]">
-              {isTele
-                ? 'لا يوجد تحويلات للفترة المحددة'
-                : 'لا يوجد اجتماعات للفترة المحددة'
+              {activeStat !== 'all'
+                ? 'جرب فلتر مختلف أو إلغاء الفلتر'
+                : isTele
+                  ? 'لا يوجد تحويلات للفترة المحددة'
+                  : 'لا يوجد اجتماعات للفترة المحددة'
               }
             </div>
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {meetingLeads.map((lead) => (
+          {displayedLeads.map((lead) => (
             <MeetingCard
               key={lead.id}
               lead={lead}

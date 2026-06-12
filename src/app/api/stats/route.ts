@@ -138,13 +138,13 @@ export async function GET() {
           if (error) console.error('[api/stats] attendedToday error:', error.message)
           return count ?? 0
         }),
-      // Deals closed today (real count from DB)
+      // Deals closed today (use contact_result_at as proxy until closed_at column is added)
       client
         .from('leads')
         .select('*', { count: 'exact', head: true })
         .eq('is_archived', false)
         .eq('status', 'closed-won')
-        .gte('created_at', todayISO)
+        .gte('contact_result_at', todayISO)
         .then(({ count, error }: { count: number | null; error: { message: string } | null }) => {
           if (error) console.error('[api/stats] dealsToday error:', error.message)
           return count ?? 0
@@ -283,7 +283,8 @@ export async function GET() {
 
     for (const lead of recentLeads) {
       if (!lead.created_at) continue
-      const d = new Date(lead.created_at)
+      // Use Egypt timezone for correct day-of-week calculation
+      const d = new Date(new Date(lead.created_at).toLocaleString('en-US', { timeZone: 'Africa/Cairo' }))
       const jsDay = d.getDay()
       const arabicIdx = jsDayToArabicWeek[jsDay]
       if (arabicIdx !== undefined && weeklyCalls[arabicIdx]) weeklyCalls[arabicIdx].count++
@@ -325,17 +326,14 @@ export async function GET() {
       closedDeals: totalClosedWon,
       conversionRate,
       leadsToday,
-      callsToday: teleLeads.filter((l) =>
-        l.contact_result && l.contact_result !== 'none' && l.contact_result !== '' &&
-        l.attended !== null // has a result recorded
-      ).length > 0 ? await client
+      callsToday: await client
         .from('leads')
         .select('*', { count: 'exact', head: true })
         .eq('is_archived', false)
         .not('contact_result', '')
         .neq('contact_result', 'none')
         .gte('contact_result_at', todayISO)
-        .then(({ count }: { count: number | null }) => count ?? 0) : 0,
+        .then(({ count }: { count: number | null }) => count ?? 0),
       dealsToday, // Real count from DB, not hardcoded 0
       currentMonth: getCurrentMonthAr(),
       weeklyCalls,

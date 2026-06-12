@@ -43,8 +43,9 @@ export function isTodayTimestamp(timestamp: number): boolean {
 /** Check if a date string (YYYY-MM-DD) is today (Egypt timezone UTC+2) */
 export function isTodayDateString(dateStr: string): boolean {
   if (!dateStr) return false
-  // Use Egypt timezone instead of UTC to match local business hours
-  const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' })).toISOString().split('T')[0]
+  // Use Egypt timezone — build date string directly from local parts to avoid toISOString() UTC conversion
+  const nowEgypt = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' }))
+  const today = `${nowEgypt.getFullYear()}-${String(nowEgypt.getMonth() + 1).padStart(2, '0')}-${String(nowEgypt.getDate()).padStart(2, '0')}`
   return dateStr === today
 }
 

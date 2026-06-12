@@ -841,7 +841,8 @@ export function getDateRange(
   customFrom?: string,
   customTo?: string
 ): { from: number; to: number } {
-  const now = new Date()
+  // Use Egypt timezone (UTC+2) for consistent business-day boundaries
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' }))
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   let from: Date, to: Date
 

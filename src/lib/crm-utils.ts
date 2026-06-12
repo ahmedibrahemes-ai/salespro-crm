@@ -54,7 +54,8 @@ export function isThisWeek(dateStr: string): boolean {
   const date = new Date(dateStr)
   if (isNaN(date.getTime())) return false
 
-  const now = new Date()
+  // Use Egypt timezone (UTC+2) to match business hours
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' }))
   // Arabic week starts on Saturday (day 6 in JS, where 0=Sunday)
   const dayOfWeek = now.getDay() // 0=Sun, 1=Mon, ..., 6=Sat
   const daysSinceSaturday = dayOfWeek === 6 ? 0 : dayOfWeek + 1

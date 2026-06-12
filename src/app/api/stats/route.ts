@@ -321,7 +321,17 @@ export async function GET() {
       closedDeals: totalClosedWon,
       conversionRate,
       leadsToday,
-      callsToday: callsWithResult, // Actual calls with contact results, not leadsToday * 1.8
+      callsToday: teleLeads.filter((l) =>
+        l.contact_result && l.contact_result !== 'none' && l.contact_result !== '' &&
+        l.attended !== null // has a result recorded
+      ).length > 0 ? await client
+        .from('leads')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_archived', false)
+        .not('contact_result', '')
+        .neq('contact_result', 'none')
+        .gte('contact_result_at', todayISO)
+        .then(({ count }: { count: number | null }) => count ?? 0) : 0,
       dealsToday, // Real count from DB, not hardcoded 0
       currentMonth: getCurrentMonthAr(),
       weeklyCalls,

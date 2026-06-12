@@ -9,9 +9,11 @@ import {
   Search, Plus, Trash2, Archive, Phone, Filter, X, Check,
   UserPlus, Calendar, Loader2, ExternalLink,
   ChevronLeft, ChevronRight, ArrowLeftRight, Send, AlertCircle,
-  RotateCcw, UserRound, ClipboardPaste,
+  RotateCcw, UserRound, ClipboardPaste, ArrowRight,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
+import { Calendar as CalendarPicker } from '@/components/ui/calendar'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -978,6 +980,16 @@ export function TeleSheet() {
 
   const [currentPage, setCurrentPage] = useState(1)
 
+  // Custom date range state
+  const [fromDate, setFromDate] = useState<Date | undefined>(
+    dateFilter.customFrom ? new Date(dateFilter.customFrom) : undefined
+  )
+  const [toDate, setToDate] = useState<Date | undefined>(
+    dateFilter.customTo ? new Date(dateFilter.customTo) : undefined
+  )
+  const [fromOpen, setFromOpen] = useState(false)
+  const [toOpen, setToOpen] = useState(false)
+
   // Ctrl+V keyboard shortcut handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1383,8 +1395,14 @@ export function TeleSheet() {
             </div>
 
             {/* Date filter */}
-            <Select value={dateFilter.preset} onValueChange={(v) => setDateRangeFilter(viewKey, { preset: v })}>
-              <SelectTrigger className="w-[120px] h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
+            <Select value={dateFilter.preset} onValueChange={(v) => {
+              setDateRangeFilter(viewKey, { preset: v, customFrom: undefined, customTo: undefined })
+              if (v !== 'custom') {
+                setFromDate(undefined)
+                setToDate(undefined)
+              }
+            }}>
+              <SelectTrigger className="w-[130px] h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
                 <Calendar size={12} className="text-[#6c63ff]" />
                 <SelectValue placeholder="التاريخ" />
               </SelectTrigger>
@@ -1394,8 +1412,86 @@ export function TeleSheet() {
                 <SelectItem value="yesterday" className="text-[13px] text-[#f0f2ff]">أمس</SelectItem>
                 <SelectItem value="week" className="text-[13px] text-[#f0f2ff]">هذا الأسبوع</SelectItem>
                 <SelectItem value="month" className="text-[13px] text-[#f0f2ff]">هذا الشهر</SelectItem>
+                <SelectItem value="custom" className="text-[13px] text-[#f0f2ff]">فترة محددة</SelectItem>
               </SelectContent>
             </Select>
+
+            {/* Custom date range pickers — visible only when preset = 'custom' */}
+            {dateFilter.preset === 'custom' && (
+              <div className="flex items-center gap-1.5">
+                {/* From date */}
+                <Popover open={fromOpen} onOpenChange={setFromOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0] hover:text-[#f0f2ff] gap-1.5 px-2.5 cursor-pointer"
+                    >
+                      <Calendar size={12} className="text-[#6c63ff]" />
+                      {fromDate ? fromDate.toLocaleDateString('ar-EG') : 'من'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-[#111520] border-white/[0.08]" align="start">
+                    <CalendarPicker
+                      mode="single"
+                      selected={fromDate}
+                      onSelect={(date) => {
+                        setFromDate(date)
+                        if (date) {
+                          const iso = date.toISOString().split('T')[0]
+                          setDateRangeFilter(viewKey, { preset: 'custom', customFrom: iso, customTo: dateFilter.customTo })
+                        }
+                        setFromOpen(false)
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                <ArrowRight size={12} className="text-[#4a5280]" />
+
+                {/* To date */}
+                <Popover open={toOpen} onOpenChange={setToOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0] hover:text-[#f0f2ff] gap-1.5 px-2.5 cursor-pointer"
+                    >
+                      <Calendar size={12} className="text-[#6c63ff]" />
+                      {toDate ? toDate.toLocaleDateString('ar-EG') : 'إلى'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-[#111520] border-white/[0.08]" align="start">
+                    <CalendarPicker
+                      mode="single"
+                      selected={toDate}
+                      onSelect={(date) => {
+                        setToDate(date)
+                        if (date) {
+                          const iso = date.toISOString().split('T')[0]
+                          setDateRangeFilter(viewKey, { preset: 'custom', customFrom: dateFilter.customFrom, customTo: iso })
+                        }
+                        setToOpen(false)
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                {/* Clear custom range */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-[#4a5280] hover:text-[#f0f2ff] cursor-pointer"
+                  onClick={() => {
+                    setFromDate(undefined)
+                    setToDate(undefined)
+                    setDateRangeFilter(viewKey, { preset: 'all' })
+                  }}
+                >
+                  <X size={14} />
+                </Button>
+              </div>
+            )}
 
             {/* Bulk actions */}
             {selected.length > 0 && (

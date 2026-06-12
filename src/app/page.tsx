@@ -320,17 +320,24 @@ export default function Home() {
     loadArchived()
   }, [isAuthenticated, dataLoaded, archivedLoaded, currentView, setArchivedLeads, setArchivedLoaded])
 
-  // Subscribe to real-time updates
+  // Subscribe to real-time updates (with debounce to prevent flickering)
   useEffect(() => {
     if (!isAuthenticated || !dataLoaded) return
 
-    const channel = apiSubscribeToLeads(
-      (payload) => {
-        const eventType = payload.eventType as string
+    // Debounce: collect updates and apply them in a batch to prevent UI flickering
+    let pendingUpdates: Array<{ type: string; payload: unknown }> = []
+    let flushTimer: ReturnType<typeof setTimeout> | null = null
+
+    function flushPending() {
+      const updates = pendingUpdates
+      pendingUpdates = []
+      flushTimer = null
+
+      for (const { type, payload } of updates) {
         const { addLeadToCache, updateLeadInCache, removeLeadFromCache, addToast, addNotification } = useCrmStore.getState()
 
-        if (eventType === 'INSERT') {
-          const newRow = payload.new as Record<string, unknown>
+        if (type === 'INSERT') {
+          const newRow = (payload as Record<string, unknown>).new as Record<string, unknown>
           if (newRow?.id) {
             const leadId = String(newRow.id)
             const customerName = (newRow.customer_name as string) || ''
@@ -363,12 +370,11 @@ export default function Home() {
               archivedBy: null,
               notes: [],
             })
-            // Notification: new lead added
             addNotification('new-lead', `عميل جديد: ${customerName || 'بدون اسم'}`, leadId)
           }
-        } else if (eventType === 'UPDATE') {
-          const newRow = payload.new as Record<string, unknown>
-          const oldRow = payload.old as Record<string, unknown>
+        } else if (type === 'UPDATE') {
+          const newRow = (payload as Record<string, unknown>).new as Record<string, unknown>
+          const oldRow = (payload as Record<string, unknown>).old as Record<string, unknown>
           if (newRow?.id) {
             const leadId = String(newRow.id)
             const state = useCrmStore.getState()
@@ -412,19 +418,29 @@ export default function Home() {
               isArchived: (newRow.is_archived as boolean) ?? undefined,
             })
           }
-        } else if (eventType === 'BROADCAST') {
-          const msg = payload.broadcastMessage as BroadcastMessage | undefined
+        } else if (type === 'DELETE') {
+          const old = (payload as Record<string, unknown>).old as Record<string, unknown>
+          if (old?.id) removeLeadFromCache(String(old.id))
+        } else if (type === 'BROADCAST') {
+          const msg = (payload as { broadcastMessage?: BroadcastMessage }).broadcastMessage
           if (!msg) return
           if (msg.type === 'assignment') {
-            const { currentUser, currentRole, addToast } = useCrmStore.getState()
+            const { currentUser, currentRole, addToast: toast } = useCrmStore.getState()
             if (currentRole === 'sales' && msg.data.sales === currentUser) {
-              addToast('info', `🔄 اجتماع جديد من ${msg.by} — ${msg.data.customerName || 'عميل'}`)
+              toast('info', `🔄 اجتماع جديد من ${msg.by} — ${msg.data.customerName || 'عميل'}`)
             }
           }
-          return
-        } else if (eventType === 'DELETE') {
-          const old = payload.old as Record<string, unknown>
-          if (old?.id) removeLeadFromCache(String(old.id))
+        }
+      }
+    }
+
+    const channel = apiSubscribeToLeads(
+      (payload) => {
+        const eventType = payload.eventType as string
+        // Batch updates with 100ms debounce to prevent flickering
+        pendingUpdates.push({ type: eventType, payload })
+        if (!flushTimer) {
+          flushTimer = setTimeout(flushPending, 100)
         }
       },
       (status) => {

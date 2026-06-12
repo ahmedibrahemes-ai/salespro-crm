@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import type { Lead } from './supabase'
 import { normalizePhone } from '@/lib/crm-utils'
 
@@ -284,7 +285,9 @@ function persistAuth(user: string | null, role: 'tele' | 'sales' | 'admin' | nul
 }
 
 // ===== Store Implementation =====
-export const useCrmStore = create<CrmStore>((set, get) => ({
+export const useCrmStore = create<CrmStore>()(
+  persist(
+    (set, get) => ({
   // Auth (starts as logged out — will be hydrated from localStorage on first client mount)
   currentUser: null,
   currentRole: null,
@@ -723,7 +726,31 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
 
     return changedCount
   },
-}))
+    }),
+    {
+      name: 'venom-crm-storage',
+      partialize: (state) => ({
+        leads: state.leads,
+        archivedLeads: state.archivedLeads,
+        leadsById: state.leadsById,
+        dataLoaded: state.dataLoaded,
+        archivedLoaded: state.archivedLoaded,
+      }),
+      merge: (persisted, current) => {
+        const p = persisted as Partial<CrmStore>
+        if (!p) return current
+        return {
+          ...current,
+          leads: (p.leads && p.leads.length > 0) ? p.leads : current.leads,
+          archivedLeads: (p.archivedLeads && p.archivedLeads.length > 0) ? p.archivedLeads : current.archivedLeads,
+          leadsById: (p.leadsById && Object.keys(p.leadsById).length > 0) ? p.leadsById : current.leadsById,
+          dataLoaded: p.dataLoaded ?? current.dataLoaded,
+          archivedLoaded: p.archivedLoaded ?? current.archivedLoaded,
+        }
+      },
+    }
+  )
+)
 
 // ===== Session Validation =====
 // Returns: 'valid' | 'invalid' | 'error'

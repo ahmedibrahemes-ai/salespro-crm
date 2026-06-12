@@ -7,6 +7,7 @@ import { getSupabaseAdmin, isAdminAvailable, createAnonClient } from '@/lib/supa
  * Computes CRM statistics from Supabase using count: 'exact' for accurate counts.
  * NO Prisma/SQLite — Supabase ONLY.
  * NO hardcoded credentials — environment variables only.
+ * Uses Egypt timezone (Africa/Cairo, UTC+2) for "today" calculations.
  */
 
 function getCurrentMonthAr(): string {
@@ -14,7 +15,9 @@ function getCurrentMonthAr(): string {
     'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
     'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
   ]
-  return months[new Date().getMonth()]
+  // Use Egypt timezone for month name
+  const nowEgypt = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' }))
+  return months[nowEgypt.getMonth()]
 }
 
 /** Helper: get exact count from Supabase using head: true + count: 'exact' */
@@ -55,7 +58,7 @@ export async function GET() {
         totalClosedLost: 0, todayStats: { leadsCreated: 0, meetingsToday: 0, attendedToday: 0 },
         perTele: {}, perSales: {}, totalCalls: 0, closedDeals: 0, conversionRate: 0,
         leadsToday: 0, callsToday: 0, dealsToday: 0, currentMonth: getCurrentMonthAr(),
-        weeklyCalls: ['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'].map(day => ({ day, count: 0 })),
+        weeklyCalls: ['السبت','الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة'].map(day => ({ day, count: 0 })),
         callAnalytics: { totalMinutes: 0, successCount: 0, failCount: 0, avgDuration: '0:00' },
         aiScore: 0, overdueCount: 0,
       })
@@ -93,12 +96,13 @@ export async function GET() {
       getCount(client, 'leads', { status: 'closed-lost', is_archived: false }),
     ])
 
-    // ===== Today's stats =====
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    // ===== Today's stats (Egypt timezone UTC+2) =====
+    const nowEgypt = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' }))
+    const today = new Date(nowEgypt.getFullYear(), nowEgypt.getMonth(), nowEgypt.getDate())
     const todayISO = today.toISOString()
+    const todayDateStr = today.toISOString().split('T')[0]
 
-    const [leadsToday, meetingsToday, attendedToday] = await Promise.all([
+    const [leadsToday, meetingsToday, attendedToday, dealsToday] = await Promise.all([
       // Leads created today
       client
         .from('leads')
@@ -114,7 +118,7 @@ export async function GET() {
         .from('leads')
         .select('*', { count: 'exact', head: true })
         .eq('is_archived', false)
-        .eq('meeting_date', today.toISOString().split('T')[0])
+        .eq('meeting_date', todayDateStr)
         .then(({ count, error }: { count: number | null; error: { message: string } | null }) => {
           if (error) console.error('[api/stats] meetingsToday error:', error.message)
           return count ?? 0
@@ -130,11 +134,22 @@ export async function GET() {
           if (error) console.error('[api/stats] attendedToday error:', error.message)
           return count ?? 0
         }),
+      // Deals closed today (real count from DB)
+      client
+        .from('leads')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_archived', false)
+        .eq('status', 'closed-won')
+        .gte('created_at', todayISO)
+        .then(({ count, error }: { count: number | null; error: { message: string } | null }) => {
+          if (error) console.error('[api/stats] dealsToday error:', error.message)
+          return count ?? 0
+        }),
     ])
 
     // ===== Per-tele stats =====
     // Load only the fields needed for aggregation
-    const teleLeads: Array<{ tele_name: string | null; attended: string | null; meeting_date: string | null; sales_status: string | null; status: string | null }> = []
+    const teleLeads: Array<{ tele_name: string | null; attended: string | null; meeting_date: string | null; sales_status: string | null; status: string | null; contact_result: string | null }> = []
     {
       const PAGE_SIZE = 5000
       let from = 0
@@ -142,7 +157,7 @@ export async function GET() {
       while (hasMore) {
         const { data, error } = await client
           .from('leads')
-          .select('tele_name, attended, meeting_date, sales_status, status')
+          .select('tele_name, attended, meeting_date, sales_status, status, contact_result')
           .eq('is_archived', false)
           .not('tele_name', '')
           .order('id', { ascending: true })
@@ -217,16 +232,22 @@ export async function GET() {
     const conversionRate = totalActive > 0 ? Math.round((totalClosedWon / totalActive) * 1000) / 10 : 0
 
     // ===== Overdue count =====
+    // Overdue = leads with a meeting date in the past but no attendance marked yet
     const overdueCount = await client
       .from('leads')
       .select('*', { count: 'exact', head: true })
       .eq('is_archived', false)
-      .not('status', '')
+      .not('meeting_date', '')
+      .lt('meeting_date', todayDateStr)
+      .is('attended', null)
       .then(({ count }: { count: number | null }) => count ?? 0)
 
     // ===== Weekly calls analytics (computed from leads data) =====
-    const dayNames = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
+    // Egypt work week: Saturday to Friday
+    const dayNames = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
     const weeklyCalls = dayNames.map((day) => ({ day, count: 0 }))
+    // Map JS getDay() (0=Sun,1=Mon,...,6=Sat) to our Arabic week index (0=Sat,1=Sun,...,6=Fri)
+    const jsDayToArabicWeek: Record<number, number> = { 6: 0, 0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 6 }
 
     // Count leads per day of week from last 7 days
     const sevenDaysAgo = new Date()
@@ -259,18 +280,20 @@ export async function GET() {
     for (const lead of recentLeads) {
       if (!lead.created_at) continue
       const d = new Date(lead.created_at)
-      const dayIdx = d.getDay()
-      if (weeklyCalls[dayIdx]) weeklyCalls[dayIdx].count++
+      const jsDay = d.getDay()
+      const arabicIdx = jsDayToArabicWeek[jsDay]
+      if (arabicIdx !== undefined && weeklyCalls[arabicIdx]) weeklyCalls[arabicIdx].count++
     }
 
     // ===== Call analytics =====
-    const totalCalls = teleLeads.length
+    // Count actual calls = leads where a contact result was recorded (not just 'none' or empty)
+    const callsWithResult = teleLeads.filter((l) => l.contact_result && l.contact_result !== 'none' && l.contact_result !== '').length
     const contactResults = teleLeads.filter((l) => l.attended !== null)
     const successCount = contactResults.filter((l) => l.attended === 'attended').length
     const failCount = contactResults.filter((l) => l.attended === 'no-show').length
-    const avgDurationSec = totalCalls > 0 ? 180 : 0 // Default average call duration estimate
-    const avgDurationMin = Math.floor(avgDurationSec / 60)
-    const avgDurationSecRem = avgDurationSec % 60
+    // We don't track actual call duration — don't show fake numbers
+    const avgDurationMin = 0
+    const avgDurationSecRem = 0
 
     // ===== AI Score (computed from lead outcomes) =====
     const totalOutcomes = totalAttended + totalNoShow
@@ -293,17 +316,17 @@ export async function GET() {
       },
       perTele,
       perSales,
-      // Additional dashboard stats
-      totalCalls,
+      // Additional dashboard stats — using REAL data, no fake numbers
+      totalCalls: callsWithResult,
       closedDeals: totalClosedWon,
       conversionRate,
       leadsToday,
-      callsToday: Math.floor(leadsToday * 1.8),
-      dealsToday: 0,
+      callsToday: callsWithResult, // Actual calls with contact results, not leadsToday * 1.8
+      dealsToday, // Real count from DB, not hardcoded 0
       currentMonth: getCurrentMonthAr(),
       weeklyCalls,
       callAnalytics: {
-        totalMinutes: Math.floor(totalCalls * 3),
+        totalMinutes: 0, // Set to 0 until actual call duration tracking is implemented
         successCount,
         failCount,
         avgDuration: `${avgDurationMin}:${avgDurationSecRem.toString().padStart(2, '0')}`,

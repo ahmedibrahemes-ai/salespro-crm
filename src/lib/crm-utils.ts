@@ -28,11 +28,11 @@ export function normalizePhone(input: string): string {
 
 // ===== Date/Time Helpers =====
 
-/** Check if a timestamp (ms) falls on today's date */
+/** Check if a timestamp (ms) falls on today's date (Egypt timezone UTC+2) */
 export function isTodayTimestamp(timestamp: number): boolean {
   if (!timestamp) return false
   const d = new Date(timestamp)
-  const now = new Date()
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' }))
   return (
     d.getFullYear() === now.getFullYear() &&
     d.getMonth() === now.getMonth() &&
@@ -40,10 +40,11 @@ export function isTodayTimestamp(timestamp: number): boolean {
   )
 }
 
-/** Check if a date string (YYYY-MM-DD) is today */
+/** Check if a date string (YYYY-MM-DD) is today (Egypt timezone UTC+2) */
 export function isTodayDateString(dateStr: string): boolean {
   if (!dateStr) return false
-  const today = new Date().toISOString().split('T')[0]
+  // Use Egypt timezone instead of UTC to match local business hours
+  const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' })).toISOString().split('T')[0]
   return dateStr === today
 }
 

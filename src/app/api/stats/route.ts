@@ -98,9 +98,13 @@ export async function GET() {
 
     // ===== Today's stats (Egypt timezone UTC+2) =====
     const nowEgypt = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' }))
-    const today = new Date(nowEgypt.getFullYear(), nowEgypt.getMonth(), nowEgypt.getDate())
-    const todayISO = today.toISOString()
-    const todayDateStr = today.toISOString().split('T')[0]
+    // Egypt is always UTC+2 (no daylight saving time)
+    // midnight Cairo = 22:00 UTC of the previous day
+    const EGYPT_OFFSET_MS = 2 * 60 * 60 * 1000
+    const todayStartUTC = new Date(Date.UTC(nowEgypt.getFullYear(), nowEgypt.getMonth(), nowEgypt.getDate()) - EGYPT_OFFSET_MS)
+    const todayISO = todayStartUTC.toISOString()
+    // Date string in Egypt timezone (for meeting_date column which stores YYYY-MM-DD)
+    const todayDateStr = `${nowEgypt.getFullYear()}-${String(nowEgypt.getMonth() + 1).padStart(2, '0')}-${String(nowEgypt.getDate()).padStart(2, '0')}`
 
     const [leadsToday, meetingsToday, attendedToday, dealsToday] = await Promise.all([
       // Leads created today

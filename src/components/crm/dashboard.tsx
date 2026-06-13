@@ -38,11 +38,12 @@ function getCurrentMonthAr(): string {
     'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
     'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
   ]
-  return months[new Date().getMonth()]
+  const nowEgypt = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' }))
+  return months[nowEgypt.getMonth()]
 }
 
 function getDaysRemainingInMonth(): number {
-  const now = new Date()
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' }))
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
   return end.getDate() - now.getDate()
 }
@@ -58,7 +59,8 @@ function formatCurrency(val: number): string {
  * Week runs Saturday(6) to Friday(5).
  */
 function getWeekRange(): { satStart: number; friEnd: number } {
-  const now = new Date()
+  // Use Egypt timezone for correct week boundary
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' }))
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const dayOfWeek = today.getDay() // 0=Sun, 6=Sat
 
@@ -70,9 +72,10 @@ function getWeekRange(): { satStart: number; friEnd: number } {
   return { satStart, friEnd }
 }
 
-/** Get the day-of-week index (0=Sat, 1=Sun, ..., 6=Fri) for a timestamp */
+/** Get the day-of-week index (0=Sat, 1=Sun, ..., 6=Fri) for a timestamp — uses Egypt timezone */
 function getArabicDayIndex(ts: number): number {
-  const d = new Date(ts).getDay() // 0=Sun, 1=Mon, ..., 6=Sat
+  // Use Egypt timezone for correct day-of-week after midnight
+  const d = new Date(new Date(ts).toLocaleString('en-US', { timeZone: 'Africa/Cairo' })).getDay()
   // Convert to Sat=0, Sun=1, ..., Fri=6
   return d === 6 ? 0 : d + 1
 }

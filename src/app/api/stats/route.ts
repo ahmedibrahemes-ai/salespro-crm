@@ -280,7 +280,7 @@ export async function GET() {
         .from('leads')
         .select('*', { count: 'exact', head: true })
         .eq('is_archived', false)
-        .not('meeting_date', '')
+        .not('meeting_date', 'is', null)  // meeting_date is a DATE column — use IS NOT NULL instead of <> ''
         .then(({ count, error }: { count: number | null; error: { message: string } | null }) => {
           if (error) console.error('[api/stats] totalMeetings error:', error.message)
           return count ?? 0
@@ -376,7 +376,7 @@ export async function GET() {
       .from('leads')
       .select('*', { count: 'exact', head: true })
       .eq('is_archived', false)
-      .not('meeting_date', '')
+      .not('meeting_date', 'is', null)  // meeting_date is a DATE column — use IS NOT NULL instead of <> ''
       .lt('meeting_date', todayDateStr)
       .is('attended', null)
       .then(({ count }: { count: number | null }) => count ?? 0)

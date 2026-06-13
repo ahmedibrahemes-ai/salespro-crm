@@ -664,8 +664,9 @@ export function Dashboard() {
 
   /* ─── Pending clients handler ─── */
   const handleShowPendingClients = useCallback(() => {
-    setCurrentView('transfers')
-  }, [setCurrentView])
+    // Admin monitors meetings via the general meetings page; tele goes to transfers
+    setCurrentView(currentRole === 'admin' ? 'meetings' : 'transfers')
+  }, [setCurrentView, currentRole])
 
   /* ─── Target type labels ─── */
   const targetTypeLabel = useMemo(() => {

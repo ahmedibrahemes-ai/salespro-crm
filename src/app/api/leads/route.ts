@@ -191,7 +191,11 @@ export async function GET(request: NextRequest) {
 
     const result = allData.map(leadFromDb)
     console.log(`[api/leads] GET final: ${result.length} leads loaded in ${page} pages`)
-    return NextResponse.json({ data: result, source, total: result.length })
+
+    const response = NextResponse.json({ data: result, source, total: result.length })
+    // Cache leads for 2 minutes — reduces egress from repeated dashboard reloads
+    response.headers.set('Cache-Control', 'private, max-age=120, stale-while-revalidate=300')
+    return response
   } catch (err) {
     console.error('[api/leads] GET unexpected error:', err)
     const message = err instanceof Error ? err.message : String(err)

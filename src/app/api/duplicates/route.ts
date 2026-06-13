@@ -316,9 +316,9 @@ export async function GET(request: NextRequest) {
       result = await fetchDuplicatesViaLegacy(client)
     }
 
-    // Add caching headers — duplicate data is valid for 30 seconds
+    // Add caching headers — duplicate data is valid for 5 minutes
     const response = NextResponse.json(result)
-    response.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60')
+    response.headers.set('Cache-Control', 'private, max-age=300, stale-while-revalidate=600')
     return response
   } catch (err) {
     console.error('[api/duplicates] Unexpected error:', err)

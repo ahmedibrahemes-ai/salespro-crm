@@ -4,9 +4,9 @@ import { getSupabaseAdmin, isAdminAvailable, createAnonClient } from '@/lib/supa
 /**
  * GET /api/stats
  *
- * Computes CRM statistics from Supabase using count: 'exact' for accurate counts.
- * NO Prisma/SQLite — Supabase ONLY.
- * NO hardcoded credentials — environment variables only.
+ * Computes CRM statistics from Supabase.
+ * Uses RPC (server-side aggregation) instead of downloading full tables.
+ * This drastically reduces egress compared to the old full-table-scan approach.
  * Uses Egypt timezone (Africa/Cairo, UTC+2) for "today" calculations.
  */
 
@@ -15,12 +15,11 @@ function getCurrentMonthAr(): string {
     'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
     'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
   ]
-  // Use Egypt timezone for month name
   const nowEgypt = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' }))
   return months[nowEgypt.getMonth()]
 }
 
-/** Helper: get exact count from Supabase using head: true + count: 'exact' */
+/** Helper: get exact count from Supabase using head: true (zero egress) */
 async function getCount(
   client: ReturnType<typeof createAnonClient>,
   table: string,
@@ -46,12 +45,207 @@ async function getCount(
   return count ?? 0
 }
 
+/**
+ * Fallback: compute per-person stats client-side (for when RPC is not available).
+ * This is the OLD approach — kept as fallback only.
+ * It uses a single combined query instead of 3 separate full-table scans.
+ */
+async function computePerPersonStatsFallback(client: ReturnType<typeof createAnonClient>) {
+  // Single query with all needed fields — eliminates 2 of 3 full-table scans
+  const allLeads: Array<{
+    tele_name: string | null; sales_name: string | null;
+    attended: string | null; meeting_date: string | null;
+    sales_status: string | null; status: string | null; contact_result: string | null
+  }> = []
+  {
+    const PAGE_SIZE = 5000
+    let from = 0
+    let hasMore = true
+    while (hasMore) {
+      const { data, error } = await client
+        .from('leads')
+        .select('tele_name, sales_name, attended, meeting_date, sales_status, status, contact_result')
+        .eq('is_archived', false)
+        .order('id', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1)
+      if (error) {
+        console.error('[api/stats] fallback per-person query error:', error.message)
+        break
+      }
+      if (data && data.length > 0) {
+        allLeads.push(...(data as typeof allLeads))
+        from += PAGE_SIZE
+        hasMore = data.length === PAGE_SIZE
+      } else {
+        hasMore = false
+      }
+    }
+  }
+
+  const perTele: Record<string, { total: number; attended: number; noShow: number; meetings: number; closedWon: number }> = {}
+  const perSales: Record<string, { total: number; attended: number; noShow: number; meetings: number; closedWon: number }> = {}
+  let callsWithResult = 0
+  let successCount = 0
+  let failCount = 0
+
+  for (const lead of allLeads) {
+    // Per-tele aggregation
+    const tele = (lead.tele_name || '').trim()
+    if (tele) {
+      if (!perTele[tele]) perTele[tele] = { total: 0, attended: 0, noShow: 0, meetings: 0, closedWon: 0 }
+      perTele[tele].total++
+      if (lead.attended === 'attended') perTele[tele].attended++
+      if (lead.attended === 'no-show') perTele[tele].noShow++
+      if (lead.meeting_date) perTele[tele].meetings++
+      if (lead.sales_status === 'closed-won' || lead.status === 'closed-won') perTele[tele].closedWon++
+    }
+
+    // Per-sales aggregation
+    const sales = (lead.sales_name || '').trim()
+    if (sales) {
+      if (!perSales[sales]) perSales[sales] = { total: 0, attended: 0, noShow: 0, meetings: 0, closedWon: 0 }
+      perSales[sales].total++
+      if (lead.attended === 'attended') perSales[sales].attended++
+      if (lead.attended === 'no-show') perSales[sales].noShow++
+      if (lead.meeting_date) perSales[sales].meetings++
+      if (lead.sales_status === 'closed-won' || lead.status === 'closed-won') perSales[sales].closedWon++
+    }
+
+    // Call analytics
+    if (lead.contact_result && lead.contact_result !== 'none' && lead.contact_result !== '') callsWithResult++
+    if (lead.attended !== null) {
+      if (lead.attended === 'attended') successCount++
+      if (lead.attended === 'no-show') failCount++
+    }
+  }
+
+  return { perTele, perSales, callsWithResult, successCount, failCount }
+}
+
+/**
+ * Try to use Supabase RPC for server-side aggregation (near-zero egress).
+ * Falls back to client-side if RPC functions don't exist yet.
+ */
+async function computePerPersonStatsRPC(client: ReturnType<typeof createAnonClient>) {
+  try {
+    // Call the RPC function — it returns pre-aggregated rows (tiny egress)
+    const [teleResult, salesResult, callResult] = await Promise.all([
+      client.rpc('get_per_tele_stats'),
+      client.rpc('get_per_sales_stats'),
+      client.rpc('get_call_analytics'),
+    ])
+
+    if (teleResult.error) {
+      // RPC function doesn't exist yet — fall back
+      console.warn('[api/stats] RPC not available, falling back to client-side aggregation. Run the SQL migration to create RPC functions.')
+      return null
+    }
+
+    const perTele: Record<string, { total: number; attended: number; noShow: number; meetings: number; closedWon: number }> = {}
+    for (const row of teleResult.data || []) {
+      perTele[row.tele_name] = {
+        total: Number(row.total),
+        attended: Number(row.attended),
+        noShow: Number(row.no_show),
+        meetings: Number(row.meetings),
+        closedWon: Number(row.closed_won),
+      }
+    }
+
+    const perSales: Record<string, { total: number; attended: number; noShow: number; meetings: number; closedWon: number }> = {}
+    for (const row of salesResult.data || []) {
+      perSales[row.sales_name] = {
+        total: Number(row.total),
+        attended: Number(row.attended),
+        noShow: Number(row.no_show),
+        meetings: Number(row.meetings),
+        closedWon: Number(row.closed_won),
+      }
+    }
+
+    const callData = callResult.data?.[0] || {}
+    return {
+      perTele,
+      perSales,
+      callsWithResult: Number(callData.total_calls || 0),
+      successCount: Number(callData.success_count || 0),
+      failCount: Number(callData.fail_count || 0),
+    }
+  } catch {
+    // RPC not available — fall back
+    console.warn('[api/stats] RPC call failed, falling back to client-side aggregation.')
+    return null
+  }
+}
+
+/**
+ * Weekly calls via RPC (server-side) — near-zero egress.
+ * Falls back to client-side if RPC doesn't exist.
+ */
+async function computeWeeklyCallsRPC(client: ReturnType<typeof createAnonClient>, sevenDaysAgoISO: string) {
+  try {
+    const { data, error } = await client.rpc('get_weekly_calls', { days_ago: sevenDaysAgoISO })
+    if (error) return null
+
+    // Map JS getDay() (0=Sun,...,6=Sat) to Arabic week index (0=Sat,...,6=Fri)
+    const jsDayToArabicWeek: Record<number, number> = { 6: 0, 0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 6 }
+    const dayNames = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
+    const weeklyCalls = dayNames.map((day) => ({ day, count: 0 }))
+
+    for (const row of data || []) {
+      const idx = jsDayToArabicWeek[row.day_of_week]
+      if (idx !== undefined && weeklyCalls[idx]) weeklyCalls[idx].count = Number(row.count)
+    }
+    return weeklyCalls
+  } catch {
+    return null
+  }
+}
+
+/** Fallback: compute weekly calls client-side (downloads created_at for recent leads) */
+async function computeWeeklyCallsFallback(client: ReturnType<typeof createAnonClient>, sevenDaysAgoISO: string) {
+  const dayNames = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
+  const weeklyCalls = dayNames.map((day) => ({ day, count: 0 }))
+  const jsDayToArabicWeek: Record<number, number> = { 6: 0, 0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 6 }
+
+  const recentLeads: Array<{ created_at: string | null }> = []
+  {
+    const PAGE_SIZE = 5000
+    let from = 0
+    let hasMore = true
+    while (hasMore) {
+      const { data, error } = await client
+        .from('leads')
+        .select('created_at')
+        .gte('created_at', sevenDaysAgoISO)
+        .order('id', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1)
+      if (error) break
+      if (data && data.length > 0) {
+        recentLeads.push(...(data as typeof recentLeads))
+        from += PAGE_SIZE
+        hasMore = data.length === PAGE_SIZE
+      } else {
+        hasMore = false
+      }
+    }
+  }
+
+  for (const lead of recentLeads) {
+    if (!lead.created_at) continue
+    const d = new Date(new Date(lead.created_at).toLocaleString('en-US', { timeZone: 'Africa/Cairo' }))
+    const jsDay = d.getDay()
+    const arabicIdx = jsDayToArabicWeek[jsDay]
+    if (arabicIdx !== undefined && weeklyCalls[arabicIdx]) weeklyCalls[arabicIdx].count++
+  }
+
+  return weeklyCalls
+}
+
 export async function GET() {
   try {
-    // Use admin client if available (bypasses RLS), otherwise anon client
     const client = isAdminAvailable() ? getSupabaseAdmin()! : createAnonClient()
     if (!client) {
-      // Return empty stats when Supabase is not configured (demo mode)
       return NextResponse.json({
         totalLeads: 0, totalActive: 0, totalArchived: 0, totalAttended: 0,
         totalNoShow: 0, totalPending: 0, totalMeetings: 0, totalClosedWon: 0,
@@ -64,7 +258,7 @@ export async function GET() {
       })
     }
 
-    // ===== Core counts using count: 'exact' =====
+    // ===== Core counts using count: 'exact' (zero egress) =====
     const [
       totalLeads,
       totalActive,
@@ -82,7 +276,6 @@ export async function GET() {
       getCount(client, 'leads', { attended: 'attended', is_archived: false }),
       getCount(client, 'leads', { attended: 'no-show', is_archived: false }),
       getCount(client, 'leads', { attended: null, is_archived: false }),
-      // Meetings: leads with a non-empty meeting_date
       client
         .from('leads')
         .select('*', { count: 'exact', head: true })
@@ -98,16 +291,12 @@ export async function GET() {
 
     // ===== Today's stats (Egypt timezone UTC+2) =====
     const nowEgypt = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' }))
-    // Egypt is always UTC+2 (no daylight saving time)
-    // midnight Cairo = 22:00 UTC of the previous day
     const EGYPT_OFFSET_MS = 2 * 60 * 60 * 1000
     const todayStartUTC = new Date(Date.UTC(nowEgypt.getFullYear(), nowEgypt.getMonth(), nowEgypt.getDate()) - EGYPT_OFFSET_MS)
     const todayISO = todayStartUTC.toISOString()
-    // Date string in Egypt timezone (for meeting_date column which stores YYYY-MM-DD)
     const todayDateStr = `${nowEgypt.getFullYear()}-${String(nowEgypt.getMonth() + 1).padStart(2, '0')}-${String(nowEgypt.getDate()).padStart(2, '0')}`
 
-    const [leadsToday, meetingsToday, attendedToday, dealsToday] = await Promise.all([
-      // Leads created today
+    const [leadsToday, meetingsToday, attendedToday, dealsToday, callsToday] = await Promise.all([
       client
         .from('leads')
         .select('*', { count: 'exact', head: true })
@@ -117,7 +306,6 @@ export async function GET() {
           if (error) console.error('[api/stats] leadsToday error:', error.message)
           return count ?? 0
         }),
-      // Meetings today (meeting_date = today's date string)
       client
         .from('leads')
         .select('*', { count: 'exact', head: true })
@@ -127,7 +315,6 @@ export async function GET() {
           if (error) console.error('[api/stats] meetingsToday error:', error.message)
           return count ?? 0
         }),
-      // Marked attended today
       client
         .from('leads')
         .select('*', { count: 'exact', head: true })
@@ -138,7 +325,6 @@ export async function GET() {
           if (error) console.error('[api/stats] attendedToday error:', error.message)
           return count ?? 0
         }),
-      // Deals closed today (use contact_result_at as proxy until closed_at column is added)
       client
         .from('leads')
         .select('*', { count: 'exact', head: true })
@@ -149,94 +335,43 @@ export async function GET() {
           if (error) console.error('[api/stats] dealsToday error:', error.message)
           return count ?? 0
         }),
+      client
+        .from('leads')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_archived', false)
+        .not('contact_result', '')
+        .neq('contact_result', 'none')
+        .gte('contact_result_at', todayISO)
+        .then(({ count }: { count: number | null }) => count ?? 0),
     ])
 
-    // ===== Per-tele stats =====
-    // Load only the fields needed for aggregation
-    const teleLeads: Array<{ tele_name: string | null; attended: string | null; meeting_date: string | null; sales_status: string | null; status: string | null; contact_result: string | null }> = []
-    {
-      const PAGE_SIZE = 5000
-      let from = 0
-      let hasMore = true
-      while (hasMore) {
-        const { data, error } = await client
-          .from('leads')
-          .select('tele_name, attended, meeting_date, sales_status, status, contact_result')
-          .eq('is_archived', false)
-          .not('tele_name', '')
-          .order('id', { ascending: true })
-          .range(from, from + PAGE_SIZE - 1)
-        if (error) {
-          console.error('[api/stats] per-tele query error:', error.message)
-          break
-        }
-        if (data && data.length > 0) {
-          teleLeads.push(...(data as typeof teleLeads))
-          from += PAGE_SIZE
-          hasMore = data.length === PAGE_SIZE
-        } else {
-          hasMore = false
-        }
-      }
-    }
+    // ===== Per-person stats — try RPC first, fallback to client-side =====
+    const rpcResult = await computePerPersonStatsRPC(client)
+    let perTele: Record<string, { total: number; attended: number; noShow: number; meetings: number; closedWon: number }>
+    let perSales: Record<string, { total: number; attended: number; noShow: number; meetings: number; closedWon: number }>
+    let callsWithResult: number
+    let successCount: number
+    let failCount: number
 
-    const perTele: Record<string, { total: number; attended: number; noShow: number; meetings: number; closedWon: number }> = {}
-    for (const lead of teleLeads) {
-      const tele = (lead.tele_name || '').trim()
-      if (!tele) continue
-      if (!perTele[tele]) perTele[tele] = { total: 0, attended: 0, noShow: 0, meetings: 0, closedWon: 0 }
-      perTele[tele].total++
-      if (lead.attended === 'attended') perTele[tele].attended++
-      if (lead.attended === 'no-show') perTele[tele].noShow++
-      if (lead.meeting_date) perTele[tele].meetings++
-      if (lead.sales_status === 'closed-won' || lead.status === 'closed-won') perTele[tele].closedWon++
-    }
-
-    // ===== Per-sales stats =====
-    const salesLeads: Array<{ sales_name: string | null; attended: string | null; meeting_date: string | null; sales_status: string | null; status: string | null }> = []
-    {
-      const PAGE_SIZE = 5000
-      let from = 0
-      let hasMore = true
-      while (hasMore) {
-        const { data, error } = await client
-          .from('leads')
-          .select('sales_name, attended, meeting_date, sales_status, status')
-          .eq('is_archived', false)
-          .not('sales_name', '')
-          .order('id', { ascending: true })
-          .range(from, from + PAGE_SIZE - 1)
-        if (error) {
-          console.error('[api/stats] per-sales query error:', error.message)
-          break
-        }
-        if (data && data.length > 0) {
-          salesLeads.push(...(data as typeof salesLeads))
-          from += PAGE_SIZE
-          hasMore = data.length === PAGE_SIZE
-        } else {
-          hasMore = false
-        }
-      }
-    }
-
-    const perSales: Record<string, { total: number; attended: number; noShow: number; meetings: number; closedWon: number }> = {}
-    for (const lead of salesLeads) {
-      const sales = (lead.sales_name || '').trim()
-      if (!sales) continue
-      if (!perSales[sales]) perSales[sales] = { total: 0, attended: 0, noShow: 0, meetings: 0, closedWon: 0 }
-      perSales[sales].total++
-      if (lead.attended === 'attended') perSales[sales].attended++
-      if (lead.attended === 'no-show') perSales[sales].noShow++
-      if (lead.meeting_date) perSales[sales].meetings++
-      if (lead.sales_status === 'closed-won' || lead.status === 'closed-won') perSales[sales].closedWon++
+    if (rpcResult) {
+      perTele = rpcResult.perTele
+      perSales = rpcResult.perSales
+      callsWithResult = rpcResult.callsWithResult
+      successCount = rpcResult.successCount
+      failCount = rpcResult.failCount
+    } else {
+      const fallback = await computePerPersonStatsFallback(client)
+      perTele = fallback.perTele
+      perSales = fallback.perSales
+      callsWithResult = fallback.callsWithResult
+      successCount = fallback.successCount
+      failCount = fallback.failCount
     }
 
     // ===== Conversion rate =====
     const conversionRate = totalActive > 0 ? Math.round((totalClosedWon / totalActive) * 1000) / 10 : 0
 
-    // ===== Overdue count =====
-    // Overdue = leads with a meeting date in the past but no attendance marked yet
+    // ===== Overdue count (zero egress — head: true) =====
     const overdueCount = await client
       .from('leads')
       .select('*', { count: 'exact', head: true })
@@ -246,61 +381,15 @@ export async function GET() {
       .is('attended', null)
       .then(({ count }: { count: number | null }) => count ?? 0)
 
-    // ===== Weekly calls analytics (computed from leads data) =====
-    // Egypt work week: Saturday to Friday
-    const dayNames = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
-    const weeklyCalls = dayNames.map((day) => ({ day, count: 0 }))
-    // Map JS getDay() (0=Sun,1=Mon,...,6=Sat) to our Arabic week index (0=Sat,1=Sun,...,6=Fri)
-    const jsDayToArabicWeek: Record<number, number> = { 6: 0, 0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 6 }
-
-    // Count leads per day of week from last 7 days
+    // ===== Weekly calls — try RPC first, fallback to client-side =====
     const sevenDaysAgo = new Date()
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
     const sevenDaysAgoISO = sevenDaysAgo.toISOString()
 
-    const recentLeads: Array<{ created_at: string | null }> = []
-    {
-      const PAGE_SIZE = 5000
-      let from = 0
-      let hasMore = true
-      while (hasMore) {
-        const { data, error } = await client
-          .from('leads')
-          .select('created_at')
-          .gte('created_at', sevenDaysAgoISO)
-          .order('id', { ascending: true })
-          .range(from, from + PAGE_SIZE - 1)
-        if (error) break
-        if (data && data.length > 0) {
-          recentLeads.push(...(data as typeof recentLeads))
-          from += PAGE_SIZE
-          hasMore = data.length === PAGE_SIZE
-        } else {
-          hasMore = false
-        }
-      }
-    }
+    const weeklyCalls = (await computeWeeklyCallsRPC(client, sevenDaysAgoISO))
+      || (await computeWeeklyCallsFallback(client, sevenDaysAgoISO))
 
-    for (const lead of recentLeads) {
-      if (!lead.created_at) continue
-      // Use Egypt timezone for correct day-of-week calculation
-      const d = new Date(new Date(lead.created_at).toLocaleString('en-US', { timeZone: 'Africa/Cairo' }))
-      const jsDay = d.getDay()
-      const arabicIdx = jsDayToArabicWeek[jsDay]
-      if (arabicIdx !== undefined && weeklyCalls[arabicIdx]) weeklyCalls[arabicIdx].count++
-    }
-
-    // ===== Call analytics =====
-    // Count actual calls = leads where a contact result was recorded (not just 'none' or empty)
-    const callsWithResult = teleLeads.filter((l) => l.contact_result && l.contact_result !== 'none' && l.contact_result !== '').length
-    const contactResults = teleLeads.filter((l) => l.attended !== null)
-    const successCount = contactResults.filter((l) => l.attended === 'attended').length
-    const failCount = contactResults.filter((l) => l.attended === 'no-show').length
-    // We don't track actual call duration — don't show fake numbers
-    const avgDurationMin = 0
-    const avgDurationSecRem = 0
-
-    // ===== AI Score (computed from lead outcomes) =====
+    // ===== AI Score =====
     const totalOutcomes = totalAttended + totalNoShow
     const aiScore = totalOutcomes > 0 ? Math.round((totalAttended / totalOutcomes) * 100) / 10 : 0
 
@@ -321,34 +410,25 @@ export async function GET() {
       },
       perTele,
       perSales,
-      // Additional dashboard stats — using REAL data, no fake numbers
       totalCalls: callsWithResult,
       closedDeals: totalClosedWon,
       conversionRate,
       leadsToday,
-      callsToday: await client
-        .from('leads')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_archived', false)
-        .not('contact_result', '')
-        .neq('contact_result', 'none')
-        .gte('contact_result_at', todayISO)
-        .then(({ count }: { count: number | null }) => count ?? 0),
-      dealsToday, // Real count from DB, not hardcoded 0
+      callsToday,
+      dealsToday,
       currentMonth: getCurrentMonthAr(),
       weeklyCalls,
       callAnalytics: {
-        totalMinutes: 0, // Set to 0 until actual call duration tracking is implemented
+        totalMinutes: 0,
         successCount,
         failCount,
-        avgDuration: `${avgDurationMin}:${avgDurationSecRem.toString().padStart(2, '0')}`,
+        avgDuration: '0:00',
       },
       aiScore,
       overdueCount,
     }
 
-    // Cache for 5 minutes to avoid hammering the database on every dashboard load
-    // Previously 30s which caused excessive egress with full-table scans
+    // Cache for 5 minutes
     const response = NextResponse.json(stats)
     response.headers.set('Cache-Control', 'private, max-age=300, stale-while-revalidate=600')
     return response

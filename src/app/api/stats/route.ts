@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin, isAdminAvailable, createAnonClient } from '@/lib/supabase-admin'
+import { isStatsCacheValid, getStatsCache, setStatsCache } from '@/lib/api-cache'
 
 /**
  * GET /api/stats
@@ -244,6 +245,15 @@ async function computeWeeklyCallsFallback(client: ReturnType<typeof createAnonCl
 
 export async function GET() {
   try {
+    // Check in-memory cache first — avoids hitting Supabase entirely
+    if (isStatsCacheValid()) {
+      const cached = getStatsCache()!
+      const response = NextResponse.json(cached)
+      response.headers.set('Cache-Control', 'private, max-age=300, stale-while-revalidate=600')
+      response.headers.set('X-Cache', 'HIT')
+      return response
+    }
+
     const client = isAdminAvailable() ? getSupabaseAdmin()! : createAnonClient()
     if (!client) {
       return NextResponse.json({
@@ -428,9 +438,11 @@ export async function GET() {
       overdueCount,
     }
 
-    // Cache for 5 minutes
+    // Store in server-side cache for 60 seconds
+    setStatsCache(stats)
     const response = NextResponse.json(stats)
     response.headers.set('Cache-Control', 'private, max-age=300, stale-while-revalidate=600')
+    response.headers.set('X-Cache', 'MISS')
     return response
   } catch (error) {
     console.error('Error fetching stats:', error)

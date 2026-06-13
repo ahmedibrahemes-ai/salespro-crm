@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, isAdminAvailable, createAuthenticatedClient, createAnonClient } from '@/lib/supabase-admin'
 import { DbLead, normalizePhone, safeTimestamp, safeDate, safeTime, normalizeAttended } from '@/lib/crm-utils'
+import { isLeadsCacheValid, getLeadsCache, setLeadsCache, invalidateAllCaches } from '@/lib/api-cache'
 
 function leadFromDb(row: DbLead) {
   return {
@@ -144,6 +145,16 @@ export async function GET(request: NextRequest) {
     const includeArchived = searchParams.get('archived') === 'true'
     const archivedOnly = searchParams.get('archived_only') === 'true'
 
+    // Check in-memory cache first — avoids hitting Supabase entirely
+    const cacheKey = `${includeArchived}|${archivedOnly}`
+    if (isLeadsCacheValid(cacheKey)) {
+      const cached = getLeadsCache(cacheKey)!
+      const response = NextResponse.json(cached)
+      response.headers.set('Cache-Control', 'private, max-age=120, stale-while-revalidate=300')
+      response.headers.set('X-Cache', 'HIT')
+      return response
+    }
+
     // For READ operations, use the anon/public client for reliable pagination.
     // The admin (service role) client can have inconsistent pagination behavior.
     // Since RLS SELECT policies allow public reads, anon client works fine.
@@ -192,9 +203,14 @@ export async function GET(request: NextRequest) {
     const result = allData.map(leadFromDb)
     console.log(`[api/leads] GET final: ${result.length} leads loaded in ${page} pages`)
 
-    const response = NextResponse.json({ data: result, source, total: result.length })
+    const responseBody = { data: result, source, total: result.length }
+    // Store in server-side cache for 30 seconds
+    setLeadsCache(cacheKey, responseBody)
+
+    const response = NextResponse.json(responseBody)
     // Cache leads for 2 minutes — reduces egress from repeated dashboard reloads
     response.headers.set('Cache-Control', 'private, max-age=120, stale-while-revalidate=300')
+    response.headers.set('X-Cache', 'MISS')
     return response
   } catch (err) {
     console.error('[api/leads] GET unexpected error:', err)
@@ -221,6 +237,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { operation, data } = body
+
+    // Invalidate caches on any write operation — ensures fresh data on next read.
+    // Read-only operations (getSetting, checkDuplicatePhones) also invalidate,
+    // but the cost is just one extra Supabase call on next request, which is negligible.
+    invalidateAllCaches()
 
     switch (operation) {
       case 'create': {
@@ -759,6 +780,8 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
+    // Invalidate caches after successful update
+    invalidateAllCaches()
     return NextResponse.json({ data: leadFromDb(data as DbLead) })
   } catch (err) {
     console.error('[api/leads] Update unexpected error:', err)
@@ -795,6 +818,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
+    // Invalidate caches after successful delete
+    invalidateAllCaches()
     return NextResponse.json({ success: true })
   } catch (err) {
     console.error('[api/leads] Delete unexpected error:', err)

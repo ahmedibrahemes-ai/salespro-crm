@@ -196,20 +196,34 @@ function AllLeadsTab() {
   const [filterTele, setFilterTele] = useState('all')
   const [filterSales, setFilterSales] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 50
 
   const filteredLeads = useMemo(() => {
-    let result = leads.filter((l) => !l.isArchived)
-    if (filterTele !== 'all') result = result.filter((l) => l.tele === filterTele)
-    if (filterSales !== 'all') result = result.filter((l) => l.sales === filterSales)
-    if (filterStatus !== 'all') result = result.filter((l) => l.status === filterStatus || l.salesStatus === filterStatus)
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      result = result.filter(
-        (l) => l.customerName?.toLowerCase().includes(q) || l.phone?.toLowerCase().includes(q)
-      )
-    }
-    return result
+    const q = searchQuery.trim().toLowerCase()
+    return leads.filter((l) => {
+      if (l.isArchived) return false
+      if (filterTele !== 'all' && l.tele !== filterTele) return false
+      if (filterSales !== 'all' && l.sales !== filterSales) return false
+      if (filterStatus !== 'all' && l.status !== filterStatus && l.salesStatus !== filterStatus) return false
+      if (q && !(l.customerName?.toLowerCase().includes(q) || l.phone?.toLowerCase().includes(q))) return false
+      return true
+    })
   }, [leads, filterTele, filterSales, filterStatus, searchQuery])
+
+  // Reset page when filters change (use ref comparison to avoid useEffect+setState)
+  const [prevFilterKey, setPrevFilterKey] = useState('')
+  const filterKey = `${filterTele}|${filterSales}|${filterStatus}|${searchQuery}`
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey)
+    setPage(1)
+  }
+
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE))
+  const paginatedLeads = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE
+    return filteredLeads.slice(start, start + PAGE_SIZE)
+  }, [filteredLeads, page])
 
   const handleBulkArchive = useCallback(async () => {
     if (selected.length === 0) return
@@ -307,12 +321,12 @@ function AllLeadsTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredLeads.length === 0 ? (
+                {paginatedLeads.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8 text-[#4a5280] text-[13px] font-semibold">لا يوجد عملاء</TableCell>
                   </TableRow>
                 ) : (
-                  filteredLeads.map((lead) => (
+                  paginatedLeads.map((lead) => (
                     <TableRow key={lead.id} className={`border-b border-white/[0.04] ${selected.includes(lead.id) ? 'bg-[#6c63ff]/5' : 'hover:bg-[#1c2234]/50'}`}>
                       <TableCell className="w-[40px]">
                         <Checkbox
@@ -343,8 +357,32 @@ function AllLeadsTab() {
             </Table>
           </div>
           {filteredLeads.length > 0 && (
-            <div className="border-t border-white/[0.06] px-4 py-2 text-[12px] font-medium text-[#4a5280]">
-              عرض {filteredLeads.length} عميل
+            <div className="border-t border-white/[0.06] px-4 py-2 flex items-center justify-between">
+              <span className="text-[12px] font-medium text-[#4a5280]">
+                عرض {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, filteredLeads.length)} من {filteredLeads.length} عميل
+              </span>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-[12px] font-bold bg-[#0a0d14] border border-white/[0.06] text-[#8892b0] hover:border-white/[0.12] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <span className="text-[12px] font-bold text-[#8892b0] px-2">
+                    {page} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-[12px] font-bold bg-[#0a0d14] border border-white/[0.06] text-[#8892b0] hover:border-white/[0.12] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    style={{ transform: 'scaleX(-1)' }}
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

@@ -729,25 +729,13 @@ export const useCrmStore = create<CrmStore>()(
     }),
     {
       name: 'venom-crm-storage',
-      partialize: (state) => ({
-        leads: state.leads,
-        archivedLeads: state.archivedLeads,
-        leadsById: state.leadsById,
-        dataLoaded: state.dataLoaded,
-        archivedLoaded: state.archivedLoaded,
-      }),
-      merge: (persisted, current) => {
-        const p = persisted as Partial<CrmStore>
-        if (!p) return current
-        return {
-          ...current,
-          leads: (p.leads && p.leads.length > 0) ? p.leads : current.leads,
-          archivedLeads: (p.archivedLeads && p.archivedLeads.length > 0) ? p.archivedLeads : current.archivedLeads,
-          leadsById: (p.leadsById && Object.keys(p.leadsById).length > 0) ? p.leadsById : current.leadsById,
-          dataLoaded: p.dataLoaded ?? current.dataLoaded,
-          archivedLoaded: p.archivedLoaded ?? current.archivedLoaded,
-        }
-      },
+      // PERF: Do NOT persist leads/archivedLeads/leadsById or dataLoaded/archivedLoaded.
+      // Leads are fetched from Supabase on every login — persisting them causes
+      // multi-MB JSON.stringify on every state change → 1-2s UI freezes.
+      // dataLoaded/archivedLoaded must also not be persisted, otherwise the app
+      // would think data is loaded after refresh while leads array is empty.
+      partialize: () => ({}),
+      merge: (_persisted, current) => current,
     }
   )
 )

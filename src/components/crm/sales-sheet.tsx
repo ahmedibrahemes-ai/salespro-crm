@@ -180,32 +180,39 @@ export function SalesSheet() {
   const [toOpen, setToOpen] = useState(false)
 
   /* ─── Filtered leads ─── */
-  const filteredLeads = useMemo(() => {
-    let result = leads.filter((l) => !l.isArchived)
+  // Single-pass filter + stats computation to avoid chained .filter() overhead
+  const { filteredLeads, stats } = useMemo(() => {
+    const needsDateFilter = dateFilter.preset !== 'all'
+    const dateRange = needsDateFilter ? getDateRange(dateFilter.preset, dateFilter.customFrom, dateFilter.customTo) : null
+    const q = searchQuery.trim().toLowerCase()
 
-    // Sales users can ONLY see leads assigned to them
-    if (isLockedToSelf) {
-      result = result.filter((l) => l.sales === currentUser)
-    } else if (selectedSales !== 'all') {
-      result = result.filter((l) => l.sales === selectedSales)
+    // Stats accumulators
+    let total = 0
+    let meetingsToday = 0
+    let attended = 0
+    let noShow = 0
+    let closedWon = 0
+    // Pre-compute today's date string for meetingsToday stat
+    const todayStr = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' })).toISOString().split('T')[0]
+
+    const result: Lead[] = []
+
+    for (const l of leads) {
+      if (l.isArchived) continue
+      if (isLockedToSelf && l.sales !== currentUser) continue
+      if (!isLockedToSelf && selectedSales !== 'all' && l.sales !== selectedSales) continue
+      if (q && !(l.customerName?.toLowerCase().includes(q) || l.phone?.toLowerCase().includes(q) || l.storeUrl?.toLowerCase().includes(q))) continue
+      if (dateRange && (l.createdAt < dateRange.from || l.createdAt >= dateRange.to)) continue
+
+      result.push(l)
+      total++
+      if (l.meetingDate === todayStr) meetingsToday++
+      if (l.attended === 'attended') attended++
+      if (l.attended === 'no-show') noShow++
+      if (l.salesStatus === 'closed-won') closedWon++
     }
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      result = result.filter(
-        (l) =>
-          l.customerName?.toLowerCase().includes(q) ||
-          l.phone?.toLowerCase().includes(q) ||
-          l.storeUrl?.toLowerCase().includes(q)
-      )
-    }
-
-    if (dateFilter.preset !== 'all') {
-      const { from, to } = getDateRange(dateFilter.preset, dateFilter.customFrom, dateFilter.customTo)
-      result = result.filter((l) => l.createdAt >= from && l.createdAt < to)
-    }
-
-    return result
+    return { filteredLeads: result, stats: { total, meetingsToday, attended, noShow, closedWon } }
   }, [leads, selectedSales, searchQuery, dateFilter, isLockedToSelf, currentUser])
 
   /* ─── Paginated leads ─── */
@@ -222,20 +229,6 @@ export function SalesSheet() {
     setPrevFilterKey(filterKey)
     setCurrentPage(1)
   }
-
-  /* ─── Stats ─── */
-  const stats = useMemo(() => {
-    const total = filteredLeads.length
-    const meetingsToday = filteredLeads.filter((l) => {
-      if (!l.meetingDate) return false
-      const today = new Date().toISOString().split('T')[0]
-      return l.meetingDate === today
-    }).length
-    const attended = filteredLeads.filter((l) => l.attended === 'attended').length
-    const noShow = filteredLeads.filter((l) => l.attended === 'no-show').length
-    const closedWon = filteredLeads.filter((l) => l.salesStatus === 'closed-won').length
-    return { total, meetingsToday, attended, noShow, closedWon }
-  }, [filteredLeads])
 
   /* ─── Update lead field ─── */
   const handleUpdateField = useCallback(async (id: string, field: string, value: string) => {

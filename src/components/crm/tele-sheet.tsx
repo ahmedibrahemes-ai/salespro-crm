@@ -1006,40 +1006,36 @@ export function TeleSheet() {
   }, [])
 
   /* ─── Filtered leads ─── */
-  const filteredLeads = useMemo(() => {
-    let result = leads.filter((l) => !l.isArchived)
+  // Single-pass filter + stats computation to avoid chained .filter() overhead
+  const { filteredLeads, stats } = useMemo(() => {
+    // Pre-compute date range only if needed
+    const needsDateFilter = dateFilter.preset !== 'all'
+    const dateRange = needsDateFilter ? getDateRange(dateFilter.preset, dateFilter.customFrom, dateFilter.customTo) : null
+    const q = searchQuery.trim().toLowerCase()
 
-    // Filter by tele — tele users can ONLY see their own leads
-    if (isLockedToSelf) {
-      result = result.filter((l) => l.tele === currentUser)
-    } else if (selectedTele !== 'all') {
-      result = result.filter((l) => l.tele === selectedTele)
+    let total = 0
+    let contacted = 0
+    let meetings = 0
+    let transferred = 0
+
+    const result: Lead[] = []
+
+    for (const l of leads) {
+      if (l.isArchived) continue
+      if (isLockedToSelf && l.tele !== currentUser) continue
+      if (!isLockedToSelf && selectedTele !== 'all' && l.tele !== selectedTele) continue
+      if (currentFilter === 'uncontacted' && l.contactResult && l.contactResult !== 'none' && l.contactResult !== '') continue
+      if (q && !(l.customerName?.toLowerCase().includes(q) || l.phone?.toLowerCase().includes(q) || l.storeUrl?.toLowerCase().includes(q) || l.brief?.toLowerCase().includes(q))) continue
+      if (dateRange && (l.createdAt < dateRange.from || l.createdAt >= dateRange.to)) continue
+
+      result.push(l)
+      total++
+      if (l.contactResult && l.contactResult !== 'none' && l.contactResult !== '') contacted++
+      if (l.status === 'meeting' || l.meetingDate) meetings++
+      if (l.sales) transferred++
     }
 
-    // Active filter (e.g. "uncontacted" from dashboard)
-    if (currentFilter === 'uncontacted') {
-      result = result.filter((l) => !l.contactResult || l.contactResult === 'none' || l.contactResult === '')
-    }
-
-    // Search
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      result = result.filter(
-        (l) =>
-          l.customerName?.toLowerCase().includes(q) ||
-          l.phone?.toLowerCase().includes(q) ||
-          l.storeUrl?.toLowerCase().includes(q) ||
-          l.brief?.toLowerCase().includes(q)
-      )
-    }
-
-    // Date range
-    if (dateFilter.preset !== 'all') {
-      const { from, to } = getDateRange(dateFilter.preset, dateFilter.customFrom, dateFilter.customTo)
-      result = result.filter((l) => l.createdAt >= from && l.createdAt < to)
-    }
-
-    // Sort newest first (by createdAt descending, fallback to ID descending)
+    // Sort newest first
     result.sort((a, b) => {
       const timeDiff = (b.createdAt || 0) - (a.createdAt || 0)
       if (timeDiff !== 0) return timeDiff
@@ -1049,7 +1045,7 @@ export function TeleSheet() {
       return b.id.localeCompare(a.id)
     })
 
-    return result
+    return { filteredLeads: result, stats: { total, contacted, meetings, transferred } }
   }, [leads, selectedTele, searchQuery, dateFilter, isLockedToSelf, currentUser, currentFilter])
 
   /* ─── Paginated leads ─── */
@@ -1066,15 +1062,6 @@ export function TeleSheet() {
     setPrevFilterKey(filterKey)
     setCurrentPage(1)
   }
-
-  /* ─── Stats ─── */
-  const stats = useMemo(() => {
-    const total = filteredLeads.length
-    const contacted = filteredLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length
-    const meetings = filteredLeads.filter((l) => l.status === 'meeting' || l.meetingDate).length
-    const transferred = filteredLeads.filter((l) => l.sales).length
-    return { total, contacted, meetings, transferred }
-  }, [filteredLeads])
 
   /* ─── Transfer lead reference ─── */
   const transferLead = useMemo(() => {

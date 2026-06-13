@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin, isAdminAvailable, createAnonClient } from '@/lib/supabase-admin'
-import { isStatsCacheValid, getStatsCache, setStatsCache } from '@/lib/api-cache'
+import { isStatsCacheValid, getStatsCache, setStatsCache, recordStatsHit, recordStatsMiss, recordSupabaseQuery } from '@/lib/api-cache'
 
 /**
  * GET /api/stats
@@ -247,12 +247,15 @@ export async function GET() {
   try {
     // Check in-memory cache first — avoids hitting Supabase entirely
     if (isStatsCacheValid()) {
+      recordStatsHit()
       const cached = getStatsCache()!
       const response = NextResponse.json(cached)
       response.headers.set('Cache-Control', 'private, max-age=300, stale-while-revalidate=600')
       response.headers.set('X-Cache', 'HIT')
       return response
     }
+    recordStatsMiss()
+    recordSupabaseQuery(15) // 9 core counts + 5 today counts + 1 overdue count
 
     const client = isAdminAvailable() ? getSupabaseAdmin()! : createAnonClient()
     if (!client) {

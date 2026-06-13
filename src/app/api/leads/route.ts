@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, isAdminAvailable, createAuthenticatedClient, createAnonClient } from '@/lib/supabase-admin'
 import { DbLead, normalizePhone, safeTimestamp, safeDate, safeTime, normalizeAttended } from '@/lib/crm-utils'
-import { isLeadsCacheValid, getLeadsCache, setLeadsCache, invalidateAllCaches } from '@/lib/api-cache'
+import { isLeadsCacheValid, getLeadsCache, setLeadsCache, invalidateAllCaches, recordLeadsHit, recordLeadsMiss, recordSupabaseQuery } from '@/lib/api-cache'
 
 function leadFromDb(row: DbLead) {
   return {
@@ -148,12 +148,14 @@ export async function GET(request: NextRequest) {
     // Check in-memory cache first — avoids hitting Supabase entirely
     const cacheKey = `${includeArchived}|${archivedOnly}`
     if (isLeadsCacheValid(cacheKey)) {
+      recordLeadsHit()
       const cached = getLeadsCache(cacheKey)!
       const response = NextResponse.json(cached)
       response.headers.set('Cache-Control', 'private, max-age=120, stale-while-revalidate=300')
       response.headers.set('X-Cache', 'HIT')
       return response
     }
+    recordLeadsMiss()
 
     // For READ operations, use the anon/public client for reliable pagination.
     // The admin (service role) client can have inconsistent pagination behavior.
@@ -202,6 +204,7 @@ export async function GET(request: NextRequest) {
 
     const result = allData.map(leadFromDb)
     console.log(`[api/leads] GET final: ${result.length} leads loaded in ${page} pages`)
+    recordSupabaseQuery(page) // each page = 1 Supabase query
 
     const responseBody = { data: result, source, total: result.length }
     // Store in server-side cache for 30 seconds

@@ -16,6 +16,7 @@ import {
   Search, Trash2, PhoneCall, Trophy, UserPlus, UserMinus, Pencil,
   Check, X, Plus, ArrowUpDown, LayoutGrid, Shield, KeyRound,
   Loader2, Eye, EyeOff, ToggleLeft, ToggleRight, Link2, AlertTriangle,
+  Activity, Server, Database, TrendingDown,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -45,6 +46,7 @@ const ADMIN_TABS: { key: AdminTab; label: string; icon: React.ElementType }[] = 
   { key: 'archive', label: 'الأرشيف', icon: Archive },
   { key: 'team', label: 'الفريق', icon: UserCog },
   { key: 'users', label: 'المستخدمين', icon: Shield },
+  { key: 'monitoring', label: 'مراقبة الأداء', icon: Activity },
   { key: 'settings', label: 'الإعدادات', icon: Settings },
 ]
 
@@ -1259,6 +1261,265 @@ function UsersTab() {
 }
 
 /* ═══════════════════════════════════════════════════════
+   Monitoring Tab — Egress & Cache Performance
+   ═══════════════════════════════════════════════════════ */
+interface MonitorData {
+  status: string
+  uptime: string
+  cache: {
+    hitRate: string
+    statsHits: number
+    statsMisses: number
+    leadsHits: number
+    leadsMisses: number
+    totalHits: number
+    totalMisses: number
+    totalRequests: number
+    cacheInvalidations: number
+  }
+  supabase: {
+    totalQueries: number
+    queriesSavedByCache: number
+  }
+  egress: {
+    estimatedSavedMB: string
+    note: string
+  }
+  recommendations: string[]
+}
+
+function MonitoringTab() {
+  const [data, setData] = useState<MonitorData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchMonitor = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/monitor')
+      if (res.ok) {
+        const json = await res.json()
+        setData(json as MonitorData)
+      } else {
+        setError('فشل في تحميل بيانات المراقبة')
+      }
+    } catch {
+      setError('خطأ في الاتصال بالخادم')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchMonitor()
+    const interval = setInterval(fetchMonitor, 30000) // Refresh every 30s
+    return () => clearInterval(interval)
+  }, [fetchMonitor])
+
+  if (loading && !data) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={24} className="animate-spin text-[#6c63ff]" />
+        <span className="mr-3 text-[#8892b0] text-sm" style={{ fontFamily: 'Cairo, sans-serif' }}>جاري تحميل بيانات المراقبة...</span>
+      </div>
+    )
+  }
+
+  if (error && !data) {
+    return (
+      <div className="text-center py-20">
+        <AlertTriangle size={32} className="mx-auto mb-3 text-amber-400" />
+        <p className="text-[#8892b0] text-sm" style={{ fontFamily: 'Cairo, sans-serif' }}>{error}</p>
+        <Button onClick={fetchMonitor} variant="outline" size="sm" className="mt-3">
+          إعادة المحاولة
+        </Button>
+      </div>
+    )
+  }
+
+  if (!data) return null
+
+  const hitRateNum = parseInt(data.cache.hitRate)
+  const hitRateColor = hitRateNum >= 80 ? 'text-emerald-400' : hitRateNum >= 50 ? 'text-amber-400' : 'text-red-400'
+  const hitRateBg = hitRateNum >= 80 ? 'bg-emerald-500/10' : hitRateNum >= 50 ? 'bg-amber-500/10' : 'bg-red-500/10'
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Activity size={22} className="text-[#6c63ff]" />
+          <h3 className="text-lg font-bold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            مراقبة الأداء و Egress
+          </h3>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-xs text-[#8892b0] border-white/10">
+            ⏱ {data.uptime}
+          </Badge>
+          <Button onClick={fetchMonitor} variant="outline" size="sm" className="text-xs border-white/10 text-[#8892b0] hover:text-[#f0f2ff]">
+            <TrendingDown size={14} className="mr-1" />
+            تحديث
+          </Button>
+        </div>
+      </div>
+
+      {/* Cache Hit Rate - Big Card */}
+      <Card className="bg-[#111520] border-white/[0.06]">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Server size={18} className="text-[#6c63ff]" />
+              <span className="text-sm font-semibold text-[#8892b0]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                معدل إصابة الكاش (Cache Hit Rate)
+              </span>
+            </div>
+            <span className={`text-3xl font-black ${hitRateColor}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
+              {data.cache.hitRate}
+            </span>
+          </div>
+          {/* Progress bar */}
+          <div className="w-full bg-white/5 rounded-full h-3 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-700 ${hitRateNum >= 80 ? 'bg-emerald-500' : hitRateNum >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
+              style={{ width: `${Math.min(hitRateNum, 100)}%` }}
+            />
+          </div>
+          <div className="flex justify-between mt-2 text-xs text-[#4a5280]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            <span>0%</span>
+            <span>هدف: &gt;80%</span>
+            <span>100%</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="bg-[#111520] border-white/[0.06]">
+          <CardContent className="pt-4 pb-3 text-center">
+            <div className="flex items-center justify-center gap-1 mb-2">
+              <Database size={14} className="text-[#6c63ff]" />
+              <span className="text-[11px] font-semibold text-[#4a5280]" style={{ fontFamily: 'Cairo, sans-serif' }}>استعلامات Supabase</span>
+            </div>
+            <span className="text-2xl font-black text-[#f0f2ff]">{data.supabase.totalQueries}</span>
+          </CardContent>
+        </Card>
+        <Card className="bg-[#111520] border-white/[0.06]">
+          <CardContent className="pt-4 pb-3 text-center">
+            <div className="flex items-center justify-center gap-1 mb-2">
+              <TrendingDown size={14} className="text-emerald-400" />
+              <span className="text-[11px] font-semibold text-[#4a5280]" style={{ fontFamily: 'Cairo, sans-serif' }}>استعلامات تم توفيرها</span>
+            </div>
+            <span className="text-2xl font-black text-emerald-400">{data.supabase.queriesSavedByCache}</span>
+          </CardContent>
+        </Card>
+        <Card className="bg-[#111520] border-white/[0.06]">
+          <CardContent className="pt-4 pb-3 text-center">
+            <div className="flex items-center justify-center gap-1 mb-2">
+              <Activity size={14} className="text-amber-400" />
+              <span className="text-[11px] font-semibold text-[#4a5280]" style={{ fontFamily: 'Cairo, sans-serif' }}>إبطال الكاش</span>
+            </div>
+            <span className="text-2xl font-black text-amber-400">{data.cache.cacheInvalidations}</span>
+          </CardContent>
+        </Card>
+        <Card className="bg-[#111520] border-white/[0.06]">
+          <CardContent className="pt-4 pb-3 text-center">
+            <div className="flex items-center justify-center gap-1 mb-2">
+              <Server size={14} className="text-cyan-400" />
+              <span className="text-[11px] font-semibold text-[#4a5280]" style={{ fontFamily: 'Cairo, sans-serif' }}>توفير Egress تقديري</span>
+            </div>
+            <span className="text-2xl font-black text-cyan-400">{data.egress.estimatedSavedMB} MB</span>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Detailed Cache Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="bg-[#111520] border-white/[0.06]">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm font-bold text-[#8892b0]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              📊 كاش الإحصائيات (Stats)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-emerald-400">✅ إصابات (Hits)</span>
+                <span className="font-bold text-[#f0f2ff]">{data.cache.statsHits}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-red-400">❌ أخطاء (Misses)</span>
+                <span className="font-bold text-[#f0f2ff]">{data.cache.statsMisses}</span>
+              </div>
+              <div className="flex justify-between text-sm border-t border-white/5 pt-2">
+                <span className="text-[#4a5280]">المجموع</span>
+                <span className="font-bold text-[#f0f2ff]">{data.cache.statsHits + data.cache.statsMisses}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-[#111520] border-white/[0.06]">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm font-bold text-[#8892b0]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              📋 كاش العملاء (Leads)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-emerald-400">✅ إصابات (Hits)</span>
+                <span className="font-bold text-[#f0f2ff]">{data.cache.leadsHits}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-red-400">❌ أخطاء (Misses)</span>
+                <span className="font-bold text-[#f0f2ff]">{data.cache.leadsMisses}</span>
+              </div>
+              <div className="flex justify-between text-sm border-t border-white/5 pt-2">
+                <span className="text-[#4a5280]">المجموع</span>
+                <span className="font-bold text-[#f0f2ff]">{data.cache.leadsHits + data.cache.leadsMisses}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recommendations */}
+      {data.recommendations.length > 0 && (
+        <Card className="bg-[#111520] border-white/[0.06]">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm font-bold text-[#8892b0]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              💡 توصيات
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 space-y-2">
+            {data.recommendations.map((rec, i) => (
+              <p key={i} className="text-sm text-[#c0c6e0]" style={{ fontFamily: 'Cairo, sans-serif' }}>{rec}</p>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Info */}
+      <Card className={`border-white/[0.06] ${hitRateBg}`}>
+        <CardContent className="pt-4 pb-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle size={18} className="text-amber-400 shrink-0 mt-0.5" />
+            <div className="text-sm text-[#c0c6e0]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              <p className="font-bold mb-1">كيف تتحقق من Egress الفعلي؟</p>
+              <p>1. اذهب لـ Supabase Dashboard → Settings → Usage</p>
+              <p>2. شوف رقم &quot;Egress&quot; في قسم Database</p>
+              <p>3. قارنه مع الرقم القديم (17.37 GB)</p>
+              <p className="mt-1 text-xs text-[#4a5280]">ملاحظة: الأرقام هنا تقديرية بناءً على حجم متوسط. الأرقام الفعلية من Supabase هي المرجع.</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
    Settings Tab
    ═══════════════════════════════════════════════════════ */
 function SettingsTab() {
@@ -1507,6 +1768,9 @@ export function AdminPanel() {
         </TabsContent>
         <TabsContent value="users" className="mt-4">
           <UsersTab />
+        </TabsContent>
+        <TabsContent value="monitoring" className="mt-4">
+          <MonitoringTab />
         </TabsContent>
         <TabsContent value="settings" className="mt-4">
           <SettingsTab />

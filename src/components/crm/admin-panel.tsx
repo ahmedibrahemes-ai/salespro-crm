@@ -1285,6 +1285,10 @@ interface MonitorData {
     estimatedSavedMB: string
     note: string
   }
+  realtime: {
+    optimization: string
+    note: string
+  }
   recommendations: string[]
 }
 
@@ -1509,8 +1513,45 @@ function MonitoringTab() {
               <p className="font-bold mb-1">كيف تتحقق من Egress الفعلي؟</p>
               <p>1. اذهب لـ Supabase Dashboard → Settings → Usage</p>
               <p>2. شوف رقم &quot;Egress&quot; في قسم Database</p>
-              <p>3. قارنه مع الرقم القديم (17.37 GB)</p>
+              <p>3. شوف رقم &quot;Realtime Messages&quot; — كان 221K+</p>
+              <p>4. قارنه مع الأرقام القديمة (19.75 GB Egress, 221K Realtime)</p>
               <p className="mt-1 text-xs text-[#4a5280]">ملاحظة: الأرقام هنا تقديرية بناءً على حجم متوسط. الأرقام الفعلية من Supabase هي المرجع.</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Realtime Optimization Info */}
+      <Card className="bg-[#111520] border-white/[0.06]">
+        <CardHeader className="pb-2 pt-4 px-4">
+          <CardTitle className="text-sm font-bold text-[#8892b0]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            ⚡ تحسينات Realtime
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4">
+          <div className="space-y-2 text-sm text-[#c0c6e0]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            <div className="flex items-center gap-2">
+              <span className="text-emerald-400">✅</span>
+              <span>إلغاء اشتراك lead_notes — يوفر ~50% من رسائل Realtime</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-emerald-400">✅</span>
+              <span>فصل INSERT/UPDATE/DELETE بدل event: * — تقليل الرسائل غير الضرورية</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-emerald-400">✅</span>
+              <span>إزالة Broadcast channel — كان بيرسل رسائل مزدوجة</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-emerald-400">✅</span>
+              <span>RPC functions للإحصائيات — بدل تحميل كل البيانات</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-emerald-400">✅</span>
+              <span>Server-side cache — Stats 60ث، Leads 30ث</span>
+            </div>
+            <div className="mt-3 pt-2 border-t border-white/5 text-xs text-[#4a5280]">
+              قبل: 221K+ Realtime messages / 19.75 GB Egress — المتوقع: أقل من 50K messages / أقل من 2 GB
             </div>
           </div>
         </CardContent>

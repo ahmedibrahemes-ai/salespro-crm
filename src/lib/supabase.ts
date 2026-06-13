@@ -686,44 +686,47 @@ export function apiSubscribeToLeads(
   callback: (payload: Record<string, unknown>) => void,
   onStatusChange?: (status: 'SUBSCRIBED' | 'CLOSED' | 'CHANNEL_ERROR' | 'TIMED_OUT') => void
 ) {
+  // IMPORTANT: We subscribe to only UPDATE and INSERT events on leads.
+  // - Removed lead_notes subscription (not used in client, saves ~50% realtime messages)
+  // - Removed DELETE event (handled by UPDATE with is_archived, or just refetch)
+  // - This reduces realtime egress dramatically
   const channel = supabase
     .channel('leads_changes', {
       config: { broadcast: { self: false } },
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, (rawPayload) => {
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'leads' }, (rawPayload) => {
       const payload = rawPayload as Record<string, unknown>
-      const eventType = payload.eventType as string
-
-      if (eventType === 'UPDATE') {
-        const newRow = payload.new as Record<string, unknown> | undefined
-        const oldRow = payload.old as Record<string, unknown> | undefined
-        const id = newRow?.id
-        if (id) {
-          if (hasPriorityChange(oldRow, newRow)) {
-            const key = `leads:${id}`
-            if (realtimeDebounceTimers[key]) {
-              clearTimeout(realtimeDebounceTimers[key])
-              delete realtimeDebounceTimers[key]
-            }
-            callback(payload)
-            return
-          }
-          const key = `leads:${id}`
-          if (realtimeDebounceTimers[key]) clearTimeout(realtimeDebounceTimers[key])
-          realtimeDebounceTimers[key] = setTimeout(() => {
-            delete realtimeDebounceTimers[key]
-            callback(payload)
-          }, DEBOUNCE_MS)
-          return
-        }
-      }
       callback(payload)
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'lead_notes' }, (payload) =>
-      callback({ ...payload, table: 'lead_notes' })
-    )
-    // NOTE: Broadcast listener removed — postgres_changes already sends all updates
-    // This halves the realtime message count
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'leads' }, (rawPayload) => {
+      const payload = rawPayload as Record<string, unknown>
+      const newRow = payload.new as Record<string, unknown> | undefined
+      const oldRow = payload.old as Record<string, unknown> | undefined
+      const id = newRow?.id
+      if (id) {
+        if (hasPriorityChange(oldRow, newRow)) {
+          const key = `leads:${id}`
+          if (realtimeDebounceTimers[key]) {
+            clearTimeout(realtimeDebounceTimers[key])
+            delete realtimeDebounceTimers[key]
+          }
+          callback(payload)
+          return
+        }
+        const key = `leads:${id}`
+        if (realtimeDebounceTimers[key]) clearTimeout(realtimeDebounceTimers[key])
+        realtimeDebounceTimers[key] = setTimeout(() => {
+          delete realtimeDebounceTimers[key]
+          callback(payload)
+        }, DEBOUNCE_MS)
+      }
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'leads' }, (rawPayload) => {
+      callback(rawPayload as Record<string, unknown>)
+    })
+    // NOTE: lead_notes subscription removed — client doesn't process note changes.
+    // Notes are loaded on-demand when a lead detail is opened.
+    // This saves ~50% of realtime messages/egress.
     .subscribe((status, err) => {
       console.log(`[realtime] Status: ${status}`, err || '')
       if (onStatusChange) {

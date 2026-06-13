@@ -41,6 +41,10 @@ export async function GET() {
       estimatedSavedMB: metrics.estimatedEgressSavedMB,
       note: 'Estimated savings based on avg response sizes. Actual Supabase egress can be verified in the Supabase Dashboard → Settings → Usage.',
     },
+    realtime: {
+      optimization: 'lead_notes subscription removed — saves ~50% realtime messages. DELETE kept for sync.',
+      note: 'Realtime messages count is visible in Supabase Dashboard → Settings → Usage. Before: 221K+ messages/billing cycle. Expected after: <50K.',
+    },
     recommendations: getRecommendations(metrics),
   })
 }

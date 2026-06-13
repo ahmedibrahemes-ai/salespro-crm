@@ -280,36 +280,12 @@ export async function apiGetLeads(includeArchived = false): Promise<Lead[]> {
     console.warn('[apiGetLeads] Server API error:', err)
   }
 
-  // Client-side fallback
-  const PAGE_SIZE = 1000
-  let allData: DbLead[] = []
-  let from = 0
-  let hasMore = true
-
-  while (hasMore) {
-    let query = supabase
-      .from('leads')
-      .select('id,store_url,phone,customer_name,customer_type,brief,contact_result,contact_result_at,tele_name,sales_name,meeting_date,meeting_time,meeting_type,meeting_link,status,sales_status,attended,attendance_marked_at,attendance_marked_by,cancelled_from,cancelled_at,created_at,assigned_at,is_archived,archived_at,archived_by')
-      .order('id', { ascending: true })
-      .range(from, from + PAGE_SIZE - 1)
-
-    if (!includeArchived) {
-      query = query.eq('is_archived', false)
-    }
-
-    const { data, error } = await query
-    if (error) throw error
-
-    if (data && data.length > 0) {
-      allData = allData.concat(data as DbLead[])
-      from += PAGE_SIZE
-      hasMore = data.length === PAGE_SIZE
-    } else {
-      hasMore = false
-    }
-  }
-
-  return allData.map((row) => leadFromDb(row))
+  // EGRESS FIX: Removed client-side Supabase fallback.
+  // Previously, if the server API failed, we'd query Supabase directly from
+  // the client — this causes DIRECT egress from Supabase (bypasses our cache).
+  // Now we return empty array instead. The server API should always work.
+  console.warn('[apiGetLeads] Server API failed. Returning empty array to avoid direct Supabase egress.')
+  return []
 }
 
 export async function apiGetArchivedLeads(): Promise<Lead[]> {
@@ -332,31 +308,9 @@ export async function apiGetArchivedLeads(): Promise<Lead[]> {
     console.warn('[apiGetArchivedLeads] Server API error:', err)
   }
 
-  // Client-side fallback
-  const PAGE_SIZE = 1000
-  let allData: DbLead[] = []
-  let from = 0
-  let hasMore = true
-
-  while (hasMore) {
-    const { data, error } = await supabase
-      .from('leads')
-      .select('id,store_url,phone,customer_name,customer_type,brief,contact_result,contact_result_at,tele_name,sales_name,meeting_date,meeting_time,meeting_type,meeting_link,status,sales_status,attended,attendance_marked_at,attendance_marked_by,cancelled_from,cancelled_at,created_at,assigned_at,is_archived,archived_at,archived_by')
-      .eq('is_archived', true)
-      .order('archived_at', { ascending: false })
-      .range(from, from + PAGE_SIZE - 1)
-
-    if (error) throw error
-    if (data && data.length > 0) {
-      allData = allData.concat(data as DbLead[])
-      from += PAGE_SIZE
-      hasMore = data.length === PAGE_SIZE
-    } else {
-      hasMore = false
-    }
-  }
-
-  return allData.map((row) => leadFromDb(row))
+  // EGRESS FIX: Removed client-side Supabase fallback (same reason as apiGetLeads).
+  console.warn('[apiGetArchivedLeads] Server API failed. Returning empty array to avoid direct Supabase egress.')
+  return []
 }
 
 export async function apiCreateLead(lead: Partial<Lead>): Promise<Lead> {

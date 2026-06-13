@@ -138,9 +138,11 @@ async function computePerPersonStatsRPC(client: ReturnType<typeof createAnonClie
 
     if (teleResult.error) {
       // RPC function doesn't exist yet — fall back
-      console.warn('[api/stats] RPC not available, falling back to client-side aggregation. Run the SQL migration to create RPC functions.')
+      console.warn('[api/stats] RPC not available, falling back to client-side aggregation. Error:', teleResult.error.message)
       return null
     }
+
+    console.log('[api/stats] ✅ RPC functions working! Egress optimized.')
 
     const perTele: Record<string, { total: number; attended: number; noShow: number; meetings: number; closedWon: number }> = {}
     for (const row of teleResult.data || []) {

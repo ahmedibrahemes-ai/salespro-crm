@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, isAdminAvailable, createAuthenticatedClient, createAnonClient } from '@/lib/supabase-admin'
 import { normalizePhone } from '@/lib/crm-utils'
+import { requireAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
 
 /**
  * GET /api/duplicates
@@ -286,6 +287,12 @@ async function fetchDuplicatesViaLegacy(client: NonNullable<ReturnType<typeof ge
 // Main handler
 // ============================================================
 export async function GET(request: NextRequest) {
+  // Admin-only — duplicate detection is an admin operation
+  const session = await requireAdmin(request)
+  if (!session) {
+    return session === null ? forbiddenResponse('هذه العملية تتطلب صلاحيات مدير') : unauthorizedResponse()
+  }
+
   try {
     const client = getReadClient(request)
 

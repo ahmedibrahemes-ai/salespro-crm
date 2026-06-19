@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, createAnonClient } from '@/lib/supabase-admin'
+import { requireAuth, unauthorizedResponse } from '@/lib/auth-guard'
 
 // Chat messages API — uses Supabase lead_notes table
 // GET: Fetch notes for a lead
 // POST: Add a note to a lead
+// Both endpoints require authentication.
+
 export async function GET(request: NextRequest) {
+  // Require auth
+  const session = await requireAuth(request)
+  if (!session) return unauthorizedResponse()
+
   try {
     const { searchParams } = new URL(request.url)
     const leadId = searchParams.get('leadId')
@@ -43,17 +50,38 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  // Require auth
+  const session = await requireAuth(request)
+  if (!session) return unauthorizedResponse()
+
   try {
     const client = getSupabaseAdmin() || createAnonClient()
     const body = await request.json()
+
+    // Validate input
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+    }
+    if (!body.leadId) {
+      return NextResponse.json({ error: 'leadId is required' }, { status: 400 })
+    }
+    if (typeof body.text !== 'string' || body.text.trim().length === 0) {
+      return NextResponse.json({ error: 'text is required' }, { status: 400 })
+    }
+    // Cap message length to prevent abuse
+    const text = body.text.trim().slice(0, 5000)
+    const fromMe = Boolean(body.fromMe)
+
+    // Use the authenticated user's name (from session) — ignore client-supplied identity
+    const byName = session.uname || 'Unknown'
 
     const { data, error } = await client
       .from('lead_notes')
       .insert({
         lead_id: body.leadId,
-        by_name: body.fromMe ? 'Me' : 'Customer',
-        category: body.fromMe ? 'whatsapp-outgoing' : 'whatsapp-incoming',
-        text: body.text,
+        by_name: byName,
+        category: fromMe ? 'whatsapp-outgoing' : 'whatsapp-incoming',
+        text,
       })
       .select()
       .single()
@@ -66,8 +94,8 @@ export async function POST(request: NextRequest) {
     const message = {
       id: String(data.id),
       leadId: String(data.lead_id),
-      fromMe: body.fromMe ?? true,
-      text: body.text,
+      fromMe,
+      text,
       read: true,
       createdAt: data.created_at,
     }

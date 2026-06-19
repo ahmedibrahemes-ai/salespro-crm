@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
+import { requireAuth, unauthorizedResponse } from '@/lib/auth-guard'
 
 /**
  * POST /api/ai
@@ -19,10 +20,39 @@ import ZAI from 'z-ai-web-dev-sdk'
  * NO hardcoded credentials — environment variables only.
  */
 
+// Allowed AI task types — validates input before sending to the LLM
+const ALLOWED_TYPES = new Set([
+  'analyze-performance',
+  'call-analysis',
+  'predict-closure',
+  'coaching',
+  'smart-reply',
+])
+
 export async function POST(request: NextRequest) {
+  // ===== Authentication: every AI call must be from a signed-in user =====
+  const session = await requireAuth(request)
+  if (!session) {
+    return unauthorizedResponse()
+  }
+
   try {
     const body = await request.json()
     const { type, data } = body
+
+    // Validate input
+    if (!type || typeof type !== 'string' || !ALLOWED_TYPES.has(type)) {
+      return NextResponse.json(
+        { success: false, error: 'نوع التحليل غير صالح' },
+        { status: 400 }
+      )
+    }
+    if (!data || typeof data !== 'object') {
+      return NextResponse.json(
+        { success: false, error: 'البيانات المقدمة غير صالحة' },
+        { status: 400 }
+      )
+    }
 
     const zai = await ZAI.create()
 
@@ -49,7 +79,11 @@ Write the response in a concise, professional manner. If the data is in Arabic, 
 4. One improvement tip
 5. Best suggested next step reply
 Write the response concisely.`
-        userPrompt = `Analyze this call:\nClient: ${data.leadName}\nStage: ${data.stage}\nDuration: ${data.duration} seconds\nNotes: ${data.notes || 'Not available'}`
+        const leadName = String(data.leadName || 'Unknown').slice(0, 200)
+        const stage = String(data.stage || 'unknown').slice(0, 100)
+        const duration = Number(data.duration) || 0
+        const notes = String(data.notes || 'Not available').slice(0, 2000)
+        userPrompt = `Analyze this call:\nClient: ${leadName}\nStage: ${stage}\nDuration: ${duration} seconds\nNotes: ${notes}`
         break
       }
       case 'predict-closure': {
@@ -58,7 +92,13 @@ Write the response concisely.`
 2. Main reason for the prediction
 3. Best next step to increase probability
 Write the response very concisely.`
-        userPrompt = `Predict closure probability for this client:\nName: ${data.name}\nStage: ${data.status}\nMeetings: ${data.meetings || 0}\nAttended: ${data.attended || 'pending'}\nSales status: ${data.salesStatus || 'N/A'}\nContact result: ${data.contactResult || 'N/A'}`
+        const name = String(data.name || 'Unknown').slice(0, 200)
+        const status = String(data.status || 'unknown').slice(0, 100)
+        const meetings = Number(data.meetings) || 0
+        const attended = String(data.attended || 'pending').slice(0, 50)
+        const salesStatus = String(data.salesStatus || 'N/A').slice(0, 100)
+        const contactResult = String(data.contactResult || 'N/A').slice(0, 100)
+        userPrompt = `Predict closure probability for this client:\nName: ${name}\nStage: ${status}\nMeetings: ${meetings}\nAttended: ${attended}\nSales status: ${salesStatus}\nContact result: ${contactResult}`
         break
       }
       case 'coaching': {
@@ -68,7 +108,13 @@ Write the response very concisely.`
 3. Suggested practical exercise
 4. Suggested weekly goal
 Write the response in a motivating and practical manner.`
-        userPrompt = `Provide coaching for this employee:\nName: ${data.name}\nDeals: ${data.deals}\nRevenue: ${data.revenue}\nCalls: ${data.calls}\nConversion rate: ${data.convRate}%\nPoints: ${data.points}`
+        const name = String(data.name || 'Employee').slice(0, 200)
+        const deals = Number(data.deals) || 0
+        const revenue = Number(data.revenue) || 0
+        const calls = Number(data.calls) || 0
+        const convRate = Number(data.convRate) || 0
+        const points = Number(data.points) || 0
+        userPrompt = `Provide coaching for this employee:\nName: ${name}\nDeals: ${deals}\nRevenue: ${revenue}\nCalls: ${calls}\nConversion rate: ${convRate}%\nPoints: ${points}`
         break
       }
       case 'smart-reply': {
@@ -76,31 +122,38 @@ Write the response in a motivating and practical manner.`
 1. Polite and professional
 2. Push the client to the next step
 3. Short (3-4 lines max)`
-        userPrompt = `Client message: "${data.message}"\nClient name: ${data.leadName}\nStage: ${data.stage}\nWrite the appropriate reply.`
+        const message = String(data.message || '').slice(0, 2000)
+        const leadName = String(data.leadName || 'Customer').slice(0, 200)
+        const stage = String(data.stage || 'unknown').slice(0, 100)
+        userPrompt = `Client message: "${message}"\nClient name: ${leadName}\nStage: ${stage}\nWrite the appropriate reply.`
         break
       }
       default: {
-        systemPrompt = 'You are an intelligent assistant for a sales platform. Help with answering concisely.'
-        userPrompt = data?.prompt || 'Hello'
+        // Unreachable — input validation above rejects unknown types
+        return NextResponse.json(
+          { success: false, error: 'نوع غير مدعوم' },
+          { status: 400 }
+        )
       }
     }
 
     const completion = await zai.chat.completions.create({
       messages: [
-        { role: 'assistant', content: systemPrompt },
+        // FIX: system prompts must use role: 'system' (was 'assistant')
+        { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
       thinking: { type: 'disabled' },
     })
 
-    const response = completion.choices[0]?.message?.content || 'Unable to analyze'
+    const response = completion.choices[0]?.message?.content || 'تعذر التحليل'
 
     return NextResponse.json({ success: true, response, type })
   } catch (error) {
     console.error('AI API error:', error)
     const message = error instanceof Error ? error.message : String(error)
     return NextResponse.json(
-      { success: false, error: 'AI analysis failed', response: `An error occurred during analysis: ${message}` },
+      { success: false, error: 'AI analysis failed', response: `حدث خطأ أثناء التحليل: ${message}` },
       { status: 500 }
     )
   }

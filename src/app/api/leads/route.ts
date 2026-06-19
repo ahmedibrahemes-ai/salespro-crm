@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, isAdminAvailable, createAuthenticatedClient, createAnonClient } from '@/lib/supabase-admin'
 import { DbLead, normalizePhone, safeTimestamp, safeDate, safeTime, normalizeAttended } from '@/lib/crm-utils'
 import { isLeadsCacheValid, getLeadsCache, setLeadsCache, invalidateAllCaches, recordLeadsHit, recordLeadsMiss, recordSupabaseQuery } from '@/lib/api-cache'
+import { requireAuth, unauthorizedResponse } from '@/lib/auth-guard'
+
+// Operations that mutate data (must invalidate cache AFTER successful write)
+const WRITE_OPERATIONS = new Set([
+  'create', 'bulkCreate', 'update', 'delete', 'bulkDelete',
+  'archive', 'unarchive', 'addNote', 'deleteNote',
+  'addTeamMember', 'removeTeamMember', 'renameTeamMember',
+  'saveAccessPermissions', 'setSetting',
+])
 
 function leadFromDb(row: DbLead) {
   return {
@@ -140,6 +149,10 @@ function getWriteClient(authToken?: string) {
 
 // ===== GET handler - Read leads (uses anon/public client for reliable pagination) =====
 export async function GET(request: NextRequest) {
+  // Require auth — no anonymous access to lead data
+  const session = await requireAuth(request)
+  if (!session) return unauthorizedResponse()
+
   try {
     const { searchParams } = new URL(request.url)
     const includeArchived = searchParams.get('archived') === 'true'
@@ -224,13 +237,16 @@ export async function GET(request: NextRequest) {
 
 // ===== POST handler - Write operations using service role key (bypasses RLS) =====
 export async function POST(request: NextRequest) {
-  // Extract auth token from header if present
-  const authToken = request.headers.get('X-Supabase-Auth') || undefined
+  // ===== Authentication: every write must be from a signed-in user =====
+  const session = await requireAuth(request)
+  if (!session) {
+    return unauthorizedResponse()
+  }
 
-  const writeClient = getWriteClient(authToken)
+  const writeClient = getWriteClient(undefined)
   if (!writeClient) {
     return NextResponse.json(
-      { error: 'SUPABASE_SERVICE_ROLE_KEY is not configured and no auth token provided. Please add the service role key to .env.local or ensure RLS policies allow authenticated writes.' },
+      { error: 'SUPABASE_SERVICE_ROLE_KEY is not configured. Please add the service role key to .env.local.' },
       { status: 500 }
     )
   }
@@ -241,10 +257,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { operation, data } = body
 
-    // Invalidate caches on any write operation — ensures fresh data on next read.
-    // Read-only operations (getSetting, checkDuplicatePhones) also invalidate,
-    // but the cost is just one extra Supabase call on next request, which is negligible.
-    invalidateAllCaches()
+    // NOTE: Cache invalidation happens AFTER the write succeeds.
+    // We use a wrapper that invalidates before returning a success response.
+    const isWriteOp = WRITE_OPERATIONS.has(operation)
+    const success = <T>(payload: T): NextResponse => {
+      if (isWriteOp) invalidateAllCaches()
+      return NextResponse.json(payload)
+    }
 
     switch (operation) {
       case 'create': {
@@ -292,19 +311,19 @@ export async function POST(request: NextRequest) {
               console.error('[api/leads] Create error (retry):', retry.error, '(mode:', mode, ')')
               return NextResponse.json({ error: retry.error.message }, { status: 400 })
             }
-            return NextResponse.json({ data: leadFromDb(retry.data as DbLead) })
+            return success({ data: leadFromDb(retry.data as DbLead) })
           }
           console.error('[api/leads] Create error:', error, '(mode:', mode, ')')
           return NextResponse.json({ error: error.message }, { status: 400 })
         }
 
-        return NextResponse.json({ data: leadFromDb(lead as DbLead), duplicateWarning })
+        return success({ data: leadFromDb(lead as DbLead), duplicateWarning })
       }
 
       case 'bulkCreate': {
         const leads = data as Record<string, unknown>[]
         if (!Array.isArray(leads) || leads.length === 0) {
-          return NextResponse.json({ data: [] })
+          return success({ data: [] })
         }
 
         // Check for intra-batch duplicates (INFO only — don't filter/remove any leads)
@@ -356,7 +375,7 @@ export async function POST(request: NextRequest) {
         } else {
           console.log(`[api/leads] Bulk create: ${leads.length} requested, ${allCreated.length} created`)
         }
-        return NextResponse.json({ data: allCreated.map(leadFromDb) })
+        return success({ data: allCreated.map(leadFromDb) })
       }
 
       case 'update': {
@@ -382,10 +401,10 @@ export async function POST(request: NextRequest) {
             console.error('[api/leads] Update error:', updateError, '(mode:', mode, ')')
             return NextResponse.json({ error: updateError.message }, { status: 400 })
           }
-          return NextResponse.json({ data: null })
+          return success({ data: null })
         }
 
-        return NextResponse.json({ data: leadFromDb(lead as DbLead) })
+        return success({ data: leadFromDb(lead as DbLead) })
       }
 
       case 'delete': {
@@ -398,13 +417,13 @@ export async function POST(request: NextRequest) {
           console.error('[api/leads] Delete error:', error, '(mode:', mode, ')')
           return NextResponse.json({ error: error.message }, { status: 400 })
         }
-        return NextResponse.json({ success: true })
+        return success({ success: true })
       }
 
       case 'bulkDelete': {
         const ids = data as string[]
         if (!Array.isArray(ids) || ids.length === 0) {
-          return NextResponse.json({ success: true })
+          return success({ success: true })
         }
         const BATCH_SIZE = 100
         for (let i = 0; i < ids.length; i += BATCH_SIZE) {
@@ -415,13 +434,13 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: error.message }, { status: 400 })
           }
         }
-        return NextResponse.json({ success: true })
+        return success({ success: true })
       }
 
       case 'bulkUpdate': {
         const { ids, updates } = data as { ids: number[]; updates: Record<string, unknown> }
         if (!Array.isArray(ids) || ids.length === 0) {
-          return NextResponse.json({ success: true })
+          return success({ success: true })
         }
         const BATCH_SIZE = 500
         const dbData = partialLeadToDb(updates)
@@ -438,13 +457,13 @@ export async function POST(request: NextRequest) {
           }
           totalUpdated += batch.length
         }
-        return NextResponse.json({ success: true, updated: totalUpdated })
+        return success({ success: true, updated: totalUpdated })
       }
 
       case 'archive': {
         const { ids, archivedBy } = data as { ids: string[]; archivedBy: string }
         if (!Array.isArray(ids) || ids.length === 0) {
-          return NextResponse.json({ success: true })
+          return success({ success: true })
         }
         const BATCH_SIZE = 100
         const archivedAt = new Date().toISOString()
@@ -459,13 +478,13 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: error.message }, { status: 400 })
           }
         }
-        return NextResponse.json({ success: true })
+        return success({ success: true })
       }
 
       case 'unarchive': {
         const ids = data as string[]
         if (!Array.isArray(ids) || ids.length === 0) {
-          return NextResponse.json({ success: true })
+          return success({ success: true })
         }
         const BATCH_SIZE = 100
         for (let i = 0; i < ids.length; i += BATCH_SIZE) {
@@ -479,7 +498,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: error.message }, { status: 400 })
           }
         }
-        return NextResponse.json({ success: true })
+        return success({ success: true })
       }
 
       case 'addNote': {
@@ -493,7 +512,7 @@ export async function POST(request: NextRequest) {
           console.error('[api/leads] Add note error:', error, '(mode:', mode, ')')
           return NextResponse.json({ error: error.message }, { status: 400 })
         }
-        return NextResponse.json({ data: note })
+        return success({ data: note })
       }
 
       case 'deleteNote': {
@@ -503,7 +522,7 @@ export async function POST(request: NextRequest) {
           console.error('[api/leads] Delete note error:', error, '(mode:', mode, ')')
           return NextResponse.json({ error: error.message }, { status: 400 })
         }
-        return NextResponse.json({ success: true })
+        return success({ success: true })
       }
 
       case 'updateNote': {
@@ -521,7 +540,7 @@ export async function POST(request: NextRequest) {
           console.error('[api/leads] Update note error:', error, '(mode:', mode, ')')
           return NextResponse.json({ error: error.message }, { status: 400 })
         }
-        return NextResponse.json({ data: note })
+        return success({ data: note })
       }
 
       case 'saveSetting': {
@@ -533,7 +552,7 @@ export async function POST(request: NextRequest) {
           console.error('[api/leads] Save setting error:', error, '(mode:', mode, ')')
           return NextResponse.json({ error: error.message }, { status: 400 })
         }
-        return NextResponse.json({ success: true })
+        return success({ success: true })
       }
 
       case 'getSetting': {
@@ -578,7 +597,7 @@ export async function POST(request: NextRequest) {
             console.error('[api/leads] Add team member (reactivate) error:', error, '(mode:', mode, ')')
             return NextResponse.json({ error: error.message }, { status: 400 })
           }
-          return NextResponse.json({ data: member })
+          return success({ data: member })
         }
 
         const { data: member, error } = await client
@@ -590,7 +609,7 @@ export async function POST(request: NextRequest) {
           console.error('[api/leads] Add team member error:', error, '(mode:', mode, ')')
           return NextResponse.json({ error: error.message }, { status: 400 })
         }
-        return NextResponse.json({ data: member })
+        return success({ data: member })
       }
 
       case 'removeTeamMember': {
@@ -603,7 +622,7 @@ export async function POST(request: NextRequest) {
           console.error('[api/leads] Remove team member error:', error, '(mode:', mode, ')')
           return NextResponse.json({ error: error.message }, { status: 400 })
         }
-        return NextResponse.json({ success: true })
+        return success({ success: true })
       }
 
       case 'renameTeamMember': {
@@ -622,7 +641,7 @@ export async function POST(request: NextRequest) {
         }
         await client.from('leads').update({ tele_name: newName }).eq('tele_name', oldName)
         await client.from('leads').update({ sales_name: newName }).eq('sales_name', oldName)
-        return NextResponse.json({ success: true, teleCount: teleCount || 0, salesCount: salesCount || 0 })
+        return success({ success: true, teleCount: teleCount || 0, salesCount: salesCount || 0 })
       }
 
       case 'checkDuplicatePhones': {
@@ -735,7 +754,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        return NextResponse.json({ success: true, count: rows.length })
+        return success({ success: true, count: rows.length })
       }
 
       default:
@@ -750,12 +769,14 @@ export async function POST(request: NextRequest) {
 
 // ===== PATCH handler - Update a single lead =====
 export async function PATCH(request: NextRequest) {
-  const authToken = request.headers.get('X-Supabase-Auth') || undefined
-  const writeClient = getWriteClient(authToken)
+  // Require auth
+  const session = await requireAuth(request)
+  if (!session) return unauthorizedResponse()
 
+  const writeClient = getWriteClient(undefined)
   if (!writeClient) {
     return NextResponse.json(
-      { error: 'SUPABASE_SERVICE_ROLE_KEY is not configured and no auth token provided' },
+      { error: 'SUPABASE_SERVICE_ROLE_KEY is not configured' },
       { status: 500 }
     )
   }
@@ -795,12 +816,14 @@ export async function PATCH(request: NextRequest) {
 
 // ===== DELETE handler - Delete a single lead =====
 export async function DELETE(request: NextRequest) {
-  const authToken = request.headers.get('X-Supabase-Auth') || undefined
-  const writeClient = getWriteClient(authToken)
+  // Require auth
+  const session = await requireAuth(request)
+  if (!session) return unauthorizedResponse()
 
+  const writeClient = getWriteClient(undefined)
   if (!writeClient) {
     return NextResponse.json(
-      { error: 'SUPABASE_SERVICE_ROLE_KEY is not configured and no auth token provided' },
+      { error: 'SUPABASE_SERVICE_ROLE_KEY is not configured' },
       { status: 500 }
     )
   }

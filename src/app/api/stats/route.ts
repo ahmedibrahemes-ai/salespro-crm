@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { getSupabaseAdmin, isAdminAvailable, createAnonClient } from '@/lib/supabase-admin'
 import { isStatsCacheValid, getStatsCache, setStatsCache, recordStatsHit, recordStatsMiss, recordSupabaseQuery } from '@/lib/api-cache'
+import { requireAuth, unauthorizedResponse } from '@/lib/auth-guard'
 
 /**
  * GET /api/stats
@@ -245,7 +247,11 @@ async function computeWeeklyCallsFallback(client: ReturnType<typeof createAnonCl
   return weeklyCalls
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Require auth — stats are sensitive business data
+  const session = await requireAuth(request)
+  if (!session) return unauthorizedResponse()
+
   try {
     // Check in-memory cache first — avoids hitting Supabase entirely
     if (isStatsCacheValid()) {

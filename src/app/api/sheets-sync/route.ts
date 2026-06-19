@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, createAnonClient } from '@/lib/supabase-admin'
 import { normalizePhone } from '@/lib/crm-utils'
+import { requireAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
 
 /* ═══════════════════════════════════════════════════════
    Google Sheets Sync API
@@ -70,12 +71,21 @@ export async function POST(request: NextRequest) {
       secret?: string
     }
 
-    // Validate secret if configured
-    if (SHEETS_SECRET && secret !== SHEETS_SECRET) {
-      return NextResponse.json(
-        { error: 'Invalid or missing secret key' },
-        { status: 401 }
-      )
+    // Authentication: if SHEETS_SYNC_SECRET is configured, this is webhook mode
+    // (Google Sheets calls this with the secret in the body). Otherwise, require
+    // an authenticated admin session (UI-triggered sync).
+    if (SHEETS_SECRET) {
+      if (secret !== SHEETS_SECRET) {
+        return NextResponse.json(
+          { error: 'Invalid or missing secret key' },
+          { status: 401 }
+        )
+      }
+    } else {
+      const session = await requireAdmin(request)
+      if (!session) {
+        return session === null ? forbiddenResponse('هذه العملية تتطلب صلاحيات مدير') : unauthorizedResponse()
+      }
     }
 
     // Validate data array
@@ -269,7 +279,13 @@ export async function POST(request: NextRequest) {
 }
 
 // ===== GET handler — Return sync configuration and stats =====
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Require admin to view sync stats
+  const session = await requireAdmin(request)
+  if (!session) {
+    return session === null ? forbiddenResponse('هذه العملية تتطلب صلاحيات مدير') : unauthorizedResponse()
+  }
+
   try {
     // Build webhook URL — for external use, the caller should replace with their actual domain
     const webhookPath = '/api/sheets-sync'

@@ -2,9 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  // NOTE: TypeScript errors are no longer ignored — fix them at the source.
+  // Previously `ignoreBuildErrors: true` masked real bugs and let dead code
+  // (referencing non-existent store fields) ship to production.
   reactStrictMode: false,
   allowedDevOrigins: [
     '.space-z.ai',

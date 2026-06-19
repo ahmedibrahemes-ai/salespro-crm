@@ -1,8 +1,15 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, createAnonClient } from '@/lib/supabase-admin'
+import { requireAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
 
 // Demo data seeder — idempotent, uses Supabase
-export async function POST() {
+// Admin-only: prevents unauthorized users from seeding the database.
+export async function POST(request: NextRequest) {
+  const session = await requireAdmin(request)
+  if (!session) {
+    return session === null ? forbiddenResponse('هذه العملية تتطلب صلاحيات مدير') : unauthorizedResponse()
+  }
+
   try {
     const client = getSupabaseAdmin() || createAnonClient()
 

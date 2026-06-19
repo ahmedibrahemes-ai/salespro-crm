@@ -345,6 +345,10 @@ export const useCrmStore = create<CrmStore>()(
   },
   logout: () => {
     persistAuth(null, null)
+    // Clear the session token on logout
+    if (typeof window !== 'undefined') {
+      try { localStorage.removeItem('venom-session') } catch { /* ignore */ }
+    }
     set({
       currentUser: null,
       currentRole: null,

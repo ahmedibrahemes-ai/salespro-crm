@@ -52,46 +52,23 @@ export function LoginScreen() {
       const data = await res.json()
 
       if (!res.ok || data.error) {
-        // If database is unavailable (503), fall back to demo mode
-        if (res.status === 503) {
-          const DEMO_USERS: Record<string, { displayName: string; role: 'tele' | 'sales' | 'admin'; id: string; username: string }> = {
-            admin: { displayName: 'أحمد سالم', role: 'admin', id: 'demo-admin', username: 'admin' },
-            tele: { displayName: 'Amira', role: 'tele', id: 'demo-tele', username: 'tele' },
-            sales: { displayName: 'Rania', role: 'sales', id: 'demo-sales', username: 'sales' },
-          }
-          const demoUser = DEMO_USERS[username.trim().toLowerCase()]
-          if (demoUser) {
-            login(demoUser.displayName, demoUser.role, demoUser.id, demoUser.username)
-            return
-          }
-          setError('قاعدة البيانات غير متاحة — جرب admin / tele / sales كوضع تجريبي')
-          return
-        }
         setError(data.error || 'فشل تسجيل الدخول')
         return
       }
 
-      if (data.success && data.user) {
+      if (data.success && data.user && data.token) {
+        // Persist the session token for authenticated API calls
+        try {
+          localStorage.setItem('venom-session', data.token)
+        } catch { /* ignore quota errors */ }
         // Login with the user's display name, role, userId, and username from the server
         login(data.user.displayName, data.user.role, data.user.id, data.user.username)
       } else {
-        setError('حدث خطأ غير متوقع')
+        setError('حدث خطأ غير متوقع — لم يتم استلام بيانات الجلسة')
       }
     } catch (err) {
       console.error('[login] Error:', err)
-      // Demo mode fallback: if API is unreachable, allow demo login
-      // This enables testing when Supabase is not configured
-      const DEMO_USERS: Record<string, { displayName: string; role: 'tele' | 'sales' | 'admin'; id: string; username: string }> = {
-        admin: { displayName: 'أحمد سالم', role: 'admin', id: 'demo-admin', username: 'admin' },
-        tele: { displayName: 'Amira', role: 'tele', id: 'demo-tele', username: 'tele' },
-        sales: { displayName: 'Rania', role: 'sales', id: 'demo-sales', username: 'sales' },
-      }
-      const demoUser = DEMO_USERS[username.trim().toLowerCase()]
-      if (demoUser) {
-        login(demoUser.displayName, demoUser.role, demoUser.id, demoUser.username)
-        return
-      }
-      setError('فشل الاتصال بالخادم — جرب admin / tele / sales كوضع تجريبي')
+      setError('فشل الاتصال بالخادم — تحقق من اتصال الإنترنت وحاول مرة أخرى')
     } finally {
       setLoading(false)
     }
@@ -207,7 +184,11 @@ export function LoginScreen() {
 
           {/* Error */}
           {error && (
-            <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400"
+            >
               <AlertCircle className="size-4 shrink-0" />
               <span>{error}</span>
             </div>

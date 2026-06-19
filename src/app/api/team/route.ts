@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, isAdminAvailable, createAuthenticatedClient, createAnonClient } from '@/lib/supabase-admin'
+import { requireAuth, requireAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
 
 /**
  * GET /api/team
@@ -32,7 +33,11 @@ function getWriteClient(authToken?: string) {
 }
 
 // ===== GET handler =====
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Require auth to read team data
+  const session = await requireAuth(request)
+  if (!session) return unauthorizedResponse()
+
   try {
     const client = isAdminAvailable() ? getSupabaseAdmin()! : createAnonClient()
 
@@ -86,12 +91,16 @@ export async function GET() {
 
 // ===== POST handler - Write operations =====
 export async function POST(request: NextRequest) {
-  const authToken = request.headers.get('X-Supabase-Auth') || undefined
-  const writeClient = getWriteClient(authToken)
+  // Require admin for team write operations
+  const session = await requireAdmin(request)
+  if (!session) {
+    return session === null ? forbiddenResponse('هذه العملية تتطلب صلاحيات مدير') : unauthorizedResponse()
+  }
 
+  const writeClient = getWriteClient(undefined)
   if (!writeClient) {
     return NextResponse.json(
-      { error: 'SUPABASE_SERVICE_ROLE_KEY is not configured and no auth token provided' },
+      { error: 'SUPABASE_SERVICE_ROLE_KEY is not configured' },
       { status: 500 }
     )
   }

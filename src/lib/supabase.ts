@@ -31,23 +31,34 @@ export const supabase = createClient(
 // ===== Server-side API helper =====
 // Routes write operations through our Next.js API route which uses
 // the Supabase service role key to bypass Row Level Security (RLS).
-async function serverOp<T = unknown>(operation: string, data: unknown): Promise<T> {
-  let authToken: string | undefined
+// Authentication is done via our signed session token (HMAC) — no more
+// reliance on Supabase auth sessions for API authorization.
+
+/** Get the signed session token from localStorage (client-side only). */
+function getSessionToken(): string | null {
+  if (typeof window === 'undefined') return null
   try {
-    const { data: sessionData } = await supabase.auth.getSession()
-    authToken = sessionData.session?.access_token || undefined
+    return localStorage.getItem('venom-session')
   } catch {
-    // Session might not be available yet
+    return null
   }
+}
 
+/** Build headers with the session token for authenticated API calls. */
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (authToken) {
-    headers['X-Supabase-Auth'] = authToken
+  const token = getSessionToken()
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
   }
+  if (extra) Object.assign(headers, extra)
+  return headers
+}
 
+async function serverOp<T = unknown>(operation: string, data: unknown): Promise<T> {
   const res = await fetch('/api/leads', {
     method: 'POST',
-    headers,
+    headers: authHeaders(),
     body: JSON.stringify({ operation, data }),
   })
   const json = await res.json()
@@ -259,17 +270,10 @@ export async function apiGetTeam() {
 
 export async function apiGetLeads(includeArchived = false): Promise<Lead[]> {
   try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      const authToken = sessionData.session?.access_token
-      if (authToken) headers['X-Supabase-Auth'] = authToken
-    } catch { /* ignore */ }
-
     const params = new URLSearchParams()
     if (includeArchived) params.set('archived', 'true')
 
-    const res = await fetch(`/api/leads?${params.toString()}`, { headers })
+    const res = await fetch(`/api/leads?${params.toString()}`, { headers: authHeaders() })
     if (res.ok) {
       const json = await res.json()
       if (json.data && Array.isArray(json.data)) {
@@ -290,14 +294,7 @@ export async function apiGetLeads(includeArchived = false): Promise<Lead[]> {
 
 export async function apiGetArchivedLeads(): Promise<Lead[]> {
   try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      const authToken = sessionData.session?.access_token
-      if (authToken) headers['X-Supabase-Auth'] = authToken
-    } catch { /* ignore */ }
-
-    const res = await fetch('/api/leads?archived_only=true', { headers })
+    const res = await fetch('/api/leads?archived_only=true', { headers: authHeaders() })
     if (res.ok) {
       const json = await res.json()
       if (json.data && Array.isArray(json.data)) {
@@ -314,120 +311,38 @@ export async function apiGetArchivedLeads(): Promise<Lead[]> {
 }
 
 export async function apiCreateLead(lead: Partial<Lead>): Promise<Lead> {
-  try {
-    const data = await serverOp<Lead>('create', lead)
-    return data
-  } catch (serverErr) {
-    console.warn('[apiCreateLead] Server API failed:', serverErr)
-    const dbData = leadToDb(lead)
-    let { data, error } = await supabase.from('leads').insert(dbData).select().single()
-    if (error && /contact_result_at/i.test(error.message || '')) {
-      delete (dbData as Record<string, unknown>).contact_result_at
-      const retry = await supabase.from('leads').insert(dbData).select().single()
-      data = retry.data
-      error = retry.error
-    }
-    if (error) throw new Error(`فشل في إضافة الصف: ${error.message}`)
-    return leadFromDb(data as DbLead)
-  }
+  // No direct-Supabase fallback — the server API uses the service role key
+  // (bypasses RLS) and our in-memory cache. Falling back to the client-side
+  // anon client would bypass the cache AND fail under RLS. Surface the error.
+  return serverOp<Lead>('create', lead)
 }
 
 export async function apiBulkCreateLeads(leadsArr: Partial<Lead>[]): Promise<Lead[]> {
   if (!Array.isArray(leadsArr) || leadsArr.length === 0) return []
-  try {
-    const data = await serverOp<Lead[]>('bulkCreate', leadsArr)
-    return Array.isArray(data) ? data : []
-  } catch (serverErr) {
-    console.warn('[apiBulkCreateLeads] Server API failed:', serverErr)
-    const BATCH_SIZE = 500
-    let allCreated: Lead[] = []
-    for (let i = 0; i < leadsArr.length; i += BATCH_SIZE) {
-      const batch = leadsArr.slice(i, i + BATCH_SIZE)
-      const dbData = batch.map(leadToDb)
-      const { data, error } = await supabase.from('leads').insert(dbData).select()
-      if (error) throw new Error(`فشل في رفع البيانات: ${error.message}`)
-      if (data) allCreated = allCreated.concat((data as DbLead[]).map(leadFromDb))
-    }
-    return allCreated
-  }
+  const data = await serverOp<Lead[]>('bulkCreate', leadsArr)
+  return Array.isArray(data) ? data : []
 }
 
 export async function apiUpdateLead(id: string, updates: Partial<Lead>): Promise<Lead | null> {
-  try {
-    const data = await serverOp<Lead | null>('update', { id, updates })
-    return data
-  } catch (serverErr) {
-    console.warn('[apiUpdateLead] Server API failed:', serverErr)
-    const dbData = partialLeadToDb(updates)
-    const { data, error } = await supabase.from('leads').update(dbData).eq('id', id).select().single()
-    if (error) {
-      const { error: updateError } = await supabase.from('leads').update(dbData).eq('id', id)
-      if (updateError) throw new Error(`فشل التحديث: ${updateError.message}`)
-      return null
-    }
-    return leadFromDb(data as DbLead)
-  }
+  return serverOp<Lead | null>('update', { id, updates })
 }
 
 export async function apiDeleteLead(id: string) {
-  try {
-    await serverOp('delete', id)
-  } catch (serverErr) {
-    console.warn('[apiDeleteLead] Server API failed:', serverErr)
-    const { error } = await supabase.from('leads').delete().eq('id', id)
-    if (error) throw new Error(`فشل الحذف: ${error.message}`)
-  }
+  await serverOp('delete', id)
 }
 
 export async function apiDeleteLeadsBulk(ids: string[]) {
-  try {
-    await serverOp('bulkDelete', ids)
-  } catch (serverErr) {
-    console.warn('[apiDeleteLeadsBulk] Server API failed:', serverErr)
-    const BATCH_SIZE = 100
-    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-      const batch = ids.slice(i, i + BATCH_SIZE)
-      const { error } = await supabase.from('leads').delete().in('id', batch)
-      if (error) throw new Error(`فشل الحذف: ${error.message}`)
-    }
-  }
+  await serverOp('bulkDelete', ids)
 }
 
 export async function apiArchiveLeads(ids: string[], byName: string) {
   if (!Array.isArray(ids) || ids.length === 0) return
-  try {
-    await serverOp('archive', { ids, archivedBy: byName })
-  } catch (serverErr) {
-    console.warn('[apiArchiveLeads] Server API failed:', serverErr)
-    const BATCH_SIZE = 100
-    const archivedAt = new Date().toISOString()
-    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-      const batch = ids.slice(i, i + BATCH_SIZE)
-      const { error } = await supabase
-        .from('leads')
-        .update({ is_archived: true, archived_at: archivedAt, archived_by: byName })
-        .in('id', batch)
-      if (error) throw new Error(`فشل الأرشفة: ${error.message}`)
-    }
-  }
+  await serverOp('archive', { ids, archivedBy: byName })
 }
 
 export async function apiUnarchiveLeads(ids: string[]) {
   if (!Array.isArray(ids) || ids.length === 0) return
-  try {
-    await serverOp('unarchive', ids)
-  } catch (serverErr) {
-    console.warn('[apiUnarchiveLeads] Server API failed:', serverErr)
-    const BATCH_SIZE = 100
-    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-      const batch = ids.slice(i, i + BATCH_SIZE)
-      const { error } = await supabase
-        .from('leads')
-        .update({ is_archived: false, archived_at: null, archived_by: null })
-        .in('id', batch)
-      if (error) throw new Error(`فشل إلغاء الأرشفة: ${error.message}`)
-    }
-  }
+  await serverOp('unarchive', ids)
 }
 
 export async function apiGetLeadNotes(leadId: string): Promise<LeadNote[]> {
@@ -441,81 +356,23 @@ export async function apiGetLeadNotes(leadId: string): Promise<LeadNote[]> {
 }
 
 export async function apiAddNote(leadId: string, by: string, cat: string, text: string) {
-  try {
-    const data = await serverOp('addNote', { leadId, by, cat, text })
-    return data
-  } catch (serverErr) {
-    console.warn('[apiAddNote] Server API failed:', serverErr)
-    const { data, error } = await supabase
-      .from('lead_notes')
-      .insert({ lead_id: leadId, by_name: by, category: cat, text })
-      .select()
-      .single()
-    if (error) throw new Error(`فشل إضافة الملاحظة: ${error.message}`)
-    return data
-  }
+  return serverOp('addNote', { leadId, by, cat, text })
 }
 
 export async function apiDeleteNote(noteId: string | number) {
-  try {
-    await serverOp('deleteNote', noteId)
-  } catch (serverErr) {
-    console.warn('[apiDeleteNote] Server API failed:', serverErr)
-    const { error } = await supabase.from('lead_notes').delete().eq('id', noteId)
-    if (error) throw new Error(`فشل حذف الملاحظة: ${error.message}`)
-  }
+  await serverOp('deleteNote', noteId)
 }
 
 export async function apiAddTeamMember(name: string, role: string) {
-  try {
-    const data = await serverOp('addTeamMember', { name, role })
-    return data
-  } catch (serverErr) {
-    console.warn('[apiAddTeamMember] Server API failed:', serverErr)
-    const { data: existing } = await supabase
-      .from('team_members')
-      .select('id')
-      .eq('name', name)
-      .eq('is_active', false)
-      .maybeSingle()
-
-    if (existing) {
-      const { data, error } = await supabase
-        .from('team_members')
-        .update({ is_active: true, role })
-        .eq('id', existing.id)
-        .select()
-        .single()
-      if (error) throw new Error(`فشل إضافة عضو: ${error.message}`)
-      return data
-    }
-
-    const { data, error } = await supabase.from('team_members').insert({ name, role }).select().single()
-    if (error) throw new Error(`فشل إضافة عضو: ${error.message}`)
-    return data
-  }
+  return serverOp('addTeamMember', { name, role })
 }
 
 export async function apiRemoveTeamMember(name: string) {
-  try {
-    await serverOp('removeTeamMember', name)
-  } catch (serverErr) {
-    console.warn('[apiRemoveTeamMember] Server API failed:', serverErr)
-    const { error } = await supabase.from('team_members').update({ is_active: false }).eq('name', name)
-    if (error) throw new Error(`فشل إزالة عضو: ${error.message}`)
-  }
+  await serverOp('removeTeamMember', name)
 }
 
 export async function apiRenameTeamMember(oldName: string, newName: string) {
-  try {
-    await serverOp('renameTeamMember', { oldName, newName })
-  } catch (serverErr) {
-    console.warn('[apiRenameTeamMember] Server API failed:', serverErr)
-    const { error: e1 } = await supabase.from('team_members').update({ name: newName }).eq('name', oldName)
-    if (e1) throw new Error(`فشل إعادة تسمية: ${e1.message}`)
-    await supabase.from('leads').update({ tele_name: newName }).eq('tele_name', oldName)
-    await supabase.from('leads').update({ sales_name: newName }).eq('sales_name', oldName)
-  }
+  await serverOp('renameTeamMember', { oldName, newName })
 }
 
 // ===== Access Permissions (who can view whose sheets) =====
@@ -550,36 +407,8 @@ export async function apiSaveAccessPermissions(
   teleAccess: Record<string, string[]>,
   salesAccess: Record<string, string[]>
 ): Promise<void> {
-  try {
-    // Use the server API for atomic operations
-    await serverOp('saveAccessPermissions', { teleAccess, salesAccess })
-  } catch (serverErr) {
-    console.warn('[apiSaveAccessPermissions] Server API failed, trying direct:', serverErr)
-    // Fallback: delete all and re-insert
-    const admin = getSupabaseAdmin()
-    if (!admin) throw new Error('Supabase admin not available')
-
-    // Delete all existing
-    await admin.from('access_permissions').delete().neq('id', 0)
-
-    // Insert new
-    const rows: Array<{ viewer_name: string; target_name: string; role: string; is_active: boolean }> = []
-    for (const [viewer, targets] of Object.entries(teleAccess)) {
-      for (const target of targets) {
-        rows.push({ viewer_name: viewer, target_name: target, role: 'tele', is_active: true })
-      }
-    }
-    for (const [viewer, targets] of Object.entries(salesAccess)) {
-      for (const target of targets) {
-        rows.push({ viewer_name: viewer, target_name: target, role: 'sales', is_active: true })
-      }
-    }
-
-    if (rows.length > 0) {
-      const { error } = await admin.from('access_permissions').insert(rows)
-      if (error) throw new Error(`فشل حفظ الصلاحيات: ${error.message}`)
-    }
-  }
+  // No direct-Supabase fallback — server API uses service role key + cache invalidation.
+  await serverOp('saveAccessPermissions', { teleAccess, salesAccess })
 }
 
 // ===== Broadcast removed — postgres_changes already sends updates to all clients =====

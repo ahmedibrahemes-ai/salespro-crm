@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getCacheMetrics } from '@/lib/api-cache'
+import { requireAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
 
 /**
  * GET /api/monitor
@@ -7,7 +8,12 @@ import { getCacheMetrics } from '@/lib/api-cache'
  * Returns cache performance metrics for monitoring egress optimization.
  * Only available to authenticated admin users.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const session = await requireAdmin(request)
+  if (!session) {
+    return session === null ? forbiddenResponse('هذه العملية تتطلب صلاحيات مدير') : unauthorizedResponse()
+  }
+
   const metrics = getCacheMetrics()
 
   const totalHits = metrics.statsHits + metrics.leadsHits

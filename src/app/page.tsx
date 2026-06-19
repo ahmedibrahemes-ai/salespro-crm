@@ -2,7 +2,7 @@
 
 import { useEffect, Component, lazy, Suspense, useMemo } from 'react'
 import { useCrmStore, hydrateAuth, canAccessView, getDefaultViewForRole, type ViewName } from '@/lib/store'
-import { apiGetLeads, apiGetArchivedLeads, apiGetTeam, apiGetAccessPermissions, apiSubscribeToLeads, apiUnsubscribe, type BroadcastMessage } from '@/lib/supabase'
+import { apiGetLeads, apiGetArchivedLeads, apiGetTeam, apiGetAccessPermissions, apiSubscribeToLeads, apiUnsubscribe, type BroadcastMessage, type Lead } from '@/lib/supabase'
 import { LoginScreen } from '@/components/crm/login-screen'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Topbar } from '@/components/layout/topbar'
@@ -319,24 +319,61 @@ export default function Home() {
       setLoading(true)
       setDataError(null)
       try {
-        // OPTIMIZATION: Don't load archived leads on login — lazy load when needed
-        // This cuts initial data transfer significantly
-        const [active, team, permissions] = await Promise.all([
-          apiGetLeads(false),
-          apiGetTeam().catch(() => ({ tele: [], sales: [], admin: [] })),
-          apiGetAccessPermissions().catch(() => ({ teleAccess: {}, salesAccess: {} })),
-        ])
+        // PERF: Try sessionStorage cache first (avoids 4s API call on page refresh).
+        // The cache is valid for 2 minutes — realtime subscriptions keep data fresh
+        // after that, so stale data is corrected automatically.
+        const CACHE_KEY = 'venom-leads-cache'
+        const CACHE_TTL = 2 * 60 * 1000 // 2 minutes
 
-        setLeads(active)
-        setTeam(team)
-        setTeleAccess(permissions.teleAccess)
-        setSalesAccess(permissions.salesAccess)
-        setDataLoaded(true)
+        let cachedLeads: Lead[] | null = null
+        try {
+          const raw = sessionStorage.getItem(CACHE_KEY)
+          if (raw) {
+            const parsed = JSON.parse(raw) as { data: Lead[]; timestamp: number }
+            if (Date.now() - parsed.timestamp < CACHE_TTL) {
+              cachedLeads = parsed.data
+              console.log(`[cache] Restored ${cachedLeads.length} leads from sessionStorage (saved API call)`)
+            }
+          }
+        } catch { /* ignore parse errors */ }
+
+        if (cachedLeads) {
+          // Use cached leads, still fetch team + permissions (small payloads)
+          const [team, permissions] = await Promise.all([
+            apiGetTeam().catch(() => ({ tele: [], sales: [], admin: [] })),
+            apiGetAccessPermissions().catch(() => ({ teleAccess: {}, salesAccess: {} })),
+          ])
+          setLeads(cachedLeads)
+          setTeam(team)
+          setTeleAccess(permissions.teleAccess)
+          setSalesAccess(permissions.salesAccess)
+          setDataLoaded(true)
+        } else {
+          // No cache — fetch everything
+          const [active, team, permissions] = await Promise.all([
+            apiGetLeads(false),
+            apiGetTeam().catch(() => ({ tele: [], sales: [], admin: [] })),
+            apiGetAccessPermissions().catch(() => ({ teleAccess: {}, salesAccess: {} })),
+          ])
+
+          setLeads(active)
+          setTeam(team)
+          setTeleAccess(permissions.teleAccess)
+          setSalesAccess(permissions.salesAccess)
+          setDataLoaded(true)
+
+          // Save to sessionStorage for next refresh
+          try {
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: active, timestamp: Date.now() }))
+          } catch {
+            // Quota exceeded — clear old cache and try again
+            try { sessionStorage.removeItem(CACHE_KEY) } catch { /* ignore */ }
+          }
+        }
       } catch (err) {
         console.error('Failed to load data:', err)
         const msg = err instanceof Error ? err.message : 'فشل تحميل البيانات'
         setDataError(msg)
-        // Still mark as loaded so we don't retry in a loop — user can retry via UI
         setDataLoaded(true)
       } finally {
         setLoading(false)

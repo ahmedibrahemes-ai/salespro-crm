@@ -12,6 +12,9 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose,
 } from '@/components/ui/dialog'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
 import { AIPanel } from '@/components/crm/ai/ai-panel'
 
 /* ═══════════════════════════════════════════════════════
@@ -288,6 +291,11 @@ export function Dashboard() {
   const setActiveFilter = useCrmStore((s) => s.setActiveFilter)
   const targetSettings = useCrmStore((s) => s.targetSettings)
   const setTargetSettings = useCrmStore((s) => s.setTargetSettings)
+  // Admin member selector — shared with tele-sheet / sales-sheet via store
+  const selectedTeleMember = useCrmStore((s) => s.selectedTeleMember)
+  const setSelectedTeleMember = useCrmStore((s) => s.setSelectedTeleMember)
+  const selectedSalesMember = useCrmStore((s) => s.selectedSalesMember)
+  const setSelectedSalesMember = useCrmStore((s) => s.setSelectedSalesMember)
 
   /* ─── Target settings dialog state ─── */
   const [targetDialogOpen, setTargetDialogOpen] = useState(false)
@@ -308,7 +316,22 @@ export function Dashboard() {
     return () => { cancelled = true }
   }, [setTargetSettings])
 
-  /* ─── Single-pass: Filter leads by role ─── */
+  /* ─── Admin member selection: 'all' | tele name | sales name ───
+     Admin can filter the dashboard by a specific tele OR a specific sales.
+     'all' shows everyone. This persists across navigation via the store. */
+  const adminSelectedMember = useMemo<{ type: 'all' | 'tele' | 'sales'; name: string }>(() => {
+    if (currentRole !== 'admin') return { type: 'all', name: 'all' }
+    // Prefer the tele selection if it's a real name, else sales selection
+    if (selectedTeleMember !== 'all' && team.tele.includes(selectedTeleMember)) {
+      return { type: 'tele', name: selectedTeleMember }
+    }
+    if (selectedSalesMember !== 'all' && team.sales.includes(selectedSalesMember)) {
+      return { type: 'sales', name: selectedSalesMember }
+    }
+    return { type: 'all', name: 'all' }
+  }, [currentRole, selectedTeleMember, selectedSalesMember, team])
+
+  /* ─── Single-pass: Filter leads by role (or by admin's selected member) ─── */
   const myLeads = useMemo(() => {
     if (currentRole === 'tele' && currentUser) {
       return leads.filter((l) => l.tele === currentUser && !l.isArchived)
@@ -316,13 +339,24 @@ export function Dashboard() {
     if (currentRole === 'sales' && currentUser) {
       return leads.filter((l) => l.sales === currentUser && !l.isArchived)
     }
+    // Admin: filter by selected member if one is chosen
+    if (currentRole === 'admin' && adminSelectedMember.type !== 'all') {
+      const { type, name } = adminSelectedMember
+      return leads.filter((l) => !l.isArchived && (type === 'tele' ? l.tele === name : l.sales === name))
+    }
     return leads.filter((l) => !l.isArchived)
-  }, [leads, currentUser, currentRole])
+  }, [leads, currentUser, currentRole, adminSelectedMember])
 
   /* ─── All leads (admin sees all, others see own) ─── */
   const allActiveLeads = useMemo(() => {
+    // For admin with a member selected, "all active" should also respect the filter
+    // (so pending clients strip matches the KPIs)
+    if (currentRole === 'admin' && adminSelectedMember.type !== 'all') {
+      const { type, name } = adminSelectedMember
+      return leads.filter((l) => !l.isArchived && (type === 'tele' ? l.tele === name : l.sales === name))
+    }
     return leads.filter((l) => !l.isArchived)
-  }, [leads])
+  }, [leads, currentRole, adminSelectedMember])
 
   /* ─── Current month range ─── */
   const monthRange = useMemo(() => getDateRange('month'), [])
@@ -685,6 +719,77 @@ export function Dashboard() {
   return (
     <div dir="rtl" className="space-y-6" style={{ fontFamily: 'Cairo, sans-serif' }}>
       <InjectAnimations />
+
+      {/* ══════════════════════════════════════════════════
+          0. ADMIN MEMBER SELECTOR — filter dashboard by team member
+          ══════════════════════════════════════════════════ */}
+      {currentRole === 'admin' && (
+        <div className="section-animate flex flex-wrap items-center gap-2" style={{ animationDelay: '0.05s' }}>
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#111520] border border-white/[0.06]">
+            <Users size={16} className="text-[#6c63ff]" />
+            <span className="text-[13px] font-bold text-[#8892b0]">عرض بيانات:</span>
+
+            {/* Tele selector */}
+            <Select
+              value={selectedTeleMember}
+              onValueChange={(val) => {
+                setSelectedTeleMember(val)
+                // Reset sales when picking a tele (avoid conflicting filters)
+                if (val !== 'all') setSelectedSalesMember('all')
+              }}
+            >
+              <SelectTrigger className="w-[130px] h-8 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
+                <SelectValue placeholder="فريق التيلي" />
+              </SelectTrigger>
+              <SelectContent className="bg-[#111520] border-white/[0.08]">
+                <SelectItem value="all" className="text-[12px] text-[#f0f2ff]">كل التيلي</SelectItem>
+                {team.tele.map((name) => (
+                  <SelectItem key={name} value={name} className="text-[12px] text-[#f0f2ff]">{name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Divider */}
+            <span className="text-[11px] text-[#4a5280] px-1">أو</span>
+
+            {/* Sales selector */}
+            <Select
+              value={selectedSalesMember}
+              onValueChange={(val) => {
+                setSelectedSalesMember(val)
+                if (val !== 'all') setSelectedTeleMember('all')
+              }}
+            >
+              <SelectTrigger className="w-[130px] h-8 text-[12px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
+                <SelectValue placeholder="فريق السيلز" />
+              </SelectTrigger>
+              <SelectContent className="bg-[#111520] border-white/[0.08]">
+                <SelectItem value="all" className="text-[12px] text-[#f0f2ff]">كل السيلز</SelectItem>
+                {team.sales.map((name) => (
+                  <SelectItem key={name} value={name} className="text-[12px] text-[#f0f2ff]">{name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Active filter badge */}
+            {adminSelectedMember.type !== 'all' && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-[#6c63ff]/15 text-[#8b85ff] text-[11px] font-semibold">
+                {adminSelectedMember.type === 'tele' ? 'تيلي:' : 'سيلز:'} {adminSelectedMember.name}
+                <button
+                  onClick={() => {
+                    setSelectedTeleMember('all')
+                    setSelectedSalesMember('all')
+                  }}
+                  className="hover:text-[#f0f2ff] cursor-pointer mr-0.5"
+                  title="إلغاء الفلتر"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ══════════════════════════════════════════════════
           1. URGENT STRIP — Uncontacted leads

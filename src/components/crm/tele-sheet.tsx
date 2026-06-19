@@ -949,6 +949,8 @@ export function TeleSheet() {
   const archiveLeadsInCache = useCrmStore((s) => s.archiveLeadsInCache)
   const activeFilter = useCrmStore((s) => s.activeFilter)
   const setActiveFilter = useCrmStore((s) => s.setActiveFilter)
+  const storeSelectedTele = useCrmStore((s) => s.selectedTeleMember)
+  const setStoreSelectedTele = useCrmStore((s) => s.setSelectedTeleMember)
 
   const viewKey = 'tele-sheet'
   const selected = selectedLeadIds[viewKey] || []
@@ -962,11 +964,32 @@ export function TeleSheet() {
   })
   const [saving, setSaving] = useState(false)
 
-  // Tele users are locked to their own data; admin can see everyone
+  // Tele users are locked to their own data; admin can pick which tele to view.
+  // Selection is persisted in the store so it survives navigation/refresh.
   const isLockedToSelf = currentRole === 'tele'
-  const [selectedTele, setSelectedTele] = useState<string>(
-    isLockedToSelf && currentUser ? currentUser : 'all'
-  )
+
+  // For admin/sales: find the first tele member who actually has leads,
+  // so the sheet shows real data immediately instead of an empty list.
+  const teleWithLeads = useMemo(() => {
+    const names = new Set<string>()
+    for (const l of leads) {
+      if (l.tele && !l.isArchived) names.add(l.tele)
+    }
+    // Preserve team order, but only members with leads
+    return team.tele.filter((name) => names.has(name))
+  }, [leads, team.tele])
+
+  // For tele users: always their own name.
+  // For admin/sales: use persisted selection, or default to first tele WITH leads.
+  const effectiveSelectedTele = isLockedToSelf
+    ? (currentUser || 'all')
+    : (storeSelectedTele !== 'all' && team.tele.includes(storeSelectedTele)
+        ? storeSelectedTele
+        : (teleWithLeads[0] || team.tele[0] || 'all'))
+  const selectedTele = effectiveSelectedTele
+  const setSelectedTele = (val: string) => {
+    if (!isLockedToSelf) setStoreSelectedTele(val)
+  }
 
   // Transfer modal state
   const [transferLeadId, setTransferLeadId] = useState<string | null>(null)

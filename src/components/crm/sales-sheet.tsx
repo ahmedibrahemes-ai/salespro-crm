@@ -157,17 +157,39 @@ export function SalesSheet() {
   const removeLeadFromCache = useCrmStore((s) => s.removeLeadFromCache)
   const batchRemoveLeadsFromCache = useCrmStore((s) => s.batchRemoveLeadsFromCache)
   const archiveLeadsInCache = useCrmStore((s) => s.archiveLeadsInCache)
+  const storeSelectedSales = useCrmStore((s) => s.selectedSalesMember)
+  const setStoreSelectedSales = useCrmStore((s) => s.setSelectedSalesMember)
 
   const viewKey = 'sales-sheet'
   const selected = selectedLeadIds[viewKey] || []
   const searchQuery = searchQueries[viewKey] || ''
   const dateFilter = dateRangeFilters[viewKey] || { preset: 'all' }
 
-  // Sales users are locked to their own data; admin can see everyone
+  // Sales users are locked to their own data; admin can pick which sales to view.
+  // Selection is persisted in the store so it survives navigation/refresh.
   const isLockedToSelf = currentRole === 'sales'
-  const [selectedSales, setSelectedSales] = useState<string>(
-    isLockedToSelf && currentUser ? currentUser : 'all'
-  )
+
+  // For admin/tele: find the first sales member who actually has leads,
+  // so the sheet shows real data immediately instead of an empty list.
+  const salesWithLeads = useMemo(() => {
+    const names = new Set<string>()
+    for (const l of leads) {
+      if (l.sales && !l.isArchived) names.add(l.sales)
+    }
+    return team.sales.filter((name) => names.has(name))
+  }, [leads, team.sales])
+
+  // For sales users: always their own name.
+  // For admin/tele: use persisted selection, or default to first sales WITH leads.
+  const effectiveSelectedSales = isLockedToSelf
+    ? (currentUser || 'all')
+    : (storeSelectedSales !== 'all' && team.sales.includes(storeSelectedSales)
+        ? storeSelectedSales
+        : (salesWithLeads[0] || team.sales[0] || 'all'))
+  const selectedSales = effectiveSelectedSales
+  const setSelectedSales = (val: string) => {
+    if (!isLockedToSelf) setStoreSelectedSales(val)
+  }
   const [currentPage, setCurrentPage] = useState(1)
 
   // Custom date range state

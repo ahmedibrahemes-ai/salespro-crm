@@ -211,6 +211,11 @@ interface CrmStore {
   // View-Specific State
   activeFilter: Record<string, string>
   setActiveFilter: (viewKey: string, filter: string) => void
+  // Persistent member selection for admin (which tele/sales to view)
+  selectedTeleMember: string
+  setSelectedTeleMember: (member: string) => void
+  selectedSalesMember: string
+  setSelectedSalesMember: (member: string) => void
   selectedLeadIds: Record<string, string[]>
   toggleLeadSelection: (viewKey: string, id: string) => void
   setSelectedLeadIds: (viewKey: string, ids: string[]) => void
@@ -378,6 +383,8 @@ export const useCrmStore = create<CrmStore>()(
       dataError: null,
       notificationsLoaded: false,
       activeFilter: {},
+      selectedTeleMember: 'all',
+      selectedSalesMember: 'all',
       selectedLeadIds: {},
       searchQueries: {},
       dateRangeFilters: {},
@@ -602,6 +609,12 @@ export const useCrmStore = create<CrmStore>()(
   activeFilter: {},
   setActiveFilter: (viewKey, filter) =>
     set((s) => ({ activeFilter: { ...s.activeFilter, [viewKey]: filter } })),
+  // Persistent member selection — admin picks which tele/sales to view.
+  // Default 'all' shows everyone; persisted via Zustand persist middleware.
+  selectedTeleMember: 'all',
+  setSelectedTeleMember: (member) => set({ selectedTeleMember: member }),
+  selectedSalesMember: 'all',
+  setSelectedSalesMember: (member) => set({ selectedSalesMember: member }),
   selectedLeadIds: {},
   toggleLeadSelection: (viewKey, id) =>
     set((s) => {
@@ -785,8 +798,21 @@ export const useCrmStore = create<CrmStore>()(
       // multi-MB JSON.stringify on every state change → 1-2s UI freezes.
       // dataLoaded/archivedLoaded must also not be persisted, otherwise the app
       // would think data is loaded after refresh while leads array is empty.
-      partialize: () => ({}),
-      merge: (_persisted, current) => current,
+      // We DO persist the auth + selected member (small, useful across refreshes).
+      partialize: (s) => ({
+        currentUser: s.currentUser,
+        currentRole: s.currentRole,
+        isAuthenticated: s.isAuthenticated,
+        userId: s.userId,
+        username: s.username,
+        selectedTeleMember: s.selectedTeleMember,
+        selectedSalesMember: s.selectedSalesMember,
+        theme: s.theme,
+      }),
+      merge: (persisted, current) => {
+        const p = (persisted || {}) as Partial<typeof current>
+        return { ...current, ...p }
+      },
     }
   )
 )

@@ -21,6 +21,9 @@ export async function GET(request: NextRequest) {
     }
 
     const client = createAnonClient()
+    if (!client) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+    }
     const { data, error } = await client
       .from('lead_notes')
       .select('*')
@@ -56,6 +59,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const client = getSupabaseAdmin() || createAnonClient()
+    if (!client) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+    }
     const body = await request.json()
 
     // Validate input

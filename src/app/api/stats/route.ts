@@ -24,7 +24,7 @@ function getCurrentMonthAr(): string {
 
 /** Helper: get exact count from Supabase using head: true (zero egress) */
 async function getCount(
-  client: ReturnType<typeof createAnonClient>,
+  client: NonNullable<ReturnType<typeof createAnonClient>>,
   table: string,
   filters?: Record<string, unknown>
 ): Promise<number> {
@@ -53,7 +53,7 @@ async function getCount(
  * This is the OLD approach — kept as fallback only.
  * It uses a single combined query instead of 3 separate full-table scans.
  */
-async function computePerPersonStatsFallback(client: ReturnType<typeof createAnonClient>) {
+async function computePerPersonStatsFallback(client: NonNullable<ReturnType<typeof createAnonClient>>) {
   // Single query with all needed fields — eliminates 2 of 3 full-table scans
   const allLeads: Array<{
     tele_name: string | null; sales_name: string | null;

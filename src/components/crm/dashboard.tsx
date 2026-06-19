@@ -12,6 +12,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose,
 } from '@/components/ui/dialog'
+import { AIPanel } from '@/components/crm/ai/ai-panel'
 
 /* ═══════════════════════════════════════════════════════
    Types
@@ -1279,6 +1280,13 @@ export function Dashboard() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════
+          AI INSIGHTS PANEL
+          ══════════════════════════════════════════════════ */}
+      <div className="section-animate" style={{ animationDelay: '0.5s' }}>
+        <AIPanel />
       </div>
 
       {/* ══════════════════════════════════════════════════

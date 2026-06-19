@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
+import { AIScoreBadge } from '@/components/crm/ai/ai-score-badge'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -555,11 +556,22 @@ export function SalesSheet() {
                           />
                         </TableCell>
                         <TableCell>
-                          <EditableCell
-                            value={lead.customerName}
-                            onSave={(v) => handleUpdateField(lead.id, 'customerName', v)}
-                            placeholder="اسم العميل"
-                          />
+                          <div className="flex items-center gap-1.5">
+                            <EditableCell
+                              value={lead.customerName}
+                              onSave={(v) => handleUpdateField(lead.id, 'customerName', v)}
+                              placeholder="اسم العميل"
+                            />
+                            <AIScoreBadge
+                              leadId={lead.id}
+                              leadName={lead.customerName}
+                              status={lead.status}
+                              meetings={lead.meetingDate ? 1 : 0}
+                              attended={lead.attended}
+                              salesStatus={lead.salesStatus}
+                              contactResult={lead.contactResult}
+                            />
+                          </div>
                         </TableCell>
                         <TableCell>
                           <EditableCell

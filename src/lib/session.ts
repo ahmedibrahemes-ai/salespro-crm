@@ -74,14 +74,16 @@ export async function createSessionToken(payload: Omit<SessionPayload, 'iat' | '
   const payloadB64 = bytesToBase64Url(stringToBytes(payloadJson))
 
   const secret = getSessionSecret()
+  const secretBytes = stringToBytes(secret)
+  const payloadB64Bytes = stringToBytes(payloadB64)
   const key = await crypto.subtle.importKey(
     'raw',
-    stringToBytes(secret),
+    secretBytes as BufferSource,
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign']
   )
-  const sigBuffer = await crypto.subtle.sign('HMAC', key, stringToBytes(payloadB64))
+  const sigBuffer = await crypto.subtle.sign('HMAC', key, payloadB64Bytes as BufferSource)
   const sigB64 = bytesToBase64Url(new Uint8Array(sigBuffer))
 
   return `${payloadB64}.${sigB64}`
@@ -98,15 +100,17 @@ export async function verifySessionToken(token: string | null | undefined): Prom
   // Verify signature
   try {
     const secret = getSessionSecret()
+    const secretBytes = stringToBytes(secret)
+    const payloadBytes = stringToBytes(payloadB64)
     const key = await crypto.subtle.importKey(
       'raw',
-      stringToBytes(secret),
+      secretBytes as BufferSource,
       { name: 'HMAC', hash: 'SHA-256' },
       false,
       ['verify']
     )
     const sigBytes = base64UrlToBytes(sigB64)
-    const valid = await crypto.subtle.verify('HMAC', key, sigBytes, stringToBytes(payloadB64))
+    const valid = await crypto.subtle.verify('HMAC', key, sigBytes as BufferSource, payloadBytes as BufferSource)
     if (!valid) return null
   } catch {
     return null

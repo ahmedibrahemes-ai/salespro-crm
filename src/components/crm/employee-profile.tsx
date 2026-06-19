@@ -8,7 +8,7 @@ import {
   Phone, Briefcase, Calendar, Trophy, Users, TrendingUp,
   Clock, CheckCircle2, XCircle, HourglassIcon, Target,
   PhoneCall, UserCheck, ArrowRightLeft, Sun, Moon,
-  UserPlus, FileSpreadsheet, MeetingRoom, Archive,
+  UserPlus, FileSpreadsheet, DoorOpen, Archive,
   Video, MapPin, Zap, Award, BarChart3, Activity,
   KeyRound, Eye, EyeOff, ChevronLeft, ChevronRight,
   PhoneOff, UserX, RefreshCw,
@@ -446,7 +446,7 @@ export function EmployeeProfile() {
       .map((s) => ({
         key: s.key,
         label: s.label,
-        count: myLeads.filter((l) => (l as Record<string, unknown>)[statusField] === s.key).length,
+        count: myLeads.filter((l) => (l as unknown as Record<string, unknown>)[statusField] === s.key).length,
         percentage: 0,
       }))
       .filter((s) => s.count > 0)

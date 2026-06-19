@@ -129,7 +129,7 @@ async function computePerPersonStatsFallback(client: NonNullable<ReturnType<type
  * Try to use Supabase RPC for server-side aggregation (near-zero egress).
  * Falls back to client-side if RPC functions don't exist yet.
  */
-async function computePerPersonStatsRPC(client: ReturnType<typeof createAnonClient>) {
+async function computePerPersonStatsRPC(client: NonNullable<ReturnType<typeof createAnonClient>>) {
   try {
     // Call the RPC function — it returns pre-aggregated rows (tiny egress)
     const [teleResult, salesResult, callResult] = await Promise.all([
@@ -187,7 +187,7 @@ async function computePerPersonStatsRPC(client: ReturnType<typeof createAnonClie
  * Weekly calls via RPC (server-side) — near-zero egress.
  * Falls back to client-side if RPC doesn't exist.
  */
-async function computeWeeklyCallsRPC(client: ReturnType<typeof createAnonClient>, sevenDaysAgoISO: string) {
+async function computeWeeklyCallsRPC(client: NonNullable<ReturnType<typeof createAnonClient>>, sevenDaysAgoISO: string) {
   try {
     const { data, error } = await client.rpc('get_weekly_calls', { days_ago: sevenDaysAgoISO })
     if (error) return null
@@ -208,7 +208,7 @@ async function computeWeeklyCallsRPC(client: ReturnType<typeof createAnonClient>
 }
 
 /** Fallback: compute weekly calls client-side (downloads created_at for recent leads) */
-async function computeWeeklyCallsFallback(client: ReturnType<typeof createAnonClient>, sevenDaysAgoISO: string) {
+async function computeWeeklyCallsFallback(client: NonNullable<ReturnType<typeof createAnonClient>>, sevenDaysAgoISO: string) {
   const dayNames = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
   const weeklyCalls = dayNames.map((day) => ({ day, count: 0 }))
   const jsDayToArabicWeek: Record<number, number> = { 6: 0, 0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 6 }
@@ -360,8 +360,9 @@ export async function GET(request: NextRequest) {
         .from('leads')
         .select('*', { count: 'exact', head: true })
         .eq('is_archived', false)
-        .not('contact_result', '')
+        .not('contact_result', 'is', null)
         .neq('contact_result', 'none')
+        .neq('contact_result', '')
         .gte('contact_result_at', todayISO)
         .then(({ count }: { count: number | null }) => count ?? 0),
     ])

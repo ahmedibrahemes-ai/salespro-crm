@@ -755,7 +755,7 @@ export function Dashboard() {
               className="kpi-card-animate bg-[#111520] border border-white/[0.06] rounded-2xl p-5 relative overflow-hidden transition-all duration-300 cursor-default group"
               style={{
                 animationDelay: `${0.1 + i * 0.08}s`,
-                '--glow-color': `${kpi.color}33` as string,
+                ['--glow-color' as string]: `${kpi.color}33`,
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.boxShadow = `0 0 24px ${kpi.color}22`

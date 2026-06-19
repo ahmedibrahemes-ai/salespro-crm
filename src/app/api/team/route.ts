@@ -40,6 +40,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const client = isAdminAvailable() ? getSupabaseAdmin()! : createAnonClient()
+    if (!client) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+    }
 
     const { data, error } = await client
       .from('team_members')

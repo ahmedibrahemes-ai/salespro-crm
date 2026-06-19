@@ -71,11 +71,6 @@ function getReadClient(request: NextRequest) {
   const admin = getSupabaseAdmin()
   if (admin) return admin
 
-  const authToken = request.headers.get('X-Supabase-Auth') || undefined
-  if (authToken) {
-    return createAuthenticatedClient(authToken)
-  }
-
   // Last resort: use the anon client
   return createAnonClient()
 }
@@ -295,6 +290,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const client = getReadClient(request)
+    if (!client) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+    }
 
     let result
 

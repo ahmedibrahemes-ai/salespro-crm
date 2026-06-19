@@ -12,6 +12,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const client = getSupabaseAdmin() || createAnonClient()
+    if (!client) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+    }
 
     // Check if data already exists
     const { count, error: countError } = await client

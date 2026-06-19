@@ -464,6 +464,7 @@ interface PasteRow {
   id: string
   phone: string
   storeUrl: string
+  customerName?: string
   included: boolean
   isDuplicate: boolean
 }

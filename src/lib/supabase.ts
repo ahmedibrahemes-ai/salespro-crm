@@ -269,45 +269,34 @@ export async function apiGetTeam() {
 }
 
 export async function apiGetLeads(includeArchived = false): Promise<Lead[]> {
-  try {
-    const params = new URLSearchParams()
-    if (includeArchived) params.set('archived', 'true')
+  const params = new URLSearchParams()
+  if (includeArchived) params.set('archived', 'true')
 
-    const res = await fetch(`/api/leads?${params.toString()}`, { headers: authHeaders() })
-    if (res.ok) {
-      const json = await res.json()
-      if (json.data && Array.isArray(json.data)) {
-        return json.data as Lead[]
-      }
-    }
-  } catch (err) {
-    console.warn('[apiGetLeads] Server API error:', err)
+  const res = await fetch(`/api/leads?${params.toString()}`, { headers: authHeaders() })
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    const msg = errBody?.error || `فشل تحميل البيانات (HTTP ${res.status})`
+    throw new Error(msg)
   }
-
-  // EGRESS FIX: Removed client-side Supabase fallback.
-  // Previously, if the server API failed, we'd query Supabase directly from
-  // the client — this causes DIRECT egress from Supabase (bypasses our cache).
-  // Now we return empty array instead. The server API should always work.
-  console.warn('[apiGetLeads] Server API failed. Returning empty array to avoid direct Supabase egress.')
-  return []
+  const json = await res.json()
+  if (!json.data || !Array.isArray(json.data)) {
+    throw new Error('استجابة غير صالحة من الخادم')
+  }
+  return json.data as Lead[]
 }
 
 export async function apiGetArchivedLeads(): Promise<Lead[]> {
-  try {
-    const res = await fetch('/api/leads?archived_only=true', { headers: authHeaders() })
-    if (res.ok) {
-      const json = await res.json()
-      if (json.data && Array.isArray(json.data)) {
-        return json.data as Lead[]
-      }
-    }
-  } catch (err) {
-    console.warn('[apiGetArchivedLeads] Server API error:', err)
+  const res = await fetch('/api/leads?archived_only=true', { headers: authHeaders() })
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    const msg = errBody?.error || `فشل تحميل الأرشيف (HTTP ${res.status})`
+    throw new Error(msg)
   }
-
-  // EGRESS FIX: Removed client-side Supabase fallback (same reason as apiGetLeads).
-  console.warn('[apiGetArchivedLeads] Server API failed. Returning empty array to avoid direct Supabase egress.')
-  return []
+  const json = await res.json()
+  if (!json.data || !Array.isArray(json.data)) {
+    throw new Error('استجابة غير صالحة من الخادم')
+  }
+  return json.data as Lead[]
 }
 
 export async function apiCreateLead(lead: Partial<Lead>): Promise<Lead> {
@@ -429,17 +418,51 @@ export function apiBroadcastChange(_message: BroadcastMessage): void {
 }
 
 // ===== Toast Deduplication =====
+// FIX (memory leak): The old cleanup only ran when isDuplicateToast was called.
+// If toasts stopped coming, the map would grow indefinitely. Now we cap the size
+// and run periodic cleanup via setInterval (registered once, cleared on page unload).
 const recentToastMap = new Map<string, number>()
 const TOAST_DEDUP_MS = 3000
+const TOAST_MAP_MAX_SIZE = 500
+
+let toastCleanupInterval: ReturnType<typeof setInterval> | null = null
+
+function ensureToastCleanupRunning() {
+  if (toastCleanupInterval || typeof window === 'undefined') return
+  toastCleanupInterval = setInterval(() => {
+    const now = Date.now()
+    for (const [id, ts] of recentToastMap) {
+      if (now - ts > TOAST_DEDUP_MS * 2) {
+        recentToastMap.delete(id)
+      }
+    }
+    // Hard cap: if still over size, delete oldest entries
+    if (recentToastMap.size > TOAST_MAP_MAX_SIZE) {
+      const entries = [...recentToastMap.entries()].sort((a, b) => a[1] - b[1])
+      const toRemove = entries.length - TOAST_MAP_MAX_SIZE
+      for (let i = 0; i < toRemove; i++) {
+        recentToastMap.delete(entries[i][0])
+      }
+    }
+  }, 10000) // run every 10s
+  // Don't keep the process alive just for this interval
+  if (toastCleanupInterval && typeof toastCleanupInterval.unref === 'function') {
+    toastCleanupInterval.unref()
+  }
+}
 
 export function isDuplicateToast(leadId: string | number): boolean {
+  ensureToastCleanupRunning()
   const key = String(leadId)
   const lastTime = recentToastMap.get(key) || 0
   const now = Date.now()
   if (now - lastTime < TOAST_DEDUP_MS) return true
   recentToastMap.set(key, now)
-  for (const [id, ts] of recentToastMap) {
-    if (now - ts > 10000) recentToastMap.delete(id)
+  // Inline cleanup (cheap, runs only when called)
+  if (recentToastMap.size > TOAST_MAP_MAX_SIZE) {
+    for (const [id, ts] of recentToastMap) {
+      if (now - ts > TOAST_DEDUP_MS * 2) recentToastMap.delete(id)
+    }
   }
   return false
 }
@@ -462,8 +485,49 @@ function hasPriorityChange(
   return false
 }
 
-const realtimeDebounceTimers: Record<string, ReturnType<typeof setTimeout>> = {}
+// FIX (memory leak): Use a Map with a hard size cap instead of an unbounded Record.
+// Each lead ID added an entry that was only deleted after the timer fired.
+// In long sessions with thousands of leads, this grew without bound.
+const realtimeDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const DEBOUNCE_MS = 50
+const DEBOUNCE_MAP_MAX_SIZE = 1000
+
+function setDebounceTimer(key: string, fn: () => void, ms: number) {
+  // Clear existing timer for this key
+  const existing = realtimeDebounceTimers.get(key)
+  if (existing) clearTimeout(existing)
+
+  // If the map is too large, evict oldest entries (simple LRU-ish)
+  if (realtimeDebounceTimers.size >= DEBOUNCE_MAP_MAX_SIZE) {
+    const firstKey = realtimeDebounceTimers.keys().next().value
+    if (firstKey) {
+      const old = realtimeDebounceTimers.get(firstKey)
+      if (old) clearTimeout(old)
+      realtimeDebounceTimers.delete(firstKey)
+    }
+  }
+
+  const timer = setTimeout(() => {
+    realtimeDebounceTimers.delete(key)
+    fn()
+  }, ms)
+  realtimeDebounceTimers.set(key, timer)
+}
+
+function clearDebounceTimer(key: string) {
+  const timer = realtimeDebounceTimers.get(key)
+  if (timer) {
+    clearTimeout(timer)
+    realtimeDebounceTimers.delete(key)
+  }
+}
+
+function clearAllDebounceTimers() {
+  for (const timer of realtimeDebounceTimers.values()) {
+    clearTimeout(timer)
+  }
+  realtimeDebounceTimers.clear()
+}
 
 export function apiSubscribeToLeads(
   callback: (payload: Record<string, unknown>) => void,
@@ -473,7 +537,40 @@ export function apiSubscribeToLeads(
   // - Removed lead_notes subscription (not used in client, saves ~50% realtime messages)
   // - Removed DELETE event (handled by UPDATE with is_archived, or just refetch)
   // - This reduces realtime egress dramatically
-  const channel = supabase
+  let channel: ReturnType<typeof supabase.channel> | null = null
+
+  // Retry logic: if the channel closes unexpectedly, attempt to reconnect
+  // with exponential backoff (1s, 2s, 4s, 8s, max 30s).
+  let retryCount = 0
+  let retryTimer: ReturnType<typeof setTimeout> | null = null
+  const MAX_RETRY_DELAY_MS = 30000
+  const BASE_RETRY_DELAY_MS = 1000
+
+  function clearRetryTimer() {
+    if (retryTimer) {
+      clearTimeout(retryTimer)
+      retryTimer = null
+    }
+  }
+
+  function scheduleReconnect() {
+    clearRetryTimer()
+    const delay = Math.min(BASE_RETRY_DELAY_MS * Math.pow(2, retryCount), MAX_RETRY_DELAY_MS)
+    retryCount++
+    console.log(`[realtime] Reconnecting in ${delay}ms (attempt ${retryCount})...`)
+    retryTimer = setTimeout(() => {
+      if (!channel) return
+      console.log('[realtime] Attempting reconnect...')
+      try {
+        channel.subscribe()
+      } catch (err) {
+        console.error('[realtime] Reconnect failed:', err)
+        scheduleReconnect()
+      }
+    }, delay)
+  }
+
+  channel = supabase
     .channel('leads_changes', {
       config: { broadcast: { self: false } },
     })
@@ -487,21 +584,15 @@ export function apiSubscribeToLeads(
       const oldRow = payload.old as Record<string, unknown> | undefined
       const id = newRow?.id
       if (id) {
+        const key = `leads:${id}`
         if (hasPriorityChange(oldRow, newRow)) {
-          const key = `leads:${id}`
-          if (realtimeDebounceTimers[key]) {
-            clearTimeout(realtimeDebounceTimers[key])
-            delete realtimeDebounceTimers[key]
-          }
+          // Priority changes fire immediately (no debounce)
+          clearDebounceTimer(key)
           callback(payload)
           return
         }
-        const key = `leads:${id}`
-        if (realtimeDebounceTimers[key]) clearTimeout(realtimeDebounceTimers[key])
-        realtimeDebounceTimers[key] = setTimeout(() => {
-          delete realtimeDebounceTimers[key]
-          callback(payload)
-        }, DEBOUNCE_MS)
+        // Non-priority changes are debounced to prevent UI flickering
+        setDebounceTimer(key, () => callback(payload), DEBOUNCE_MS)
       }
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'leads' }, (rawPayload) => {
@@ -512,14 +603,50 @@ export function apiSubscribeToLeads(
     // This saves ~50% of realtime messages/egress.
     .subscribe((status, err) => {
       console.log(`[realtime] Status: ${status}`, err || '')
+      if (status === 'SUBSCRIBED') {
+        // Reset retry counter on successful connection
+        retryCount = 0
+        clearRetryTimer()
+      } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        // Auto-reconnect with exponential backoff
+        scheduleReconnect()
+      }
       if (onStatusChange) {
         onStatusChange(status as 'SUBSCRIBED' | 'CLOSED' | 'CHANNEL_ERROR' | 'TIMED_OUT')
       }
     })
 
-  return channel
+  // Return a wrapper that cleans up timers AND the channel on unsubscribe
+  const wrappedChannel = {
+    channel,
+    unsubscribe() {
+      clearRetryTimer()
+      clearAllDebounceTimers()
+      if (channel) {
+        try {
+          supabase.removeChannel(channel)
+        } catch (err) {
+          console.error('[realtime] Error removing channel:', err)
+        }
+      }
+    },
+  }
+
+  return wrappedChannel as unknown as ReturnType<typeof supabase.channel>
 }
 
-export function apiUnsubscribe(channel: ReturnType<typeof supabase.channel>) {
-  if (channel) supabase.removeChannel(channel)
+export function apiUnsubscribe(channel: ReturnType<typeof supabase.channel> | null) {
+  if (!channel) return
+  // The channel passed in is our wrapped object with a custom unsubscribe
+  const wrapped = channel as unknown as { unsubscribe?: () => void; channel?: unknown }
+  if (wrapped && typeof wrapped.unsubscribe === 'function') {
+    wrapped.unsubscribe()
+    return
+  }
+  // Fallback: assume it's a raw Supabase channel
+  try {
+    supabase.removeChannel(channel as ReturnType<typeof supabase.channel>)
+  } catch (err) {
+    console.error('[realtime] Error in apiUnsubscribe fallback:', err)
+  }
 }

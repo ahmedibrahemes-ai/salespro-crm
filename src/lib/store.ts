@@ -162,12 +162,14 @@ interface CrmStore {
   dataLoaded: boolean
   archivedLoaded: boolean
   loading: boolean
+  dataError: string | null  // FIX: surface data-load errors to the UI (was silently returning [])
   setLeads: (leads: Lead[]) => void
   setArchivedLeads: (leads: Lead[]) => void
   setTeam: (team: { tele: string[]; sales: string[]; admin: string[] }) => void
   setDataLoaded: (loaded: boolean) => void
   setArchivedLoaded: (loaded: boolean) => void
   setLoading: (loading: boolean) => void
+  setDataError: (error: string | null) => void
 
   // Actions
   login: (user: string, role: 'tele' | 'sales' | 'admin', userId?: string, username?: string) => void
@@ -313,6 +315,8 @@ export const useCrmStore = create<CrmStore>()(
   dataLoaded: false,
   archivedLoaded: false,
   loading: false,
+  dataError: null,
+  setDataError: (dataError) => set({ dataError }),
   setLeads: (leads) => {
     const seen = new Set<string>()
     const deduped = leads.filter((l: Lead) => {
@@ -363,6 +367,7 @@ export const useCrmStore = create<CrmStore>()(
       leadsVersion: 0,
       dataLoaded: false,
       archivedLoaded: false,
+      dataError: null,
       activeFilter: {},
       selectedLeadIds: {},
       searchQueries: {},

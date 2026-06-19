@@ -158,74 +158,165 @@ export async function GET(request: NextRequest) {
     const includeArchived = searchParams.get('archived') === 'true'
     const archivedOnly = searchParams.get('archived_only') === 'true'
 
+    // ===== Server-side pagination =====
+    // If `page` and `limit` are provided, return a single page (NOT all leads).
+    // If omitted, return everything (backward-compatible with existing clients).
+    // This drastically cuts egress for large datasets (6,219 leads → 50 per page).
+    const pageParam = searchParams.get('page')
+    const limitParam = searchParams.get('limit')
+    const page = pageParam ? Math.max(1, parseInt(pageParam, 10)) : null
+    const limit = limitParam ? Math.min(500, Math.max(10, parseInt(limitParam, 10))) : null
+    const search = searchParams.get('search')?.trim() || ''
+    const isPaginated = page !== null && limit !== null
+
+    // Cache key includes pagination params so each page has its own cache slot
+    const cacheKey = `${includeArchived}|${archivedOnly}|${page ?? 'all'}|${limit ?? 'all'}|${search}`
+
     // Check in-memory cache first — avoids hitting Supabase entirely
-    const cacheKey = `${includeArchived}|${archivedOnly}`
     if (isLeadsCacheValid(cacheKey)) {
       recordLeadsHit()
       const cached = getLeadsCache(cacheKey)!
       const response = NextResponse.json(cached)
-      response.headers.set('Cache-Control', 'private, max-age=120, stale-while-revalidate=300')
+      response.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60')
       response.headers.set('X-Cache', 'HIT')
       return response
     }
     recordLeadsMiss()
 
     // For READ operations, use the anon/public client for reliable pagination.
-    // The admin (service role) client can have inconsistent pagination behavior.
-    // Since RLS SELECT policies allow public reads, anon client works fine.
     const client = createAnonClient()
     if (!client) {
-      return NextResponse.json({ leads: [], hasMore: false }, { status: 200 })
+      return NextResponse.json({ data: [], hasMore: false, total: 0 }, { status: 200 })
     }
     const source = 'supabase'
 
-    const PAGE_SIZE = 1000 // Supabase REST API default max rows per request
-    let allData: DbLead[] = []
-    let from = 0
-    let hasMore = true
-    let page = 0
+    // Build the SELECT query with column list (same as before)
+    const selectColumns = 'id,store_url,phone,customer_name,customer_type,brief,contact_result,contact_result_at,tele_name,sales_name,meeting_date,meeting_time,meeting_type,meeting_link,status,sales_status,attended,attendance_marked_at,attendance_marked_by,cancelled_from,cancelled_at,created_at,assigned_at,is_archived,archived_at,archived_by'
 
-    while (hasMore) {
-      page++
-      let query = client
+    // Get total count (zero-egress — head:true) for paginated responses
+    let total: number | undefined
+    if (isPaginated) {
+      let countQuery = client
         .from('leads')
-        .select('id,store_url,phone,customer_name,customer_type,brief,contact_result,contact_result_at,tele_name,sales_name,meeting_date,meeting_time,meeting_type,meeting_link,status,sales_status,attended,attendance_marked_at,attendance_marked_by,cancelled_from,cancelled_at,created_at,assigned_at,is_archived,archived_at,archived_by')
-        .order('id', { ascending: true })
-        .range(from, from + PAGE_SIZE - 1)
+        .select('*', { count: 'exact', head: true })
 
       if (archivedOnly) {
-        query = query.eq('is_archived', true)
+        countQuery = countQuery.eq('is_archived', true)
       } else if (!includeArchived) {
-        query = query.eq('is_archived', false)
+        countQuery = countQuery.eq('is_archived', false)
       }
 
-      const { data, error } = await query
+      // Apply search filter to count
+      if (search) {
+        countQuery = countQuery.or(`phone.ilike.%${search}%,customer_name.ilike.%${search}%,store_url.ilike.%${search}%`)
+      }
+
+      const { count: cnt, error: cntErr } = await countQuery
+      if (cntErr) {
+        console.error('[api/leads] count error:', cntErr.message)
+        total = 0
+      } else {
+        total = cnt ?? 0
+      }
+      recordSupabaseQuery(1)
+    }
+
+    // Fetch data (single page if paginated, else all pages)
+    let allData: DbLead[] = []
+    let hasMore = false
+
+    if (isPaginated) {
+      const from = (page! - 1) * limit!
+      const to = from + limit! - 1
+
+      let dataQuery = client
+        .from('leads')
+        .select(selectColumns)
+        .order('id', { ascending: false }) // newest first for paginated view
+        .range(from, to)
+
+      if (archivedOnly) {
+        dataQuery = dataQuery.eq('is_archived', true)
+      } else if (!includeArchived) {
+        dataQuery = dataQuery.eq('is_archived', false)
+      }
+
+      if (search) {
+        dataQuery = dataQuery.or(`phone.ilike.%${search}%,customer_name.ilike.%${search}%,store_url.ilike.%${search}%`)
+      }
+
+      const { data, error } = await dataQuery
       if (error) {
         console.error(`[api/leads] GET page ${page} error:`, error.message)
         return NextResponse.json({ error: error.message }, { status: 500 })
       }
 
-      if (data && data.length > 0) {
-        allData = allData.concat(data as DbLead[])
-        from += PAGE_SIZE
-        hasMore = data.length === PAGE_SIZE
-        console.log(`[api/leads] GET page ${page}: got ${data.length} rows (total so far: ${allData.length})`)
-      } else {
-        hasMore = false
+      allData = (data as DbLead[]) || []
+      hasMore = from + allData.length < (total ?? 0)
+      console.log(`[api/leads] GET page ${page}/${Math.ceil((total ?? 0) / limit!)}: got ${allData.length} rows (total: ${total})`)
+      recordSupabaseQuery(1)
+    } else {
+      // Backward-compatible: load ALL leads (for dashboard stats, etc.)
+      const PAGE_SIZE = 1000
+      let from = 0
+      let hasMorePages = true
+      let pageNum = 0
+
+      while (hasMorePages) {
+        pageNum++
+        let query = client
+          .from('leads')
+          .select(selectColumns)
+          .order('id', { ascending: true })
+          .range(from, from + PAGE_SIZE - 1)
+
+        if (archivedOnly) {
+          query = query.eq('is_archived', true)
+        } else if (!includeArchived) {
+          query = query.eq('is_archived', false)
+        }
+
+        const { data, error } = await query
+        if (error) {
+          console.error(`[api/leads] GET page ${pageNum} error:`, error.message)
+          return NextResponse.json({ error: error.message }, { status: 500 })
+        }
+
+        if (data && data.length > 0) {
+          allData = allData.concat(data as DbLead[])
+          from += PAGE_SIZE
+          hasMorePages = data.length === PAGE_SIZE
+          console.log(`[api/leads] GET page ${pageNum}: got ${data.length} rows (total so far: ${allData.length})`)
+        } else {
+          hasMorePages = false
+        }
       }
+      recordSupabaseQuery(pageNum)
     }
 
     const result = allData.map(leadFromDb)
-    console.log(`[api/leads] GET final: ${result.length} leads loaded in ${page} pages`)
-    recordSupabaseQuery(page) // each page = 1 Supabase query
 
-    const responseBody = { data: result, source, total: result.length }
-    // Store in server-side cache for 30 seconds
+    // Build response body
+    const responseBody: Record<string, unknown> = {
+      data: result,
+      source,
+    }
+    if (isPaginated) {
+      responseBody.total = total ?? 0
+      responseBody.page = page
+      responseBody.limit = limit
+      responseBody.hasMore = hasMore
+    } else {
+      responseBody.total = result.length
+    }
+
+    // Store in server-side cache
     setLeadsCache(cacheKey, responseBody)
 
     const response = NextResponse.json(responseBody)
-    // Cache leads for 2 minutes — reduces egress from repeated dashboard reloads
-    response.headers.set('Cache-Control', 'private, max-age=120, stale-while-revalidate=300')
+    // Shorter cache TTL for paginated responses (data changes more often)
+    const maxAge = isPaginated ? 30 : 120
+    response.headers.set('Cache-Control', `private, max-age=${maxAge}, stale-while-revalidate=${maxAge * 2}`)
     response.headers.set('X-Cache', 'MISS')
     return response
   } catch (err) {

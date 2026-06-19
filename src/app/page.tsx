@@ -190,6 +190,43 @@ function LoadingScreen() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Data Error Banner — shown when data load fails                     */
+/* ------------------------------------------------------------------ */
+function DataErrorBanner({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div
+      role="alert"
+      aria-live="assertive"
+      className="flex-1 flex items-center justify-center min-h-[60vh] px-4"
+    >
+      <div className="text-center max-w-md">
+        <div className="text-[42px] mb-3">⚠️</div>
+        <h2
+          className="text-[19px] font-extrabold text-[#f0f2ff] mb-2"
+          style={{ fontFamily: 'Cairo, sans-serif' }}
+        >
+          فشل تحميل البيانات
+        </h2>
+        <p
+          className="text-[14px] font-medium text-[#8892b0] mb-6 break-words"
+          style={{ fontFamily: 'Cairo, sans-serif' }}
+        >
+          {message}
+        </p>
+        <button
+          onClick={onRetry}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#6c63ff]/15 text-[#6c63ff] text-[13px] font-medium hover:bg-[#6c63ff]/25 transition-colors cursor-pointer"
+          style={{ fontFamily: 'Cairo, sans-serif' }}
+        >
+          <RefreshCw size={14} />
+          إعادة المحاولة
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  Toast Container                                                    */
 /* ------------------------------------------------------------------ */
 function ToastContainer() {
@@ -242,6 +279,8 @@ export default function Home() {
   const setLoading = useCrmStore((s) => s.setLoading)
   const archivedLoaded = useCrmStore((s) => s.archivedLoaded)
   const setArchivedLoaded = useCrmStore((s) => s.setArchivedLoaded)
+  const dataError = useCrmStore((s) => s.dataError)
+  const setDataError = useCrmStore((s) => s.setDataError)
 
   // Hydrate auth from localStorage on first mount
   useEffect(() => {
@@ -278,11 +317,12 @@ export default function Home() {
 
     async function loadData() {
       setLoading(true)
+      setDataError(null)
       try {
         // OPTIMIZATION: Don't load archived leads on login — lazy load when needed
         // This cuts initial data transfer significantly
         const [active, team, permissions] = await Promise.all([
-          apiGetLeads(false).catch(() => []),
+          apiGetLeads(false),
           apiGetTeam().catch(() => ({ tele: [], sales: [], admin: [] })),
           apiGetAccessPermissions().catch(() => ({ teleAccess: {}, salesAccess: {} })),
         ])
@@ -294,13 +334,17 @@ export default function Home() {
         setDataLoaded(true)
       } catch (err) {
         console.error('Failed to load data:', err)
+        const msg = err instanceof Error ? err.message : 'فشل تحميل البيانات'
+        setDataError(msg)
+        // Still mark as loaded so we don't retry in a loop — user can retry via UI
+        setDataLoaded(true)
       } finally {
         setLoading(false)
       }
     }
 
     loadData()
-  }, [isAuthenticated, dataLoaded, setLeads, setTeam, setDataLoaded, setLoading])
+  }, [isAuthenticated, dataLoaded, setLeads, setTeam, setDataLoaded, setLoading, setDataError])
 
   // Lazy-load archived leads when user navigates to archive view
   useEffect(() => {
@@ -309,11 +353,16 @@ export default function Home() {
 
     async function loadArchived() {
       try {
-        const archived = await apiGetArchivedLeads().catch(() => [])
+        const archived = await apiGetArchivedLeads()
         setArchivedLeads(archived)
         setArchivedLoaded(true)
       } catch (err) {
         console.error('Failed to load archived leads:', err)
+        const msg = err instanceof Error ? err.message : 'فشل تحميل الأرشيف'
+        const { addToast } = useCrmStore.getState()
+        addToast('error', `فشل تحميل الأرشيف: ${msg}`)
+        // Mark as loaded to prevent retry loop
+        setArchivedLoaded(true)
       }
     }
 
@@ -400,23 +449,37 @@ export default function Home() {
               addNotification('transfer', `تحويل جديد لـ ${newSalesName.trim()}: ${customerName}`, leadId)
             }
 
-            updateLeadInCache(leadId, {
-              phone: (newRow.phone as string) ?? undefined,
-              customerName: (newRow.customer_name as string) ?? undefined,
-              storeUrl: (newRow.store_url as string) ?? undefined,
-              brief: (newRow.brief as string) ?? undefined,
-              contactResult: (newRow.contact_result as string) ?? undefined,
-              status: (newRow.status as string) ?? undefined,
-              salesStatus: (newRow.sales_status as string) ?? undefined,
-              attended: (newRow.attended as string) ?? undefined,
-              sales: newRow.sales_name ? String(newRow.sales_name).trim() : null,
-              meetingDate: (newRow.meeting_date as string) ?? undefined,
-              meetingTime: (newRow.meeting_time as string) ?? undefined,
-              meetingType: (newRow.meeting_type as string) ?? undefined,
-              meetingLink: (newRow.meeting_link as string) ?? undefined,
-              assignedAt: newRow.assigned_at ? new Date(newRow.assigned_at as string).getTime() : null,
-              isArchived: (newRow.is_archived as boolean) ?? undefined,
-            })
+            // Build updates object — only include fields that are present in the
+            // realtime payload. Supabase UPDATE payloads contain ONLY the changed
+            // columns, so we must NOT spread `undefined` values (which would
+            // overwrite existing data with null/undefined and "wipe" fields).
+            const updates: Record<string, unknown> = {}
+            if ('phone' in newRow) updates.phone = (newRow.phone as string) ?? ''
+            if ('customer_name' in newRow) updates.customerName = (newRow.customer_name as string) ?? ''
+            if ('store_url' in newRow) updates.storeUrl = (newRow.store_url as string) ?? ''
+            if ('brief' in newRow) updates.brief = (newRow.brief as string) ?? ''
+            if ('contact_result' in newRow) updates.contactResult = (newRow.contact_result as string) ?? ''
+            if ('status' in newRow) updates.status = (newRow.status as string) ?? 'new'
+            if ('sales_status' in newRow) updates.salesStatus = (newRow.sales_status as string) ?? null
+            if ('attended' in newRow) updates.attended = (newRow.attended as string) ?? null
+            if ('sales_name' in newRow) updates.sales = newRow.sales_name ? String(newRow.sales_name).trim() : null
+            if ('meeting_date' in newRow) updates.meetingDate = (newRow.meeting_date as string) ?? ''
+            if ('meeting_time' in newRow) updates.meetingTime = (newRow.meeting_time as string) ?? ''
+            if ('meeting_type' in newRow) updates.meetingType = (newRow.meeting_type as string) ?? ''
+            if ('meeting_link' in newRow) updates.meetingLink = (newRow.meeting_link as string) ?? ''
+            if ('assigned_at' in newRow) updates.assignedAt = newRow.assigned_at ? new Date(newRow.assigned_at as string).getTime() : null
+            if ('is_archived' in newRow) updates.isArchived = (newRow.is_archived as boolean) ?? false
+            if ('archived_at' in newRow) updates.archivedAt = newRow.archived_at ? new Date(newRow.archived_at as string).getTime() : null
+            if ('archived_by' in newRow) updates.archivedBy = (newRow.archived_by as string) ?? null
+            if ('cancelled_from' in newRow) updates.cancelledFrom = (newRow.cancelled_from as string) ?? null
+            if ('cancelled_at' in newRow) updates.cancelledAt = newRow.cancelled_at ? new Date(newRow.cancelled_at as string).getTime() : null
+            if ('attendance_marked_at' in newRow) updates.attendanceMarkedAt = newRow.attendance_marked_at ? new Date(newRow.attendance_marked_at as string).getTime() : null
+            if ('attendance_marked_by' in newRow) updates.attendanceMarkedBy = (newRow.attendance_marked_by as string) ?? null
+            if ('contact_result_at' in newRow) updates.contactResultAt = newRow.contact_result_at ? new Date(newRow.contact_result_at as string).getTime() : null
+
+            if (Object.keys(updates).length > 0) {
+              updateLeadInCache(leadId, updates)
+            }
           }
         } else if (type === 'DELETE') {
           const old = (payload as Record<string, unknown>).old as Record<string, unknown>
@@ -484,7 +547,19 @@ export default function Home() {
 
         {/* Content */}
         <div className="flex-1 px-4 md:px-6 pb-6">
-          {loading && !dataLoaded ? <LoadingScreen /> : <ViewRouter currentView={currentView} />}
+          {loading && !dataLoaded ? (
+            <LoadingScreen />
+          ) : dataError ? (
+            <DataErrorBanner
+              message={dataError}
+              onRetry={() => {
+                setDataError(null)
+                setDataLoaded(false)
+              }}
+            />
+          ) : (
+            <ViewRouter currentView={currentView} />
+          )}
         </div>
 
         {/* Footer - sticky to bottom */}

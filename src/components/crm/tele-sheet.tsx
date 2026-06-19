@@ -1214,6 +1214,23 @@ export function TeleSheet() {
     try {
       await apiUpdateLead(transferLeadId, updates)
       addToast('success', `تم تحويل العميل إلى ${formData.sales} بنجاح ✅`)
+
+      // Record the transfer in the transfers table (for history + statistics)
+      // Non-blocking — failure here shouldn't undo the transfer
+      try {
+        const { apiCreateTransfer } = await import('@/lib/supabase')
+        await apiCreateTransfer({
+          lead_id: transferLeadId,
+          from_name: currentUser || '',
+          to_name: formData.sales,
+          from_role: 'tele',
+          to_role: 'sales',
+        })
+      } catch (transferLogErr) {
+        console.error('[tele-sheet] Failed to log transfer:', transferLogErr)
+        // Non-fatal — the lead was already updated successfully
+      }
+
       // Broadcast the transfer to notify sales person instantly
       apiBroadcastChange({
         type: 'assignment',

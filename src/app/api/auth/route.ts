@@ -3,6 +3,7 @@ import { getSupabaseAdmin, createAnonClient } from '@/lib/supabase-admin'
 import { hashPassword, verifyPassword, isLegacyHash } from '@/lib/password'
 import { createSessionToken } from '@/lib/session'
 import { requireAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
+import { logAuditEvent } from '@/app/api/audit-log/helpers'
 
 // ===== POST: Auth operations =====
 export async function POST(request: NextRequest) {
@@ -151,6 +152,8 @@ export async function POST(request: NextRequest) {
         .update({ password_hash: newHash, password_salt: '' })
         .eq('id', session.uid)
 
+      // Audit log
+      await logAuditEvent(session, 'change-password', 'app_user', String(session.uid))
       return NextResponse.json({ success: true, message: 'تم تغيير كلمة المرور بنجاح' })
     }
 
@@ -202,6 +205,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'فشل في إنشاء المستخدم' }, { status: 500 })
       }
 
+      // Audit log
+      await logAuditEvent(adminSession, 'create-user', 'app_user', String(newUser.id), { username, role })
       return NextResponse.json({ success: true, user: newUser })
     }
 
@@ -236,6 +241,8 @@ export async function POST(request: NextRequest) {
         .update({ is_active: isActive })
         .eq('id', userId)
 
+      // Audit log
+      await logAuditEvent(adminSession, 'toggle-user', 'app_user', String(userId), { isActive })
       return NextResponse.json({ success: true })
     }
 
@@ -255,6 +262,8 @@ export async function POST(request: NextRequest) {
         .update({ password_hash: hash, password_salt: '' })
         .eq('id', userId)
 
+      // Audit log
+      await logAuditEvent(adminSession, 'reset-password', 'app_user', String(userId))
       return NextResponse.json({ success: true, message: 'تم إعادة تعيين كلمة المرور' })
     }
 
@@ -280,6 +289,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'فشل في حذف المستخدم' }, { status: 500 })
       }
 
+      // Audit log
+      await logAuditEvent(adminSession, 'delete-user', 'app_user', String(userId))
       return NextResponse.json({ success: true, message: 'تم حذف المستخدم' })
     }
 

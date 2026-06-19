@@ -417,6 +417,246 @@ export function apiBroadcastChange(_message: BroadcastMessage): void {
   // Intentionally empty — postgres_changes handles all real-time updates
 }
 
+// ===== Notifications API =====
+
+export interface AppNotification {
+  id: string
+  targetUser: string | null
+  targetRole: string | null
+  type: 'attendance' | 'transfer' | 'new-lead' | 'note' | 'system'
+  message: string
+  leadId: string | null
+  read: boolean
+  readAt: number | null
+  createdAt: number
+}
+
+export async function apiGetNotifications(unreadOnly = false): Promise<{ data: AppNotification[]; unreadCount: number }> {
+  const params = new URLSearchParams()
+  if (unreadOnly) params.set('unread_only', 'true')
+  params.set('limit', '50')
+
+  const res = await fetch(`/api/notifications?${params.toString()}`, { headers: authHeaders() })
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new Error(errBody?.error || `فشل تحميل الإشعارات (HTTP ${res.status})`)
+  }
+  const json = await res.json()
+  return {
+    data: (json.data || []) as AppNotification[],
+    unreadCount: json.unreadCount || 0,
+  }
+}
+
+export async function apiMarkNotificationRead(id: string): Promise<void> {
+  const res = await fetch('/api/notifications', {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify({ id }),
+  })
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new Error(errBody?.error || 'فشل تحديث الإشعار')
+  }
+}
+
+export async function apiMarkAllNotificationsRead(): Promise<void> {
+  const res = await fetch('/api/notifications', {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify({ all: true }),
+  })
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new Error(errBody?.error || 'فشل تحديث الإشعارات')
+  }
+}
+
+// ===== Transfers API =====
+
+export interface Transfer {
+  id: string
+  leadId: string
+  fromName: string
+  toName: string
+  fromRole: string
+  toRole: string
+  reason: string
+  transferredBy: string
+  transferredAt: number
+  lead?: {
+    id: string
+    customerName: string
+    phone: string
+    storeUrl: string
+    brief: string
+    meetingDate: string
+    meetingTime: string
+    attended: string
+    salesStatus: string
+    tele: string
+    sales: string
+  }
+}
+
+export async function apiGetTransfers(filters?: {
+  tele?: string
+  sales?: string
+  search?: string
+  datePreset?: string
+  dateFrom?: string
+  dateTo?: string
+  page?: number
+  limit?: number
+}): Promise<{ data: Transfer[]; total: number; page: number; limit: number; hasMore: boolean }> {
+  const params = new URLSearchParams()
+  if (filters?.tele) params.set('tele', filters.tele)
+  if (filters?.sales) params.set('sales', filters.sales)
+  if (filters?.search) params.set('search', filters.search)
+  if (filters?.datePreset) params.set('date_preset', filters.datePreset)
+  if (filters?.dateFrom) params.set('date_from', filters.dateFrom)
+  if (filters?.dateTo) params.set('date_to', filters.dateTo)
+  if (filters?.page) params.set('page', String(filters.page))
+  if (filters?.limit) params.set('limit', String(filters.limit))
+
+  const res = await fetch(`/api/transfers?${params.toString()}`, { headers: authHeaders() })
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new Error(errBody?.error || `فشل تحميل التحويلات (HTTP ${res.status})`)
+  }
+  return await res.json()
+}
+
+export async function apiCreateTransfer(data: {
+  lead_id: string | number
+  from_name: string
+  to_name: string
+  from_role?: string
+  to_role?: string
+  reason?: string
+}): Promise<Transfer> {
+  const res = await fetch('/api/transfers', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new Error(errBody?.error || 'فشل إنشاء التحويل')
+  }
+  const json = await res.json()
+  return json.data as Transfer
+}
+
+// ===== Meetings API =====
+
+export interface Meeting {
+  leadId: string
+  customerName: string
+  phone: string
+  storeUrl: string
+  brief: string
+  tele: string
+  sales: string
+  meetingDate: string
+  meetingTime: string
+  meetingType: string
+  meetingLink: string
+  attended: string
+  attendanceMarkedAt: number | null
+  attendanceMarkedBy: string
+  salesStatus: string
+  assignedAt: number | null
+  createdAt: number
+}
+
+export async function apiGetMeetings(filters?: {
+  filter?: 'today' | 'week' | 'upcoming' | 'all'
+  member?: string
+  search?: string
+}): Promise<{ data: Meeting[]; total: number }> {
+  const params = new URLSearchParams()
+  if (filters?.filter) params.set('filter', filters.filter)
+  if (filters?.member) params.set('member', filters.member)
+  if (filters?.search) params.set('search', filters.search)
+
+  const res = await fetch(`/api/meetings?${params.toString()}`, { headers: authHeaders() })
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new Error(errBody?.error || `فشل تحميل الاجتماعات (HTTP ${res.status})`)
+  }
+  return await res.json()
+}
+
+export async function apiMarkMeetingAttendance(leadId: string, attended: 'attended' | 'no-show'): Promise<void> {
+  const res = await fetch('/api/meetings', {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify({ lead_id: leadId, attended }),
+  })
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new Error(errBody?.error || 'فشل تحديث الحضور')
+  }
+}
+
+// ===== Daily Reports API =====
+
+export interface DailyReport {
+  id: string
+  employeeName: string
+  employeeRole: string
+  reportDate: string
+  callsMade: number
+  meetingsDone: number
+  dealsClosed: number
+  revenue: number
+  notes: string
+  submittedAt: number
+}
+
+export async function apiGetDailyReports(filters?: {
+  date?: string
+  employee?: string
+  role?: string
+}): Promise<DailyReport[]> {
+  const params = new URLSearchParams()
+  if (filters?.date) params.set('date', filters.date)
+  if (filters?.employee) params.set('employee', filters.employee)
+  if (filters?.role) params.set('role', filters.role)
+
+  const res = await fetch(`/api/daily-reports?${params.toString()}`, { headers: authHeaders() })
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new Error(errBody?.error || `فشل تحميل التقارير (HTTP ${res.status})`)
+  }
+  const json = await res.json()
+  return json.data as DailyReport[]
+}
+
+export async function apiSubmitDailyReport(data: {
+  employee_name: string
+  employee_role: string
+  report_date: string
+  calls_made?: number
+  meetings_done?: number
+  deals_closed?: number
+  revenue?: number
+  notes?: string
+}): Promise<DailyReport> {
+  const res = await fetch('/api/daily-reports', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new Error(errBody?.error || 'فشل حفظ التقرير')
+  }
+  const json = await res.json()
+  return json.data as DailyReport
+}
+
 // ===== Toast Deduplication =====
 // FIX (memory leak): The old cleanup only ran when isDuplicateToast was called.
 // If toasts stopped coming, the map would grow indefinitely. Now we cap the size

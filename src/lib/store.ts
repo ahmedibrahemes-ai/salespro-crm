@@ -97,11 +97,15 @@ export function getDefaultViewForRole(role: 'tele' | 'sales' | 'admin'): ViewNam
 // ===== Notification =====
 export interface Notification {
   id: string
-  type: 'attendance' | 'transfer' | 'new-lead' | 'note'
+  type: 'attendance' | 'transfer' | 'new-lead' | 'note' | 'system'
   message: string
-  leadId?: string
+  leadId?: string | null
   read: boolean
+  readAt?: number | null
   createdAt: number
+  // Optional: target user/role for server-side notifications
+  targetUser?: string | null
+  targetRole?: string | null
 }
 
 // ===== Toast =====
@@ -240,7 +244,11 @@ interface CrmStore {
   notifications: Notification[]
   addNotification: (type: Notification['type'], message: string, leadId?: string) => void
   markNotificationRead: (id: string) => void
+  markAllNotificationsRead: () => void
+  setNotifications: (notifications: Notification[]) => void
+  loadNotificationsFromServer: () => Promise<void>
   unreadNotificationsCount: number
+  notificationsLoaded: boolean
 
   // Target Settings
   targetSettings: { type: 'meetings' | 'money' | 'closings'; value: number }
@@ -368,6 +376,7 @@ export const useCrmStore = create<CrmStore>()(
       dataLoaded: false,
       archivedLoaded: false,
       dataError: null,
+      notificationsLoaded: false,
       activeFilter: {},
       selectedLeadIds: {},
       searchQueries: {},
@@ -654,21 +663,53 @@ export const useCrmStore = create<CrmStore>()(
 
   // Bell Notifications
   notifications: [],
+  notificationsLoaded: false,
   addNotification: (type, message, leadId) => {
     set((s) => {
       const id = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
       const notif: Notification = { id, type, message, leadId, read: false, createdAt: Date.now() }
-      const updated = [notif, ...s.notifications].slice(0, 10) // max 10
+      const updated = [notif, ...s.notifications].slice(0, 50) // max 50
       const unreadCount = updated.filter((n) => !n.read).length
       return { notifications: updated, unreadNotificationsCount: unreadCount }
     })
   },
+  setNotifications: (notifications) => {
+    const unreadCount = notifications.filter((n) => !n.read).length
+    set({ notifications, unreadNotificationsCount: unreadCount, notificationsLoaded: true })
+  },
   markNotificationRead: (id) => {
     set((s) => {
-      const updated = s.notifications.map((n) => (n.id === id ? { ...n, read: true } : n))
+      const updated = s.notifications.map((n) => (n.id === id ? { ...n, read: true, readAt: Date.now() } : n))
       const unreadCount = updated.filter((n) => !n.read).length
       return { notifications: updated, unreadNotificationsCount: unreadCount }
     })
+  },
+  markAllNotificationsRead: () => {
+    set((s) => {
+      const updated = s.notifications.map((n) => ({ ...n, read: true, readAt: Date.now() }))
+      return { notifications: updated, unreadNotificationsCount: 0 }
+    })
+  },
+  loadNotificationsFromServer: async () => {
+    try {
+      const { apiGetNotifications, apiMarkAllNotificationsRead } = await import('@/lib/supabase')
+      const { data, unreadCount } = await apiGetNotifications(false)
+      const mapped: Notification[] = data.map((n) => ({
+        id: n.id,
+        type: n.type,
+        message: n.message,
+        leadId: n.leadId,
+        read: n.read,
+        readAt: n.readAt,
+        createdAt: n.createdAt,
+        targetUser: n.targetUser,
+        targetRole: n.targetRole,
+      }))
+      set({ notifications: mapped, unreadNotificationsCount: unreadCount, notificationsLoaded: true })
+    } catch (err) {
+      console.error('[store] Failed to load notifications:', err)
+      set({ notificationsLoaded: true })
+    }
   },
   unreadNotificationsCount: 0,
 

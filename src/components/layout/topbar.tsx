@@ -88,9 +88,23 @@ export function Topbar() {
   const notifications = useCrmStore((s) => s.notifications)
   const unreadCount = useCrmStore((s) => s.unreadNotificationsCount)
   const markNotificationRead = useCrmStore((s) => s.markNotificationRead)
+  const markAllNotificationsRead = useCrmStore((s) => s.markAllNotificationsRead)
+  const notificationsLoaded = useCrmStore((s) => s.notificationsLoaded)
+  const loadNotificationsFromServer = useCrmStore((s) => s.loadNotificationsFromServer)
 
   const [notifOpen, setNotifOpen] = useState(false)
   const notifRef = useRef<HTMLDivElement>(null)
+
+  // Load notifications from server on mount, then poll every 30s
+  useEffect(() => {
+    if (!notificationsLoaded) {
+      loadNotificationsFromServer()
+    }
+    const interval = setInterval(() => {
+      loadNotificationsFromServer()
+    }, 30000) // poll every 30s
+    return () => clearInterval(interval)
+  }, [notificationsLoaded, loadNotificationsFromServer])
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -104,6 +118,28 @@ export function Topbar() {
     }
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [notifOpen])
+
+  // Handle mark notification read — update local state + sync to server
+  const handleMarkRead = async (id: string) => {
+    markNotificationRead(id)
+    try {
+      const { apiMarkNotificationRead } = await import('@/lib/supabase')
+      await apiMarkNotificationRead(id)
+    } catch (err) {
+      console.error('[topbar] Failed to sync notification read:', err)
+    }
+  }
+
+  // Handle mark all as read
+  const handleMarkAllRead = async () => {
+    markAllNotificationsRead()
+    try {
+      const { apiMarkAllNotificationsRead } = await import('@/lib/supabase')
+      await apiMarkAllNotificationsRead()
+    } catch (err) {
+      console.error('[topbar] Failed to sync mark all read:', err)
+    }
+  }
 
   // Apply theme class to html element
   useEffect(() => {
@@ -195,9 +231,13 @@ export function Topbar() {
                   الإشعارات
                 </span>
                 {unreadCount > 0 && (
-                  <span className="text-[11px] font-semibold text-[#6c63ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                    {unreadCount} جديد
-                  </span>
+                  <button
+                    onClick={handleMarkAllRead}
+                    className="text-[11px] font-semibold text-[#6c63ff] hover:text-[#8b85ff] transition-colors cursor-pointer"
+                    style={{ fontFamily: 'Cairo, sans-serif' }}
+                  >
+                    تعليم الكل كمقروء
+                  </button>
                 )}
               </div>
 
@@ -212,9 +252,7 @@ export function Topbar() {
                     <button
                       key={n.id}
                       className="w-full text-right px-4 py-3 flex items-start gap-3 hover:bg-white/[0.03] transition-colors border-b border-white/[0.04] last:border-0 cursor-pointer"
-                      onClick={() => {
-                        markNotificationRead(n.id)
-                      }}
+                      onClick={() => handleMarkRead(n.id)}
                     >
                       {/* Unread indicator */}
                       <div className="mt-1 shrink-0">

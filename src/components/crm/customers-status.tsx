@@ -126,7 +126,7 @@ export function CustomersStatus() {
       if (l.status === 'closed-won' || l.salesStatus === 'closed-won') closedWon++
       if (l.status === 'closed-lost' || l.salesStatus === 'closed-lost') closedLost++
       const s = l.status || ''
-      if (s === 'new' || s === 'no-reply' || (!l.contactResult || l.contactResult === 'none' || l.contactResult === '')) pending++
+      if (s === 'no-reply' || (!l.contactResult || l.contactResult === 'none' || l.contactResult === '')) pending++
     }
 
     const kpis = [total, contacted, meetings, closedWon, closedLost, pending]

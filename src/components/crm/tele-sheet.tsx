@@ -158,7 +158,10 @@ function LazySelectCell({
   const [open, setOpen] = useState(false)
 
   if (!open) {
-    const displayLabel = displayMap?.[value] || options.find(o => o.key === value)?.label || value || placeholder
+    // Only show a label if the value exists in options or displayMap.
+    // Otherwise show the placeholder (—) so legacy values like 'new' don't appear.
+    const matchingOption = options.find(o => o.key === value)
+    const displayLabel = matchingOption?.label || (displayMap?.[value] && value ? displayMap[value] : '') || placeholder
     return (
       <button
         onClick={() => setOpen(true)}

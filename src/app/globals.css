@@ -168,3 +168,69 @@
 :root:not(.dark) ::-webkit-scrollbar-track { background: #f0f1f5; }
 :root:not(.dark) ::-webkit-scrollbar-thumb { background: #c0c4d0; border-radius: 5px; }
 :root:not(.dark) ::-webkit-scrollbar-thumb:hover { background: #6c63ff; }
+
+/* ═══════════════════════════════════════════════════════
+   LIGHT MODE OVERRIDES
+   The app uses hardcoded dark colors (bg-[#0a0d14], bg-[#111520], etc.)
+   in 300+ places. Instead of editing every file, we override these
+   colors globally when NOT in dark mode. This makes the light theme
+   work instantly across the entire app.
+   ═══════════════════════════════════════════════════════ */
+
+/* Background color overrides — dark → light */
+:root:not(.dark) [class*="bg-[#0a0d14]"] { background-color: #f8f9fc !important; }
+:root:not(.dark) [class*="bg-[#111520]"] { background-color: #ffffff !important; }
+:root:not(.dark) [class*="bg-[#161b28]"] { background-color: #f0f1f5 !important; }
+:root:not(.dark) [class*="bg-[#1c2234]"] { background-color: #e8e9f0 !important; }
+:root:not(.dark) [class*="bg-[#1a1f2e]"] { background-color: #ffffff !important; }
+:root:not(.dark) [class*="bg-[#0d1017]"] { background-color: #f0f1f5 !important; }
+
+/* Text color overrides — light text → dark text */
+:root:not(.dark) [class*="text-[#f0f2ff]"] { color: #1a1d2e !important; }
+:root:not(.dark) [class*="text-[#b0b8d0]"] { color: #4a5568 !important; }
+:root:not(.dark) [class*="text-[#8892b0]"] { color: #6b7280 !important; }
+:root:not(.dark) [class*="text-[#4a5280]"] { color: #9ca3af !important; }
+
+/* Border overrides — white borders → dark borders */
+:root:not(.dark) [class*="border-white\/\[0\.06\]"] { border-color: rgba(0,0,0,0.08) !important; }
+:root:not(.dark) [class*="border-white\/\[0\.08\]"] { border-color: rgba(0,0,0,0.1) !important; }
+:root:not(.dark) [class*="border-white\/\[0\.04\]"] { border-color: rgba(0,0,0,0.06) !important; }
+:root:not(.dark) [class*="border-white\/10"] { border-color: rgba(0,0,0,0.1) !important; }
+:root:not(.dark) [class*="border-white\/20"] { border-color: rgba(0,0,0,0.15) !important; }
+
+/* Hover backgrounds — dark hover → light hover */
+:root:not(.dark) [class*="hover:bg-[#1c2234]"] { &:hover { background-color: #e8e9f0 !important; } }
+:root:not(.dark) [class*="hover:bg-white\/\[0\.03\]"] { &:hover { background-color: #f0f1f5 !important; } }
+:root:not(.dark) [class*="hover:bg-white\/\[0\.04\]"] { &:hover { background-color: #f0f1f5 !important; } }
+:root:not(.dark) [class*="hover:bg-white\/\[0\.06\]"] { &:hover { background-color: #e8e9f0 !important; } }
+:root:not(.dark) [class*="hover:bg-white\/\[0\.08\]"] { &:hover { background-color: #e8e9f0 !important; } }
+
+/* White/[0.04] background patterns → light equivalents */
+:root:not(.dark) [class*="bg-white\/\[0\.02\]"] { background-color: #f8f9fc !important; }
+:root:not(.dark) [class*="bg-white\/\[0\.03\]"] { background-color: #f0f1f5 !important; }
+:root:not(.dark) [class*="bg-white\/\[0\.04\]"] { background-color: #f0f1f5 !important; }
+:root:not(.dark) [class*="bg-white\/\[0\.05\]"] { background-color: #f0f1f5 !important; }
+:root:not(.dark) [class*="bg-white\/\[0\.06\]"] { background-color: #e8e9f0 !important; }
+:root:not(.dark) [class*="bg-white\/\[0\.08\]"] { background-color: #e8e9f0 !important; }
+:root:not(.dark) [class*="bg-white\/\[0\.1\]"] { background-color: #e8e9f0 !important; }
+:root:not(.dark) [class*="bg-white\/5"] { background-color: #f0f1f5 !important; }
+:root:not(.dark) [class*="bg-white\/10"] { background-color: #e8e9f0 !important; }
+
+/* Gradient backgrounds with dark base → light base */
+:root:not(.dark) [class*="from-[#0a0d14]"] { --tw-gradient-from: #f8f9fc !important; }
+:root:not(.dark) [class*="from-[#111520]"] { --tw-gradient-from: #ffffff !important; }
+:root:not(.dark) [class*="to-[#0a0d14]"] { --tw-gradient-to: #f8f9fc !important; }
+:root:not(.dark) [class*="to-[#111520]"] { --tw-gradient-to: #ffffff !important; }
+
+/* Shadow adjustments for light mode (lighter shadows) */
+:root:not(.dark) [class*="shadow-black\/40"] { --tw-shadow-color: rgba(0,0,0,0.1); }
+:root:not(.dark) [class*="shadow-black\/30"] { --tw-shadow-color: rgba(0,0,0,0.08); }
+
+/* Table header backgrounds */
+:root:not(.dark) thead [class*="bg-[#111520]"] { background-color: #f0f1f5 !important; }
+:root:not(.dark) thead [class*="bg-[#0a0d14]"] { background-color: #f8f9fc !important; }
+
+/* Input fields in light mode */
+:root:not(.dark) input[class*="bg-[#0a0d14]"] { background-color: #ffffff !important; border-color: rgba(0,0,0,0.1) !important; }
+:root:not(.dark) textarea[class*="bg-[#0a0d14]"] { background-color: #ffffff !important; border-color: rgba(0,0,0,0.1) !important; }
+:root:not(.dark) select[class*="bg-[#0a0d14]"] { background-color: #ffffff !important; border-color: rgba(0,0,0,0.1) !important; }

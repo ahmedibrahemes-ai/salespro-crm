@@ -1908,30 +1908,21 @@ export function TeleSheet() {
                             const dupInfo = norm ? duplicatePhoneMap.get(norm) : undefined
                             const leadTele = lead.tele || '—'
 
-                            // Determine if THIS lead should be highlighted:
-                            // 1. Same-sheet duplicate (2+ leads with same phone in same tele) → ALL highlighted
-                            // 2. Cross-sheet duplicate (phone in another tele's sheet) → only later occurrences highlighted
-                            let shouldHighlight = false
-                            let highlightTele = ''
-
-                            if (dupInfo && dupInfo.count > 1) {
-                              const isCrossSheet = dupInfo.teles.size > 1
-                              if (isCrossSheet) {
-                                // Cross-sheet: highlight only if this is NOT the first occurrence
-                                const isFirstOccurrence = dupInfo.firstLeadId === lead.id
-                                shouldHighlight = !isFirstOccurrence
-                                highlightTele = dupInfo.firstTele
-                              } else {
-                                // Same-sheet duplicate: highlight ALL occurrences
-                                shouldHighlight = true
-                                highlightTele = leadTele
-                              }
-                            }
+                            // UNIFIED LOGIC (matches Quick Paste):
+                            // ANY duplicate (count > 1) is highlighted — whether same sheet
+                            // or cross-sheet. This ensures the sheet count matches the
+                            // Quick Paste count when you add numbers without excluding
+                            // duplicates first.
+                            //
+                            // The tele name shown is the one who FIRST recorded the number
+                            // (earliest createdAt), so the user knows where the original is.
+                            const shouldHighlight = !!(dupInfo && dupInfo.count > 1)
+                            const highlightTele = shouldHighlight ? dupInfo!.firstTele : ''
 
                             return (
                               <div
                                 className={`flex items-center gap-1.5 max-w-[130px] rounded px-1 ${shouldHighlight ? 'bg-red-500/10' : ''}`}
-                                title={shouldHighlight ? `مكرر في شيت: ${highlightTele}` : ''}
+                                title={shouldHighlight ? `مكرر (${dupInfo!.count} مرات) — أول تسجيل: ${highlightTele}` : ''}
                               >
                                 <a
                                   href={`tel:${lead.phone}`}

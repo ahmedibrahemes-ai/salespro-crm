@@ -723,9 +723,7 @@ export function SalesSheet() {
       if (q && !(l.customerName?.toLowerCase().includes(q) || l.phone?.toLowerCase().includes(q) || l.storeUrl?.toLowerCase().includes(q))) continue
       if (dateRange && (l.createdAt < dateRange.from || l.createdAt >= dateRange.to)) continue
 
-      // FIX: Hide leads that have a meeting date — they go to the meetings sheet
-      if (l.meetingDate && l.meetingDate.trim() !== '') continue
-
+      // Leads with meeting dates STAY in the sales sheet (don't move to meetings page)
       result.push(l)
       total++
       if (l.meetingDate === todayStr) meetingsToday++
@@ -1082,7 +1080,8 @@ export function SalesSheet() {
                             options={SALES_CONTACT_RESULTS}
                             onChange={(v) => handleUpdateField(lead.id, 'contactResult', v === 'none' ? '' : v)}
                             displayMap={contactResultLabels}
-                            className="w-[110px]"
+                            className="w-[120px]"
+                            allowClear
                           />
                         </TableCell>
                         {/* حالة العميل */}

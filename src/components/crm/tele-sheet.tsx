@@ -1990,6 +1990,7 @@ export function TeleSheet() {
                             onChange={(v) => handleUpdateField(lead.id, 'contactResult', v === 'none' ? '' : v)}
                             displayMap={contactResultLabels}
                             className="w-[110px]"
+                            allowClear
                           />
                         </TableCell>
 

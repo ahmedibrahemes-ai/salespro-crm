@@ -782,7 +782,11 @@ function QuickPasteDialog({ open, onClose, leads, teleName, onSaved, addToast }:
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="bg-[#111520] border-white/[0.08] text-[#f0f2ff] sm:max-w-3xl max-h-[90vh] flex flex-col" showCloseButton>
+      <DialogContent
+        className="bg-[#111520] border-white/[0.08] text-[#f0f2ff] sm:max-w-3xl max-h-[90vh] flex flex-col"
+        showCloseButton
+        onPaste={handlePaste}
+      >
         <DialogHeader>
           <DialogTitle className="text-[18px] font-extrabold text-[#f0f2ff] flex items-center gap-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
             <ClipboardPaste size={20} className="text-[#6c63ff]" />
@@ -817,10 +821,14 @@ function QuickPasteDialog({ open, onClose, leads, teleName, onSaved, addToast }:
 
           {/* Table area — paste target */}
           <div
-            ref={tableRef}
+            ref={(el) => {
+              tableRef.current = el
+              // Auto-focus the paste area when dialog opens
+              if (el && open) setTimeout(() => el.focus(), 100)
+            }}
             onPaste={handlePaste}
             tabIndex={0}
-            className="flex-1 min-h-[200px] max-h-[50vh] overflow-y-auto rounded-xl border border-white/[0.06] bg-[#0a0d14] custom-scrollbar focus:border-[#6c63ff]/30 focus:outline-none transition-colors"
+            className="flex-1 min-h-[200px] max-h-[50vh] overflow-y-auto rounded-xl border border-dashed border-white/[0.12] bg-[#0a0d14] custom-scrollbar focus:border-[#6c63ff]/50 focus:outline-none transition-colors cursor-text"
           >
             <Table>
               <TableHeader>

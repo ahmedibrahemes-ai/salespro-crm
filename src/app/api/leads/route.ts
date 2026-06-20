@@ -445,11 +445,22 @@ export async function POST(request: NextRequest) {
         }
 
         // Proceed with ALL leads (don't filter any out)
+        // FIX: Add incremental created_at timestamps so that leads created in
+        // the same batch have a STABLE, DETERMINISTIC order on refresh.
+        // Without this, all leads get the same created_at, and the id DESC
+        // fallback (UUID) is random — causing order to change on every refresh.
         const BATCH_SIZE = 500
+        const baseTime = new Date()
         let allCreated: DbLead[] = []
         for (let i = 0; i < leads.length; i += BATCH_SIZE) {
           const batch = leads.slice(i, i + BATCH_SIZE)
-          const dbData = batch.map(leadToDb)
+          const dbData = batch.map((lead, idx) => {
+            const data = leadToDb(lead)
+            // Add 1ms per lead — ensures unique, ordered timestamps
+            const leadTime = new Date(baseTime.getTime() + i + idx)
+            data.created_at = leadTime.toISOString()
+            return data
+          })
           const { data: created, error } = await client.from('leads').insert(dbData).select()
           if (error) {
             console.error('[api/leads] Bulk create error:', error, '(mode:', mode, ')')

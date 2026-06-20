@@ -50,7 +50,7 @@
       "headers": [
         {
           "key": "Cache-Control",
-          "value": "private, max-age=30, stale-while-revalidate=60"
+          "value": "no-cache, no-store, must-revalidate"
         }
       ]
     },

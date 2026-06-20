@@ -138,6 +138,99 @@ function EditableCell({
 }
 
 /* ═══════════════════════════════════════════════════════
+   Brief Cell — editable with popover for long text
+   Shows truncated text in the table, expands on hover/click
+   ═══════════════════════════════════════════════════════ */
+function BriefCell({
+  value,
+  onSave,
+  placeholder = '—',
+}: {
+  value: string
+  onSave: (val: string) => void
+  placeholder?: string
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+  const [open, setOpen] = useState(false)
+
+  const commit = useCallback(() => {
+    if (draft !== value) onSave(draft)
+    setEditing(false)
+    setOpen(false)
+  }, [draft, value, onSave])
+
+  // Edit mode: textarea (better for long text)
+  if (editing) {
+    return (
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            commit()
+          }
+          if (e.key === 'Escape') {
+            setDraft(value)
+            setEditing(false)
+          }
+        }}
+        className="bg-[#0a0d14] border border-[#6c63ff]/40 rounded px-2 py-1 text-[13px] text-[#f0f2ff] w-full outline-none focus:border-[#6c63ff] resize-none"
+        rows={3}
+        autoFocus
+      />
+    )
+  }
+
+  const isEmpty = !value || value.trim() === ''
+
+  // If empty, just show placeholder (clickable to edit)
+  if (isEmpty) {
+    return (
+      <span
+        onClick={() => { setDraft(value); setEditing(true) }}
+        className="cursor-pointer hover:bg-[#1c2234] rounded px-1.5 py-0.5 transition-colors text-[13px] text-[#4a5280] min-h-[28px] inline-block truncate max-w-full"
+      >
+        {placeholder}
+      </span>
+    )
+  }
+
+  // If has value: show truncated text in a popover trigger
+  // Hover shows full text, click opens edit mode
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <span
+          onClick={() => { setDraft(value); setEditing(true) }}
+          onMouseEnter={() => setOpen(true)}
+          onMouseLeave={() => setOpen(false)}
+          className="cursor-pointer hover:bg-[#1c2234] rounded px-1.5 py-0.5 transition-colors text-[13px] font-medium min-h-[28px] inline-block truncate max-w-full block"
+          title=""
+        >
+          {value}
+        </span>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="start"
+        className="bg-[#1a1f2e] border-white/[0.08] text-[#f0f2ff] max-w-[400px] w-[400px] p-3 z-50"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <div className="text-[13px] leading-relaxed whitespace-pre-wrap break-words" style={{ fontFamily: 'Cairo, sans-serif' }} dir="rtl">
+          {value}
+        </div>
+        <div className="mt-2 pt-2 border-t border-white/[0.06] text-[10px] text-[#4a5280]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          اضغط للتعديل
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
    Lazy Select Cell — only renders Select when clicked
    ═══════════════════════════════════════════════════════ */
 function LazySelectCell({
@@ -1789,9 +1882,9 @@ export function TeleSheet() {
                           </div>
                         </TableCell>
 
-                        {/* البريف — editable */}
+                        {/* البريف — editable with popover for long text */}
                         <TableCell className="max-w-[180px]">
-                          <EditableCell
+                          <BriefCell
                             value={lead.brief}
                             onSave={(v) => handleUpdateField(lead.id, 'brief', v)}
                             placeholder="البريف"

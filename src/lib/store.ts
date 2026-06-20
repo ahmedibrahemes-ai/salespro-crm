@@ -63,6 +63,7 @@ export type ViewName =
   | 'daily-report'
   | 'my-archive'
   | 'bulk-add'
+  | 'follow-up'
   | 'admin'
   | 'employee-profile'
   | 'transfers'
@@ -80,6 +81,7 @@ export const VIEW_PERMISSIONS: Record<ViewName, Array<'tele' | 'sales' | 'admin'
   'customers-status': ['tele', 'sales', 'admin'],
   'daily-report': ['tele', 'sales', 'admin'],
   'bulk-add': ['tele', 'sales', 'admin'],
+  'follow-up': ['sales', 'admin'],
   'admin': ['admin'],
   'transfers': ['tele', 'admin'],
 }

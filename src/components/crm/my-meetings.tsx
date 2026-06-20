@@ -263,19 +263,20 @@ export function MyMeetings() {
 
   /* ─── Filtered meetings (by date) ─── */
   const dateFilteredLeads = useMemo(() => {
-    // For tele: show transferred leads (has sales assigned)
-    // For sales: show leads with meetingDate
+    // Meetings page: ONLY shows leads transferred FROM tele TO sales
+    // (leads where tele is set AND sales is set)
+    // Leads where sales set up their own meetings are in the 'follow-up' page
     let result = leads.filter((l) => !l.isArchived)
 
     if (currentRole === 'tele' && currentUser) {
-      // Tele users: show leads they transferred to sales (with or without meetingDate)
+      // Tele users: show leads they transferred to sales
       result = result.filter((l) => l.tele === currentUser && l.sales)
     } else if (currentRole === 'sales' && currentUser) {
-      // Sales users: show leads assigned to them that have a meeting
-      result = result.filter((l) => l.sales === currentUser && l.meetingDate && l.meetingDate !== '')
+      // Sales users: show ONLY tele-transferred leads assigned to them
+      result = result.filter((l) => l.sales === currentUser && l.tele && l.tele.trim() !== '')
     } else {
-      // Admin: show all leads with meetingDate
-      result = result.filter((l) => l.meetingDate && l.meetingDate !== '')
+      // Admin: show ALL tele→sales transfers
+      result = result.filter((l) => l.tele && l.tele.trim() !== '' && l.sales && l.sales.trim() !== '')
     }
 
     // Date range filter

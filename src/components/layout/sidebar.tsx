@@ -16,6 +16,7 @@ import {
   Menu,
   X,
   UserCircle,
+  CalendarCheck,
 } from 'lucide-react'
 import { useCrmStore, type ViewName } from '@/lib/store'
 
@@ -35,6 +36,7 @@ const NAV_ITEMS: NavItem[] = [
   { view: 'employee-profile', icon: UserCircle, label: 'صفحتي', roles: ['tele', 'sales', 'admin'] },
   { view: 'my-sheet', icon: Phone, label: 'شيت التيلي', roles: ['tele', 'admin'], showBadge: true },
   { view: 'sales-sheet', icon: Briefcase, label: 'شيت السيلز', roles: ['sales', 'admin'], showBadge: true },
+  { view: 'follow-up', icon: CalendarCheck, label: 'متابعة الاجتماعات', roles: ['sales', 'admin'] },
   { view: 'my-meetings', icon: Calendar, label: 'اجتماعاتي', roles: ['tele', 'sales', 'admin'], showBadge: true },
   { view: 'transfers', icon: ArrowRightLeft, label: 'التحويلات', roles: ['tele'], showBadge: true },
   // 'meetings' view removed — merged into 'my-meetings' (same functionality)

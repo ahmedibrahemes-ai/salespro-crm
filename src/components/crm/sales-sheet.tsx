@@ -998,38 +998,44 @@ export function SalesSheet() {
             <Table>
               <TableHeader>
                 <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
+                  <TableHead className="w-[36px] text-center text-[13px] font-bold text-[#4a5280]">#</TableHead>
                   <TableHead className="w-[40px] text-right text-[13px] font-bold text-[#4a5280]">
                     <Checkbox checked={selected.length === paginatedLeads.length && paginatedLeads.length > 0} onCheckedChange={(checked) => { if (checked) selectAllLeads(viewKey, paginatedLeads.map((l) => l.id)); else clearSelectedLeadIds(viewKey) }} className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]" />
                   </TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">لينك المتجر</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[130px]">رقم الجوال</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">اسم العميل</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[180px]">البريف</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[120px]">حالة التواصل</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[120px]">حالة العميل</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[160px] max-w-[160px]">لينك المتجر</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[130px] max-w-[130px]">رقم الجوال</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[150px] max-w-[150px]">اسم العميل</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[180px] max-w-[180px]">البريف</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[110px]">حالة التواصل</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[110px]">حالة العميل</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[150px]">ملاحظات السيلز</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[50px]">حذف</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[60px]">حذف</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedLeads.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12 text-[#4a5280]">
+                    <TableCell colSpan={10} className="text-center py-12 text-[#4a5280]">
                       <div className="text-[30px] mb-2">📊</div>
                       <div className="text-[14px] font-semibold">لا يوجد عملاء</div>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  paginatedLeads.map((lead) => {
+                  paginatedLeads.map((lead, idx) => {
                     const isSelected = selected.includes(lead.id)
                     return (
-                      <tr key={lead.id} className={`border-b border-white/[0.04] transition-colors ${isSelected ? 'bg-[#6c63ff]/5' : 'hover:bg-[#1c2234]/50'}`}>
+                      <TableRow key={lead.id} className={`border-b border-white/[0.04] transition-colors ${isSelected ? 'bg-[#6c63ff]/5' : 'hover:bg-[#1c2234]/50'}`}>
+                        {/* # */}
+                        <TableCell className="w-[36px] text-center text-[13px] text-[#4a5280]">
+                          {idx + 1}
+                        </TableCell>
+                        {/* Checkbox */}
                         <TableCell className="w-[40px]">
                           <Checkbox checked={isSelected} onCheckedChange={() => toggleLeadSelection(viewKey, lead.id)} className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]" />
                         </TableCell>
                         {/* 1. لينك المتجر */}
-                        <TableCell className="max-w-[150px]">
-                          <div className="flex items-center gap-1.5 max-w-[150px]">
+                        <TableCell className="max-w-[160px]">
+                          <div className="flex items-center gap-1.5 max-w-[160px]">
                             {lead.storeUrl && (
                               <a href={lead.storeUrl} target="_blank" rel="noopener noreferrer" className="w-6 h-6 rounded-md bg-[#6c63ff]/10 flex items-center justify-center text-[#6c63ff] hover:bg-[#6c63ff]/20 transition-colors shrink-0" onClick={(e) => e.stopPropagation()}>
                                 <ExternalLink size={10} />
@@ -1112,7 +1118,7 @@ export function SalesSheet() {
                             <Trash2 size={12} />
                           </button>
                         </TableCell>
-                      </tr>
+                      </TableRow>
                     )
                   })
                 )}

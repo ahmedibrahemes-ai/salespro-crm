@@ -1177,13 +1177,11 @@ export function TeleSheet() {
       if (l.sales) transferred++
     }
 
-    // Sort newest first
+    // Sort newest first by createdAt (primary), then by ID (fallback for same-timestamp)
+    // UUIDs are time-ordered, so string comparison works as a stable fallback
     result.sort((a, b) => {
       const timeDiff = (b.createdAt || 0) - (a.createdAt || 0)
       if (timeDiff !== 0) return timeDiff
-      const numA = Number(a.id)
-      const numB = Number(b.id)
-      if (!isNaN(numA) && !isNaN(numB)) return numB - numA
       return b.id.localeCompare(a.id)
     })
 

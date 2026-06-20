@@ -339,8 +339,13 @@ export const useCrmStore = create<CrmStore>()(
       seen.add(l.id)
       return true
     })
-    // BUG FIX: Use compareIds instead of a.id - b.id for proper sorting
-    deduped.sort((a, b) => compareIds(b.id, a.id))
+    // Sort newest first by createdAt (primary), then by ID (fallback for same-timestamp)
+    // UUIDs are time-ordered, so string comparison works as a stable fallback
+    deduped.sort((a, b) => {
+      const timeDiff = (b.createdAt || 0) - (a.createdAt || 0)
+      if (timeDiff !== 0) return timeDiff
+      return b.id.localeCompare(a.id)
+    })
     const leadsById: Record<string, Lead> = {}
     deduped.forEach((l: Lead) => { leadsById[l.id] = l })
     set({ leads: deduped, leadsById, leadsLoaded: true })
@@ -422,8 +427,12 @@ export const useCrmStore = create<CrmStore>()(
     set((state) => {
       if (lead.id in state.leadsById) return state
 
-      // BUG FIX: Use compareIds for proper insertion sort
-      const newLeads = [...state.leads, lead].sort((a, b) => compareIds(b.id, a.id))
+      // Insert at the beginning (newest first) + re-sort by createdAt for stability
+      const newLeads = [lead, ...state.leads].sort((a, b) => {
+        const timeDiff = (b.createdAt || 0) - (a.createdAt || 0)
+        if (timeDiff !== 0) return timeDiff
+        return b.id.localeCompare(a.id)
+      })
       const newLeadsById = { ...state.leadsById, [lead.id]: lead }
 
       return { leads: newLeads, leadsById: newLeadsById, leadsVersion: state.leadsVersion + 1 }
@@ -443,8 +452,12 @@ export const useCrmStore = create<CrmStore>()(
         added++
       }
       if (added === 0) return state
-      // BUG FIX: Use compareIds for proper sorting
-      updatedLeads.sort((a, b) => compareIds(b.id, a.id))
+      // Sort by createdAt (newest first), then by ID (fallback for same-timestamp)
+      updatedLeads.sort((a, b) => {
+        const timeDiff = (b.createdAt || 0) - (a.createdAt || 0)
+        if (timeDiff !== 0) return timeDiff
+        return b.id.localeCompare(a.id)
+      })
       return { leads: updatedLeads, leadsById: newLeadsById, leadsVersion: state.leadsVersion + 1 }
     })
   },

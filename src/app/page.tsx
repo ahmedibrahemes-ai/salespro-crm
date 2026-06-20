@@ -281,7 +281,6 @@ export default function Home() {
   const setArchivedLoaded = useCrmStore((s) => s.setArchivedLoaded)
   const dataError = useCrmStore((s) => s.dataError)
   const setDataError = useCrmStore((s) => s.setDataError)
-  const leadsLoaded = useCrmStore((s) => s.leadsLoaded)
 
   // Hydrate auth from localStorage on first mount
   useEffect(() => {
@@ -313,70 +312,26 @@ export default function Home() {
   }, [currentView, currentRole, isAuthenticated, setCurrentView])
 
   // Load data when authenticated
-  // CRITICAL: This effect runs on mount AND when auth state changes.
-  // We always re-fetch leads on mount (page refresh) to ensure the UI
-  // matches the database. The sessionStorage cache is ONLY used to speed
-  // up the initial render — it's cleared on any create/delete operation.
+  // SIMPLE & RELIABLE: load everything together (team + permissions + leads)
+  // No sessionStorage cache, no background loading — just fetch from API.
   useEffect(() => {
-    if (!isAuthenticated) return
-    // If leads are already loaded in THIS session (not from persist), skip.
-    // But on page refresh, leadsLoaded will be false (not persisted), so we re-fetch.
-    if (dataLoaded && leadsLoaded) return
+    if (!isAuthenticated || dataLoaded) return
 
     async function loadData() {
       setLoading(true)
       setDataError(null)
       try {
-        // PERF: Load team + permissions FIRST (fast, ~0.3s) so the dashboard
-        // renders immediately. Leads (6,219 rows, ~4s) load in the background.
-        const [team, permissions] = await Promise.all([
+        const [active, team, permissions] = await Promise.all([
+          apiGetLeads(false),
           apiGetTeam().catch(() => ({ tele: [], sales: [], admin: [] })),
           apiGetAccessPermissions().catch(() => ({ teleAccess: {}, salesAccess: {} })),
         ])
 
+        setLeads(active)
         setTeam(team)
         setTeleAccess(permissions.teleAccess)
         setSalesAccess(permissions.salesAccess)
         setDataLoaded(true)
-        setLoading(false)
-
-        // ─── Background: load leads (non-blocking) ───
-        // Try sessionStorage cache first (only if it exists and is fresh).
-        // The cache is cleared after any create/delete, so it's always fresh
-        // when we read it here.
-        const CACHE_KEY = 'venom-leads-cache'
-        const CACHE_TTL = 2 * 60 * 1000 // 2 minutes
-
-        let cachedLeads: Lead[] | null = null
-        try {
-          const raw = sessionStorage.getItem(CACHE_KEY)
-          if (raw) {
-            const parsed = JSON.parse(raw) as { data: Lead[]; timestamp: number }
-            if (Date.now() - parsed.timestamp < CACHE_TTL) {
-              cachedLeads = parsed.data
-              console.log(`[cache] Restored ${cachedLeads.length} leads from sessionStorage (saved API call)`)
-            }
-          }
-        } catch { /* ignore parse errors */ }
-
-        if (cachedLeads) {
-          setLeads(cachedLeads)
-        } else {
-          // No cache — fetch all leads from the API (database)
-          try {
-            const active = await apiGetLeads(false)
-            setLeads(active)
-
-            // Save to sessionStorage for next refresh
-            try {
-              sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: active, timestamp: Date.now() }))
-            } catch {
-              try { sessionStorage.removeItem(CACHE_KEY) } catch { /* ignore */ }
-            }
-          } catch (err) {
-            console.error('Failed to load leads (background):', err)
-          }
-        }
       } catch (err) {
         console.error('Failed to load data:', err)
         const msg = err instanceof Error ? err.message : 'فشل تحميل البيانات'
@@ -388,7 +343,7 @@ export default function Home() {
     }
 
     loadData()
-  }, [isAuthenticated, dataLoaded, leadsLoaded, setLeads, setTeam, setDataLoaded, setLoading, setDataError])
+  }, [isAuthenticated, dataLoaded, setLeads, setTeam, setDataLoaded, setLoading, setDataError])
 
   // Lazy-load archived leads when user navigates to archive view
   useEffect(() => {
@@ -601,18 +556,6 @@ export default function Home() {
                 setDataLoaded(false)
               }}
             />
-          ) : !leadsLoaded && (currentView === 'my-sheet' || currentView === 'sales-sheet') ? (
-            <div className="flex-1 flex items-center justify-center min-h-[40vh]">
-              <div className="text-center">
-                <Loader2 size={28} className="animate-spin text-[#6c63ff] mx-auto mb-3" />
-                <p className="text-[14px] font-semibold text-[#8892b0]" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                  جاري تحميل بيانات العملاء...
-                </p>
-                <p className="text-[11px] text-[#4a5280] mt-1" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                  قد يستغرق هذا بضع ثوانٍ
-                </p>
-              </div>
-            </div>
           ) : (
             <ViewRouter currentView={currentView} />
           )}

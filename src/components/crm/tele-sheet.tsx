@@ -755,8 +755,6 @@ function QuickPasteDialog({ open, onClose, leads, teleName, onSaved, addToast }:
       if (Array.isArray(created) && created.length > 0) {
         onSaved(created)
       }
-      // Clear sessionStorage cache so refresh fetches fresh data from DB
-      try { sessionStorage.removeItem('venom-leads-cache') } catch { /* ignore */ }
       addToast('success', `تم إضافة ${selectedValidRows.length} عميل بنجاح 🎉`)
       setRows([])
       onClose()
@@ -1281,8 +1279,6 @@ export function TeleSheet() {
         contactResult: '',
       })
       addLeadToCache(created)
-      // Clear sessionStorage cache so refresh fetches fresh data from DB
-      try { sessionStorage.removeItem('venom-leads-cache') } catch { /* ignore */ }
       addToast('success', `تم إضافة ${newLead.customerName} بنجاح`)
       setNewLead({ customerName: '', phone: '', storeUrl: '', brief: '' })
       setShowAddRow(false)
@@ -1344,8 +1340,6 @@ export function TeleSheet() {
     const { id } = deleteTarget
     setDeleteConfirmOpen(false)
     removeLeadFromCache(id)
-    // Clear sessionStorage cache so refresh fetches fresh data from DB
-    try { sessionStorage.removeItem('venom-leads-cache') } catch { /* ignore */ }
     try {
       await apiDeleteLead(id)
       addToast('success', 'تم حذف العميل')
@@ -1375,8 +1369,6 @@ export function TeleSheet() {
     if (selected.length === 0) return
     const ids = [...selected]
     batchRemoveLeadsFromCache(ids)
-    // Clear sessionStorage cache so refresh fetches fresh data from DB
-    try { sessionStorage.removeItem('venom-leads-cache') } catch { /* ignore */ }
     try {
       await apiDeleteLeadsBulk(ids)
       addToast('success', `تم حذف ${ids.length} عميل`)

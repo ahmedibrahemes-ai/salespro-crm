@@ -1,13 +1,14 @@
 'use client'
 
-import { useMemo, useState, useCallback } from 'react'
-import { useCrmStore, SALES_STATUSES, ATTENDANCE_STATUSES, formatDate, getDateRange } from '@/lib/store'
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react'
+import { useCrmStore, CONTACT_RESULTS, STATUSES, getDateRange } from '@/lib/store'
+import { normalizePhone } from '@/lib/crm-utils'
 import type { Lead } from '@/lib/supabase'
-import { apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk } from '@/lib/supabase'
+import { apiCreateLead, apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk, apiBulkCreateLeads } from '@/lib/supabase'
 import {
   Search, Plus, Trash2, Archive, Phone, Filter, X, Check,
-  Calendar, Loader2, Clock, Video, MapPin,
-  ChevronLeft, ChevronRight, ArrowRight,
+  Calendar, Loader2, ClipboardPaste, AlertCircle, ExternalLink,
+  ChevronLeft, ChevronRight, UserPlus,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Calendar as CalendarPicker } from '@/components/ui/calendar'
@@ -23,6 +24,9 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
+} from '@/components/ui/dialog'
 
 /* ═══════════════════════════════════════════════════════
    PAGE SIZE for pagination
@@ -68,7 +72,7 @@ function EditableCell({
   return (
     <span
       onClick={() => { setDraft(value); setEditing(true) }}
-      className="cursor-pointer hover:bg-[#1c2234] rounded px-1.5 py-0.5 transition-colors text-[13px] font-medium min-h-[28px] inline-flex items-center"
+      className="cursor-pointer hover:bg-[#1c2234] rounded px-1.5 py-0.5 transition-colors text-[13px] font-medium min-h-[28px] inline-block truncate max-w-full"
     >
       {value || <span className="text-[#4a5280]">{placeholder}</span>}
     </span>
@@ -77,7 +81,6 @@ function EditableCell({
 
 /* ═══════════════════════════════════════════════════════
    Brief Cell — editable with popover for long text
-   Shows truncated text in the table, expands on hover/click
    ═══════════════════════════════════════════════════════ */
 function BriefCell({
   value,
@@ -98,7 +101,6 @@ function BriefCell({
     setOpen(false)
   }, [draft, value, onSave])
 
-  // Edit mode: textarea (better for long text)
   if (editing) {
     return (
       <textarea
@@ -124,7 +126,6 @@ function BriefCell({
 
   const isEmpty = !value || value.trim() === ''
 
-  // If empty, just show placeholder (clickable to edit)
   if (isEmpty) {
     return (
       <span
@@ -136,8 +137,6 @@ function BriefCell({
     )
   }
 
-  // If has value: show truncated text in a popover trigger
-  // Hover shows full text, click opens edit mode
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -169,7 +168,55 @@ function BriefCell({
 }
 
 /* ═══════════════════════════════════════════════════════
-   Lazy Select Cell — only renders Select when clicked
+   Notes Cell — editable text for sales notes (replaces salesStatus)
+   ═══════════════════════════════════════════════════════ */
+function NotesCell({
+  value,
+  onSave,
+  placeholder = 'ملاحظات',
+}: {
+  value: string
+  onSave: (val: string) => void
+  placeholder?: string
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+
+  const commit = useCallback(() => {
+    if (draft !== value) onSave(draft)
+    setEditing(false)
+  }, [draft, value, onSave])
+
+  if (editing) {
+    return (
+      <input
+        type="text"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit()
+          if (e.key === 'Escape') { setDraft(value); setEditing(false) }
+        }}
+        className="bg-[#0a0d14] border border-[#6c63ff]/40 rounded px-2 py-1 text-[13px] text-[#f0f2ff] w-full outline-none focus:border-[#6c63ff]"
+        placeholder="اكتب ملاحظة..."
+        autoFocus
+      />
+    )
+  }
+
+  return (
+    <span
+      onClick={() => { setDraft(value); setEditing(true) }}
+      className="cursor-pointer hover:bg-[#1c2234] rounded px-1.5 py-0.5 transition-colors text-[13px] text-[#8892b0] min-h-[28px] inline-block truncate max-w-full italic"
+    >
+      {value || <span className="text-[#4a5280] not-italic">{placeholder}</span>}
+    </span>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
+   Lazy Select Cell
    ═══════════════════════════════════════════════════════ */
 function LazySelectCell({
   value,
@@ -190,7 +237,6 @@ function LazySelectCell({
 }) {
   const [open, setOpen] = useState(false)
 
-  // Display label: only show if value matches an option, otherwise placeholder
   const matchingOption = options.find(o => o.key === value)
   const displayLabel = matchingOption?.label || (displayMap?.[value || ''] && value ? displayMap[value] : '') || placeholder
 
@@ -209,15 +255,10 @@ function LazySelectCell({
     <Select
       value={value || undefined}
       onValueChange={(v) => {
-        if (v === '__clear__') {
-          onChange('')
-        } else {
-          onChange(v)
-        }
+        if (v === '__clear__') onChange('')
+        else onChange(v)
       }}
-      onOpenChange={(o) => {
-        if (!o) setOpen(false)
-      }}
+      onOpenChange={(o) => { if (!o) setOpen(false) }}
       defaultOpen
     >
       <SelectTrigger className={`h-7 text-[13px] bg-[#0a0d14] border-[#6c63ff]/40 text-[#f0f2ff] ${className}`}>
@@ -240,10 +281,315 @@ function LazySelectCell({
 }
 
 /* ═══════════════════════════════════════════════════════
-   Sales Sheet Component — PERFORMANCE OPTIMIZED
-   - Removed Framer Motion (was creating stagger timers per row)
-   - Added pagination (50 rows per page)
-   - Lazy Select cells (only mount portal when editing)
+   Quick Paste Dialog — same as tele-sheet
+   ═══════════════════════════════════════════════════════ */
+interface PasteRow {
+  id: string
+  phone: string
+  storeUrl: string
+  customerName?: string
+  included: boolean
+  isDuplicate: boolean
+}
+
+interface QuickPasteDialogProps {
+  open: boolean
+  onClose: () => void
+  leads: Lead[]
+  salesName: string
+  onSaved: (created: Lead[]) => void
+  addToast: (type: 'success' | 'error' | 'info' | 'warning', message: string) => void
+}
+
+let pasteRowCounter = 0
+
+function looksLikePhone(s: string): boolean {
+  return /[\d\s+()-]{6,}/.test(s)
+}
+function looksLikeUrl(s: string): boolean {
+  return /https?:\/\/|www\.|\.com|\.sa|salla/i.test(s)
+}
+function parsePastedLine(line: string): { phone: string; storeUrl: string } {
+  const trimmed = line.trim()
+  if (!trimmed) return { phone: '', storeUrl: '' }
+  const parts = trimmed.split(/[\t,]+/).map((p) => p.trim()).filter(Boolean)
+  if (parts.length >= 2) {
+    const phonePart = parts.find((p) => looksLikePhone(p))
+    const urlPart = parts.find((p) => looksLikeUrl(p))
+    if (phonePart && urlPart) return { phone: phonePart, storeUrl: urlPart }
+    if (phonePart) return { phone: phonePart, storeUrl: '' }
+    if (urlPart) return { phone: '', storeUrl: urlPart }
+    return { phone: parts[0], storeUrl: parts.length > 1 ? parts[1] : '' }
+  }
+  if (looksLikePhone(trimmed)) return { phone: trimmed, storeUrl: '' }
+  if (looksLikeUrl(trimmed)) return { phone: '', storeUrl: trimmed }
+  return { phone: trimmed, storeUrl: '' }
+}
+
+function QuickPasteDialog({ open, onClose, leads, salesName, onSaved, addToast }: QuickPasteDialogProps) {
+  const [rows, setRows] = useState<PasteRow[]>([])
+  const [pasteSaving, setPasteSaving] = useState(false)
+  const tableRef = useRef<HTMLDivElement>(null)
+
+  const existingPhoneSet = useMemo(() => {
+    const s = new Set<string>()
+    for (const l of leads) {
+      if (l.phone) {
+        const norm = normalizePhone(l.phone)
+        if (norm) s.add(norm)
+      }
+    }
+    return s
+  }, [leads])
+
+  const rowsWithDuplicates = useMemo(() => {
+    const normToIds = new Map<string, string[]>()
+    for (const row of rows) {
+      if (!row.phone) continue
+      const norm = normalizePhone(row.phone)
+      if (!norm) continue
+      const arr = normToIds.get(norm) || []
+      arr.push(row.id)
+      normToIds.set(norm, arr)
+    }
+    return rows.map((row) => {
+      if (!row.phone) return row
+      const norm = normalizePhone(row.phone)
+      if (!norm) return row
+      const isExisting = existingPhoneSet.has(norm)
+      const idsWithSameNorm = normToIds.get(norm) || []
+      const isIntraDupe = idsWithSameNorm.length > 1
+      return { ...row, isDuplicate: isExisting || isIntraDupe }
+    })
+  }, [rows, existingPhoneSet])
+
+  const selectedValidRows = useMemo(
+    () => rowsWithDuplicates.filter((r) => r.included && (r.phone.trim() || r.storeUrl.trim())),
+    [rowsWithDuplicates]
+  )
+
+  const duplicateCount = useMemo(
+    () => rowsWithDuplicates.filter((r) => r.isDuplicate && r.included).length,
+    [rowsWithDuplicates]
+  )
+
+  const allIncluded = rows.length > 0 && rows.every((r) => r.included)
+  const someIncluded = rows.some((r) => r.included) && !allIncluded
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const text = e.clipboardData.getData('text/plain')
+    if (!text.trim()) return
+    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+    if (lines.length === 0) return
+    e.preventDefault()
+    const newRows: PasteRow[] = lines.map((line) => {
+      const parsed = parsePastedLine(line)
+      return {
+        id: `paste-${++pasteRowCounter}`,
+        phone: parsed.phone,
+        storeUrl: parsed.storeUrl,
+        included: true,
+        isDuplicate: false,
+      }
+    })
+    setRows((prev) => [...prev, ...newRows])
+  }, [])
+
+  const removeDuplicateRows = useCallback(() => {
+    const duplicateIds = new Set(
+      rowsWithDuplicates.filter((r) => r.isDuplicate).map((r) => r.id)
+    )
+    setRows((prev) => prev.filter((r) => !duplicateIds.has(r.id)))
+  }, [rowsWithDuplicates])
+
+  const toggleAll = useCallback((checked: boolean) => {
+    setRows((prev) => prev.map((r) => ({ ...r, included: checked })))
+  }, [])
+
+  const clearAll = useCallback(() => { setRows([]) }, [])
+
+  const handleSave = useCallback(async () => {
+    if (selectedValidRows.length === 0) {
+      addToast('warning', 'لا يوجد صفوف محددة للحفظ')
+      return
+    }
+    setPasteSaving(true)
+    try {
+      const leadsToCreate: Partial<Lead>[] = selectedValidRows.map((r) => ({
+        phone: r.phone || undefined,
+        storeUrl: r.storeUrl || undefined,
+        customerName: r.customerName || undefined,
+        sales: salesName,
+        status: null,
+        contactResult: '',
+      }))
+      const created = await apiBulkCreateLeads(leadsToCreate)
+      if (Array.isArray(created) && created.length > 0) {
+        onSaved(created)
+      }
+      addToast('success', `تم إضافة ${selectedValidRows.length} عميل بنجاح 🎉`)
+      setRows([])
+      onClose()
+    } catch (err: unknown) {
+      addToast('error', `فشل في إضافة العملاء: ${err instanceof Error ? err.message : 'خطأ غير معروف'}`)
+    } finally {
+      setPasteSaving(false)
+    }
+  }, [selectedValidRows, salesName, onSaved, addToast, onClose])
+
+  const handleOpenChange = useCallback((isOpen: boolean) => {
+    if (!isOpen) {
+      setRows([])
+      onClose()
+    }
+  }, [onClose])
+
+  const contactResultLabels = useMemo(() => {
+    const m: Record<string, string> = {}
+    CONTACT_RESULTS.forEach(cr => { m[cr.key] = cr.label })
+    return m
+  }, [])
+
+  const statusLabels = useMemo(() => {
+    const m: Record<string, string> = {}
+    STATUSES.forEach(s => { m[s.key] = s.label })
+    return m
+  }, [])
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="bg-[#111520] border-white/[0.08] text-[#f0f2ff] sm:max-w-3xl max-h-[90vh] flex flex-col"
+        showCloseButton
+        onPaste={handlePaste}
+      >
+        <DialogHeader>
+          <DialogTitle className="text-[18px] font-extrabold text-[#f0f2ff] flex items-center gap-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            <ClipboardPaste size={20} className="text-[#6c63ff]" />
+            إضافة ليدز سريعة
+          </DialogTitle>
+          <DialogDescription className="text-[13px] text-[#8892b0]">
+            الصق البيانات مباشرة (Ctrl+V) أو اكتب يدوياً
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 flex flex-col gap-3 min-h-0 py-2">
+          {duplicateCount > 0 && (
+            <div className="flex items-center justify-between gap-3 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2.5">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={16} className="text-amber-400 shrink-0" />
+                <div>
+                  <span className="text-[13px] font-bold text-amber-400">{duplicateCount} بيانات مكررة</span>
+                  <span className="text-[12px] font-medium text-amber-400/70 mr-2">— موجودة مسبقاً</span>
+                </div>
+              </div>
+              <button
+                onClick={removeDuplicateRows}
+                className="h-7 px-2.5 rounded-lg bg-red-500/15 text-red-400 text-[11px] font-bold hover:bg-red-500/25 transition-colors cursor-pointer"
+              >
+                استبعاد المكرر
+              </button>
+            </div>
+          )}
+
+          <div
+            ref={(el) => {
+              tableRef.current = el
+              if (el && open) setTimeout(() => el.focus(), 100)
+            }}
+            onPaste={handlePaste}
+            tabIndex={0}
+            className="flex-1 min-h-[200px] max-h-[50vh] overflow-y-auto rounded-xl border border-dashed border-white/[0.12] bg-[#0a0d14] custom-scrollbar focus:border-[#6c63ff]/50 focus:outline-none transition-colors cursor-text"
+          >
+            <Table>
+              <TableHeader>
+                <TableRow className="border-b border-white/[0.06] hover:bg-transparent sticky top-0 bg-[#0a0d14] z-10">
+                  <TableHead className="w-[36px] text-center text-[12px] font-bold text-[#4a5280]">
+                    <Checkbox
+                      checked={allIncluded}
+                      ref={(el) => { if (el) (el as HTMLButtonElement & { indeterminate?: boolean }).indeterminate = someIncluded }}
+                      onCheckedChange={(checked) => toggleAll(!!checked)}
+                      className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
+                    />
+                  </TableHead>
+                  <TableHead className="w-[36px] text-center text-[12px] font-bold text-[#4a5280]">#</TableHead>
+                  <TableHead className="text-right text-[12px] font-bold text-[#4a5280] w-[160px]">رقم الجوال</TableHead>
+                  <TableHead className="text-right text-[12px] font-bold text-[#4a5280]">لينك المتجر</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center py-12 text-[#4a5280]">
+                      <div className="text-[30px] mb-2">📋</div>
+                      <div className="text-[14px] font-semibold">الصق بياناتك هنا (Ctrl+V)</div>
+                      <div className="text-[12px] mt-1">أو اكتب يدوياً</div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  rowsWithDuplicates.map((row, idx) => (
+                    <TableRow key={row.id} className={`border-b border-white/[0.04] ${row.isDuplicate ? 'bg-amber-500/5' : ''}`}>
+                      <TableCell className="w-[36px] text-center">
+                        <Checkbox
+                          checked={row.included}
+                          onCheckedChange={() => setRows(prev => prev.map(r => r.id === row.id ? { ...r, included: !r.included } : r))}
+                          className={`border-white/20 ${row.isDuplicate ? 'data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500' : 'data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]'}`}
+                        />
+                      </TableCell>
+                      <TableCell className="w-[36px] text-center text-[12px] text-[#4a5280]">{idx + 1}</TableCell>
+                      <TableCell className="w-[160px]">
+                        <input
+                          type="text"
+                          value={row.phone}
+                          onChange={(e) => setRows(prev => prev.map(r => r.id === row.id ? { ...r, phone: e.target.value } : r))}
+                          className={`bg-transparent border-none outline-none text-[13px] w-full ${row.isDuplicate ? 'text-amber-400' : row.phone ? 'text-[#f0f2ff]' : 'text-[#4a5280]'}`}
+                          placeholder="رقم الجوال..."
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <input
+                          type="text"
+                          value={row.storeUrl}
+                          onChange={(e) => setRows(prev => prev.map(r => r.id === row.id ? { ...r, storeUrl: e.target.value } : r))}
+                          className="bg-transparent border-none outline-none text-[13px] text-[#f0f2ff] w-full"
+                          placeholder="لينك المتجر..."
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {rows.length > 0 && (
+                <button onClick={clearAll} className="text-[12px] font-semibold text-[#8892b0] hover:text-red-400 transition-colors cursor-pointer">
+                  مسح الكل
+                </button>
+              )}
+              <span className="text-[12px] text-[#4a5280]">
+                {selectedValidRows.length} صف جاهز للحفظ
+              </span>
+            </div>
+            <button
+              onClick={handleSave}
+              disabled={pasteSaving || selectedValidRows.length === 0}
+              className="px-4 py-2 rounded-lg text-[13px] font-bold text-white transition-all disabled:opacity-50 cursor-pointer"
+              style={{ background: 'linear-gradient(135deg, #6c63ff 0%, #00d4aa 100%)', fontFamily: 'Cairo, sans-serif' }}
+            >
+              {pasteSaving ? <Loader2 size={14} className="animate-spin" /> : `حفظ ${selectedValidRows.length} عميل`}
+            </button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
+   Sales Sheet Component
    ═══════════════════════════════════════════════════════ */
 export function SalesSheet() {
   const leads = useCrmStore((s) => s.leads)
@@ -263,6 +609,8 @@ export function SalesSheet() {
   const removeLeadFromCache = useCrmStore((s) => s.removeLeadFromCache)
   const batchRemoveLeadsFromCache = useCrmStore((s) => s.batchRemoveLeadsFromCache)
   const archiveLeadsInCache = useCrmStore((s) => s.archiveLeadsInCache)
+  const addLeadToCache = useCrmStore((s) => s.addLeadToCache)
+  const batchAddLeadsToCache = useCrmStore((s) => s.batchAddLeadsToCache)
   const storeSelectedSales = useCrmStore((s) => s.selectedSalesMember)
   const setStoreSelectedSales = useCrmStore((s) => s.setSelectedSalesMember)
 
@@ -271,12 +619,8 @@ export function SalesSheet() {
   const searchQuery = searchQueries[viewKey] || ''
   const dateFilter = dateRangeFilters[viewKey] || { preset: 'all' }
 
-  // Sales users are locked to their own data; admin can pick which sales to view.
-  // Selection is persisted in the store so it survives navigation/refresh.
   const isLockedToSelf = currentRole === 'sales'
 
-  // For admin/tele: find the first sales member who actually has leads,
-  // so the sheet shows real data immediately instead of an empty list.
   const salesWithLeads = useMemo(() => {
     const names = new Set<string>()
     for (const l of leads) {
@@ -285,46 +629,66 @@ export function SalesSheet() {
     return team.sales.filter((name) => names.has(name))
   }, [leads, team.sales])
 
-  // For sales users: always their own name.
-  // For admin/tele: use persisted selection, or default to first sales WITH leads.
   const effectiveSelectedSales = isLockedToSelf
     ? (currentUser || 'all')
     : (storeSelectedSales !== 'all' && team.sales.includes(storeSelectedSales)
         ? storeSelectedSales
         : (salesWithLeads[0] || team.sales[0] || 'all'))
+
   const selectedSales = effectiveSelectedSales
   const setSelectedSales = (val: string) => {
     if (!isLockedToSelf) setStoreSelectedSales(val)
   }
   const [currentPage, setCurrentPage] = useState(1)
-
-  // Custom date range state
-  const [fromDate, setFromDate] = useState<Date | undefined>(
-    dateFilter.customFrom ? new Date(dateFilter.customFrom) : undefined
-  )
-  const [toDate, setToDate] = useState<Date | undefined>(
-    dateFilter.customTo ? new Date(dateFilter.customTo) : undefined
-  )
+  const [fromDate, setFromDate] = useState<Date | undefined>(undefined)
+  const [toDate, setToDate] = useState<Date | undefined>(undefined)
   const [fromOpen, setFromOpen] = useState(false)
   const [toOpen, setToOpen] = useState(false)
 
+  const [showAddRow, setShowAddRow] = useState(false)
+  const [newLead, setNewLead] = useState({ customerName: '', phone: '', storeUrl: '', brief: '' })
+  const [saving, setSaving] = useState(false)
+  const [pasteOpen, setPasteOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+
+  /* ─── Duplicate phone detection ─── */
+  const duplicatePhoneMap = useMemo(() => {
+    const map = new Map<string, { count: number; firstTele: string; firstLeadId: string; firstCreatedAt: number; teles: Set<string> }>()
+    for (const l of leads) {
+      if (!l.phone || !l.phone.trim()) continue
+      const norm = normalizePhone(l.phone)
+      if (!norm) continue
+      const tele = l.tele || '—'
+      const createdAt = l.createdAt || 0
+      const existing = map.get(norm)
+      if (existing) {
+        existing.count++
+        existing.teles.add(tele)
+        if (createdAt < existing.firstCreatedAt) {
+          existing.firstCreatedAt = createdAt
+          existing.firstLeadId = l.id
+          existing.firstTele = tele
+        }
+      } else {
+        map.set(norm, { count: 1, firstTele: tele, firstLeadId: l.id, firstCreatedAt: createdAt, teles: new Set([tele]) })
+      }
+    }
+    return map
+  }, [leads])
+
   /* ─── Filtered leads ─── */
-  // Single-pass filter + stats computation to avoid chained .filter() overhead
   const { filteredLeads, stats } = useMemo(() => {
     const needsDateFilter = dateFilter.preset !== 'all'
     const dateRange = needsDateFilter ? getDateRange(dateFilter.preset, dateFilter.customFrom, dateFilter.customTo) : null
     const q = searchQuery.trim().toLowerCase()
 
-    // Stats accumulators
     let total = 0
     let meetingsToday = 0
-    let attended = 0
-    let noShow = 0
     let closedWon = 0
-    // Pre-compute today's date string for meetingsToday stat
-    const todayStr = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' })).toISOString().split('T')[0]
 
     const result: Lead[] = []
+    const todayStr = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' })).toISOString().split('T')[0]
 
     for (const l of leads) {
       if (l.isArchived) continue
@@ -333,25 +697,24 @@ export function SalesSheet() {
       if (q && !(l.customerName?.toLowerCase().includes(q) || l.phone?.toLowerCase().includes(q) || l.storeUrl?.toLowerCase().includes(q))) continue
       if (dateRange && (l.createdAt < dateRange.from || l.createdAt >= dateRange.to)) continue
 
+      // FIX: Hide leads that have a meeting date — they go to the meetings sheet
+      if (l.meetingDate && l.meetingDate.trim() !== '') continue
+
       result.push(l)
       total++
       if (l.meetingDate === todayStr) meetingsToday++
-      if (l.attended === 'attended') attended++
-      if (l.attended === 'no-show') noShow++
       if (l.salesStatus === 'closed-won') closedWon++
     }
 
-    return { filteredLeads: result, stats: { total, meetingsToday, attended, noShow, closedWon } }
+    return { filteredLeads: result, stats: { total, meetingsToday, closedWon } }
   }, [leads, selectedSales, searchQuery, dateFilter, isLockedToSelf, currentUser])
 
-  /* ─── Paginated leads ─── */
   const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE))
   const paginatedLeads = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE
     return filteredLeads.slice(start, start + PAGE_SIZE)
   }, [filteredLeads, currentPage])
 
-  // Reset page when filters change
   const [prevFilterKey, setPrevFilterKey] = useState('')
   const filterKey = `${selectedSales}|${searchQuery}|${dateFilter.preset}`
   if (filterKey !== prevFilterKey) {
@@ -361,25 +724,29 @@ export function SalesSheet() {
 
   /* ─── Update lead field ─── */
   const handleUpdateField = useCallback(async (id: string, field: string, value: string) => {
-    // Empty string means "clear" — store as null in DB
     const updates: Partial<Lead> = { [field]: value || null }
-    updateLeadInCache(id, updates)
-    try {
-      await apiUpdateLead(id, updates)
-    } catch {
-      addToast('error', 'فشل التحديث')
+    if (field === 'contactResult') {
+      updates.contactResultAt = value ? Date.now() : null
     }
-  }, [updateLeadInCache, addToast])
+    if (field === 'status' && value === 'meeting') {
+      const lead = leads.find(l => l.id === id)
+      if (lead && !lead.meetingDate) {
+        updates.meetingDate = new Date().toISOString().split('T')[0]
+      }
+    } else if (field === 'status') {
+      updates.meetingDate = ''
+      updates.meetingTime = ''
+      updates.meetingType = ''
+      updates.meetingLink = ''
+    }
+    updateLeadInCache(id, updates)
+    try { await apiUpdateLead(id, updates) } catch { addToast('error', 'فشل التحديث') }
+  }, [updateLeadInCache, addToast, leads])
 
   /* ─── Delete single lead ─── */
   const handleDeleteLead = useCallback(async (id: string) => {
     removeLeadFromCache(id)
-    try {
-      await apiDeleteLead(id)
-      addToast('success', 'تم حذف العميل')
-    } catch {
-      addToast('error', 'فشل الحذف')
-    }
+    try { await apiDeleteLead(id); addToast('success', 'تم حذف العميل') } catch { addToast('error', 'فشل الحذف') }
   }, [removeLeadFromCache, addToast])
 
   /* ─── Bulk actions ─── */
@@ -387,92 +754,90 @@ export function SalesSheet() {
     if (selected.length === 0) return
     const byName = currentUser || 'unknown'
     archiveLeadsInCache(selected, byName)
-    try {
-      await apiArchiveLeads(selected, byName)
-      addToast('success', `تم أرشفة ${selected.length} عميل`)
-    } catch {
-      addToast('error', 'فشل الأرشفة')
-    }
+    try { await apiArchiveLeads(selected, byName); addToast('success', `تم أرشفة ${selected.length} عميل`) } catch { addToast('error', 'فشل الأرشفة') }
     clearSelectedLeadIds(viewKey)
-  }, [selected, currentUser, archiveLeadsInCache, apiArchiveLeads, addToast, clearSelectedLeadIds])
+  }, [selected, currentUser, archiveLeadsInCache, addToast, clearSelectedLeadIds])
 
   const handleBulkDelete = useCallback(async () => {
     if (selected.length === 0) return
     const ids = [...selected]
     batchRemoveLeadsFromCache(ids)
-    try {
-      await apiDeleteLeadsBulk(ids)
-      addToast('success', `تم حذف ${ids.length} عميل`)
-    } catch {
-      addToast('error', 'فشل الحذف')
-    }
+    try { await apiDeleteLeadsBulk(ids); addToast('success', `تم حذف ${ids.length} عميل`) } catch { addToast('error', 'فشل الحذف') }
     clearSelectedLeadIds(viewKey)
-  }, [selected, batchRemoveLeadsFromCache, apiDeleteLeadsBulk, addToast, clearSelectedLeadIds])
+  }, [selected, batchRemoveLeadsFromCache, addToast, clearSelectedLeadIds])
 
-  /* ─── Mark attendance ─── */
-  const handleMarkAttendance = useCallback(async (id: string, value: string) => {
-    const updates: Partial<Lead> = {
-      attended: value,
-      attendanceMarkedAt: Date.now(),
-      attendanceMarkedBy: currentUser || '',
+  /* ─── Add new lead ─── */
+  const handleAddLead = useCallback(async () => {
+    if (!newLead.customerName.trim() || !newLead.phone.trim()) {
+      addToast('warning', 'اسم العميل ورقم الجوال مطلوبان')
+      return
     }
-    updateLeadInCache(id, updates)
+    setSaving(true)
     try {
-      await apiUpdateLead(id, updates)
-      addToast('success', value === 'attended' ? 'تم تأكيد الحضور' : 'تم تسجيل عدم الحضور')
-    } catch {
-      addToast('error', 'فشل تسجيل الحضور')
-    }
-  }, [updateLeadInCache, currentUser, addToast])
+      const salesName = selectedSales === 'all' ? (currentUser || '') : selectedSales
+      const created = await apiCreateLead({
+        customerName: newLead.customerName,
+        phone: newLead.phone,
+        storeUrl: newLead.storeUrl,
+        brief: newLead.brief,
+        sales: salesName,
+        status: null,
+        contactResult: '',
+      })
+      addLeadToCache(created)
+      addToast('success', `تم إضافة ${newLead.customerName} بنجاح`)
+      setNewLead({ customerName: '', phone: '', storeUrl: '', brief: '' })
+      setShowAddRow(false)
+    } catch (err: unknown) {
+      addToast('error', `فشل في إضافة العميل: ${err instanceof Error ? err.message : 'خطأ غير معروف'}`)
+    } finally { setSaving(false) }
+  }, [newLead, selectedSales, currentUser, addLeadToCache, addToast])
 
-  /* ─── Display label maps for LazySelect ─── */
-  const salesStatusLabels = useMemo(() => {
+  /* ─── Quick Paste saved ─── */
+  const handlePasteSaved = useCallback((created: Lead[]) => {
+    batchAddLeadsToCache(created)
+  }, [batchAddLeadsToCache])
+
+  const contactResultLabels = useMemo(() => {
     const m: Record<string, string> = {}
-    SALES_STATUSES.forEach(s => { m[s.key] = s.label })
+    CONTACT_RESULTS.forEach(cr => { m[cr.key] = cr.label })
     return m
   }, [])
 
+  const statusLabels = useMemo(() => {
+    const m: Record<string, string> = {}
+    STATUSES.forEach(s => { m[s.key] = s.label })
+    return m
+  }, [])
 
+  const pasteSalesName = useMemo(() => {
+    if (isLockedToSelf) return currentUser || ''
+    return selectedSales === 'all' ? (currentUser || '') : selectedSales
+  }, [isLockedToSelf, currentUser, selectedSales])
 
-  /* ═══════════════ RENDER ═══════════════ */
   return (
-    <div className="space-y-4 animate-in fade-in duration-200">
-      {/* ─── Header ─── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="text-[19px] font-extrabold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
-            شيت السيلز
-          </h2>
-          <p className="text-[13px] font-semibold text-[#8892b0] mt-0.5">إدارة اجتماعات ومتابعة العملاء</p>
+    <div className="space-y-4" dir="rtl" style={{ fontFamily: 'Cairo, sans-serif' }}>
+      {/* Stats bar */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-xl border border-white/[0.06] bg-[#111520] p-3">
+          <p className="text-[11px] text-[#8892b0]">إجمالي العملاء</p>
+          <p className="text-[20px] font-extrabold text-[#f0f2ff]">{stats.total}</p>
+        </div>
+        <div className="rounded-xl border border-white/[0.06] bg-[#111520] p-3">
+          <p className="text-[11px] text-[#8892b0]">اجتماعات اليوم</p>
+          <p className="text-[20px] font-extrabold text-[#6c63ff]">{stats.meetingsToday}</p>
+        </div>
+        <div className="rounded-xl border border-white/[0.06] bg-[#111520] p-3">
+          <p className="text-[11px] text-[#8892b0]">تم التقفيل</p>
+          <p className="text-[20px] font-extrabold text-emerald-400">{stats.closedWon}</p>
         </div>
       </div>
 
-      {/* ─── Stats Row ─── */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        {[
-          { label: 'إجمالي العملاء', value: stats.total, color: '#6c63ff' },
-          { label: 'اجتماعات اليوم', value: stats.meetingsToday, color: '#ffd166' },
-          { label: 'حضر', value: stats.attended, color: '#00d4aa' },
-          { label: 'لم يحضر', value: stats.noShow, color: '#ff6b6b' },
-          { label: 'تم التقفيل', value: stats.closedWon, color: '#00d4aa' },
-        ].map((s, i) => (
-          <div
-            key={i}
-            className="bg-[#111520] border border-white/[0.06] rounded-xl p-3"
-          >
-            <div className="text-[13px] font-semibold text-[#8892b0]">{s.label}</div>
-            <div className="text-[19px] font-bold mt-0.5" style={{ color: s.color, fontFamily: 'Cairo, sans-serif' }}>
-              {s.value}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ─── Filters Row ─── */}
+      {/* Toolbar */}
       <Card className="bg-[#111520] border-white/[0.06]">
         <CardContent className="p-3">
           <div className="flex flex-wrap items-center gap-2">
-            {/* Sales filter — locked for sales users, selectable for admin */}
+            {/* Sales filter */}
             {isLockedToSelf ? (
               <div className="h-8 px-3 rounded-md border border-white/[0.08] bg-[#0a0d14] flex items-center gap-2 text-[13px] font-medium text-[#f0f2ff] w-[140px]">
                 <Filter size={12} className="text-[#6c63ff]" />
@@ -493,6 +858,7 @@ export function SalesSheet() {
               </Select>
             )}
 
+            {/* Search */}
             <div className="relative flex-1 min-w-[180px]">
               <Search size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#4a5280]" />
               <Input
@@ -503,12 +869,10 @@ export function SalesSheet() {
               />
             </div>
 
+            {/* Date filter */}
             <Select value={dateFilter.preset} onValueChange={(v) => {
               setDateRangeFilter(viewKey, { preset: v, customFrom: undefined, customTo: undefined })
-              if (v !== 'custom') {
-                setFromDate(undefined)
-                setToDate(undefined)
-              }
+              if (v !== 'custom') { setFromDate(undefined); setToDate(undefined) }
             }}>
               <SelectTrigger className="w-[130px] h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0]">
                 <Calendar size={12} className="text-[#6c63ff]" />
@@ -524,115 +888,86 @@ export function SalesSheet() {
               </SelectContent>
             </Select>
 
-            {/* Custom date range pickers — visible only when preset = 'custom' */}
             {dateFilter.preset === 'custom' && (
               <div className="flex items-center gap-1.5">
-                {/* From date */}
                 <Popover open={fromOpen} onOpenChange={setFromOpen}>
                   <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0] hover:text-[#f0f2ff] gap-1.5 px-2.5 cursor-pointer"
-                    >
+                    <Button variant="outline" className="h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0] hover:text-[#f0f2ff] gap-1.5 px-2.5 cursor-pointer">
                       <Calendar size={12} className="text-[#6c63ff]" />
                       {fromDate ? fromDate.toLocaleDateString('ar-EG') : 'من'}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0 bg-[#111520] border-white/[0.08]" align="start">
-                    <CalendarPicker
-                      mode="single"
-                      selected={fromDate}
-                      onSelect={(date) => {
-                        setFromDate(date)
-                        if (date) {
-                          const iso = date.toISOString().split('T')[0]
-                          setDateRangeFilter(viewKey, { preset: 'custom', customFrom: iso, customTo: dateFilter.customTo })
-                        }
-                        setFromOpen(false)
-                      }}
-                      initialFocus
-                    />
+                    <CalendarPicker mode="single" selected={fromDate} onSelect={(date) => {
+                      setFromDate(date)
+                      if (date) { const iso = date.toISOString().split('T')[0]; setDateRangeFilter(viewKey, { preset: 'custom', customFrom: iso, customTo: dateFilter.customTo }) }
+                      setFromOpen(false)
+                    }} initialFocus />
                   </PopoverContent>
                 </Popover>
-
-                <ArrowRight size={12} className="text-[#4a5280]" />
-
-                {/* To date */}
                 <Popover open={toOpen} onOpenChange={setToOpen}>
                   <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0] hover:text-[#f0f2ff] gap-1.5 px-2.5 cursor-pointer"
-                    >
+                    <Button variant="outline" className="h-8 text-[13px] bg-[#0a0d14] border-white/[0.08] text-[#8892b0] hover:text-[#f0f2ff] gap-1.5 px-2.5 cursor-pointer">
                       <Calendar size={12} className="text-[#6c63ff]" />
                       {toDate ? toDate.toLocaleDateString('ar-EG') : 'إلى'}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0 bg-[#111520] border-white/[0.08]" align="start">
-                    <CalendarPicker
-                      mode="single"
-                      selected={toDate}
-                      onSelect={(date) => {
-                        setToDate(date)
-                        if (date) {
-                          const iso = date.toISOString().split('T')[0]
-                          setDateRangeFilter(viewKey, { preset: 'custom', customFrom: dateFilter.customFrom, customTo: iso })
-                        }
-                        setToOpen(false)
-                      }}
-                      initialFocus
-                    />
+                    <CalendarPicker mode="single" selected={toDate} onSelect={(date) => {
+                      setToDate(date)
+                      if (date) { const iso = date.toISOString().split('T')[0]; setDateRangeFilter(viewKey, { preset: 'custom', customFrom: dateFilter.customFrom, customTo: iso }) }
+                      setToOpen(false)
+                    }} initialFocus />
                   </PopoverContent>
                 </Popover>
-
-                {/* Clear custom range */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 text-[#4a5280] hover:text-[#f0f2ff] cursor-pointer"
-                  onClick={() => {
-                    setFromDate(undefined)
-                    setToDate(undefined)
-                    setDateRangeFilter(viewKey, { preset: 'all' })
-                  }}
-                >
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-[#4a5280] hover:text-[#f0f2ff] cursor-pointer" onClick={() => { setFromDate(undefined); setToDate(undefined); setDateRangeFilter(viewKey, { preset: 'all' }) }}>
                   <X size={14} />
                 </Button>
               </div>
             )}
 
+            {/* Add + Paste buttons */}
+            <button onClick={() => setShowAddRow(!showAddRow)} className="h-8 px-3 rounded-lg bg-[#6c63ff]/15 text-[#6c63ff] text-[13px] font-bold hover:bg-[#6c63ff]/25 transition-colors cursor-pointer flex items-center gap-1.5">
+              <Plus size={14} /> إضافة عميل
+            </button>
+            <button onClick={() => setPasteOpen(true)} className="h-8 px-3 rounded-lg bg-[#00d4aa]/15 text-[#00d4aa] text-[13px] font-bold hover:bg-[#00d4aa]/25 transition-colors cursor-pointer flex items-center gap-1.5">
+              <ClipboardPaste size={14} /> لصق سريع
+            </button>
+
             {selected.length > 0 && (
               <div className="flex items-center gap-1.5">
-                <Button
-                  onClick={handleBulkArchive}
-                  size="sm"
-                  className="h-8 text-[13px] font-bold bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 border-0 gap-1 cursor-pointer"
-                >
-                  <Archive size={12} />
-                  أرشفة ({selected.length})
+                <Button onClick={handleBulkArchive} size="sm" className="h-8 text-[13px] font-bold bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 border-0 gap-1 cursor-pointer">
+                  <Archive size={12} /> أرشفة ({selected.length})
                 </Button>
-                <Button
-                  onClick={handleBulkDelete}
-                  size="sm"
-                  className="h-8 text-[13px] font-bold bg-red-500/15 text-red-400 hover:bg-red-500/25 border-0 gap-1 cursor-pointer"
-                >
-                  <Trash2 size={12} />
-                  حذف ({selected.length})
+                <Button onClick={handleBulkDelete} size="sm" className="h-8 text-[13px] font-bold bg-red-500/15 text-red-400 hover:bg-red-500/25 border-0 gap-1 cursor-pointer">
+                  <Trash2 size={12} /> حذف ({selected.length})
                 </Button>
-                <Button
-                  onClick={() => clearSelectedLeadIds(viewKey)}
-                  size="sm"
-                  className="h-8 text-[13px] font-bold bg-[#1c2234] text-[#8892b0] hover:text-[#f0f2ff] border-0 cursor-pointer"
-                >
+                <Button onClick={() => clearSelectedLeadIds(viewKey)} size="sm" className="h-8 text-[13px] font-bold bg-[#1c2234] text-[#8892b0] hover:text-[#f0f2ff] border-0 cursor-pointer">
                   <X size={12} />
                 </Button>
               </div>
             )}
           </div>
+
+          {/* Add new row */}
+          {showAddRow && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 bg-[#0a0d14] rounded-lg p-3 border border-white/[0.06]">
+              <input type="text" placeholder="اسم العميل" value={newLead.customerName} onChange={(e) => setNewLead({ ...newLead, customerName: e.target.value })} className="h-8 px-2 rounded bg-[#111520] border border-white/[0.06] text-[13px] text-[#f0f2ff] w-[140px]" />
+              <input type="text" placeholder="رقم الجوال" value={newLead.phone} onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })} className="h-8 px-2 rounded bg-[#111520] border border-white/[0.06] text-[13px] text-[#f0f2ff] w-[140px]" />
+              <input type="text" placeholder="لينك المتجر" value={newLead.storeUrl} onChange={(e) => setNewLead({ ...newLead, storeUrl: e.target.value })} className="h-8 px-2 rounded bg-[#111520] border border-white/[0.06] text-[13px] text-[#f0f2ff] w-[180px]" />
+              <input type="text" placeholder="البريف" value={newLead.brief} onChange={(e) => setNewLead({ ...newLead, brief: e.target.value })} className="h-8 px-2 rounded bg-[#111520] border border-white/[0.06] text-[13px] text-[#f0f2ff] flex-1 min-w-[120px]" />
+              <button onClick={handleAddLead} disabled={saving} className="h-8 px-4 rounded-lg text-[13px] font-bold text-white transition-all disabled:opacity-50 cursor-pointer" style={{ background: 'linear-gradient(135deg, #6c63ff 0%, #00d4aa 100%)' }}>
+                {saving ? <Loader2 size={14} className="animate-spin" /> : 'حفظ'}
+              </button>
+              <button onClick={() => setShowAddRow(false)} className="h-8 px-3 rounded-lg text-[13px] font-bold text-[#8892b0] hover:text-[#f0f2ff] cursor-pointer">
+                إلغاء
+              </button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* ─── Main Table ─── */}
+      {/* Main Table */}
       <Card className="bg-[#111520] border-white/[0.06]">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -640,22 +975,15 @@ export function SalesSheet() {
               <TableHeader>
                 <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
                   <TableHead className="w-[40px] text-right text-[13px] font-bold text-[#4a5280]">
-                    <Checkbox
-                      checked={selected.length === paginatedLeads.length && paginatedLeads.length > 0}
-                      onCheckedChange={(checked) => {
-                        if (checked) selectAllLeads(viewKey, paginatedLeads.map((l) => l.id))
-                        else clearSelectedLeadIds(viewKey)
-                      }}
-                      className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
-                    />
+                    <Checkbox checked={selected.length === paginatedLeads.length && paginatedLeads.length > 0} onCheckedChange={(checked) => { if (checked) selectAllLeads(viewKey, paginatedLeads.map((l) => l.id)); else clearSelectedLeadIds(viewKey) }} className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]" />
                   </TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">اسم العميل</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">البريف</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">رقم التليفون</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">حالة السيلز</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">تاريخ الاجتماع</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">الوقت</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">الحضور</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[180px]">البريف</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[130px]">رقم الجوال</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">لينك المتجر</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[110px]">حالة التواصل</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[110px]">حالة العميل</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[150px]">ملاحظات السيلز</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[50px]">حذف</TableHead>
                 </TableRow>
               </TableHeader>
@@ -664,134 +992,97 @@ export function SalesSheet() {
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-12 text-[#4a5280]">
                       <div className="text-[30px] mb-2">📊</div>
-                      <div className="text-[14px] font-semibold">لا يوجد عملاء مسندين للسيلز</div>
+                      <div className="text-[14px] font-semibold">لا يوجد عملاء</div>
                     </TableCell>
                   </TableRow>
                 ) : (
                   paginatedLeads.map((lead) => {
                     const isSelected = selected.includes(lead.id)
                     return (
-                      <tr
-                        key={lead.id}
-                        className={`border-b border-white/[0.04] transition-colors ${
-                          isSelected ? 'bg-[#6c63ff]/5' : 'hover:bg-[#1c2234]/50'
-                        }`}
-                      >
+                      <tr key={lead.id} className={`border-b border-white/[0.04] transition-colors ${isSelected ? 'bg-[#6c63ff]/5' : 'hover:bg-[#1c2234]/50'}`}>
                         <TableCell className="w-[40px]">
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => toggleLeadSelection(viewKey, lead.id)}
-                            className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]"
-                          />
+                          <Checkbox checked={isSelected} onCheckedChange={() => toggleLeadSelection(viewKey, lead.id)} className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]" />
                         </TableCell>
-                        <TableCell>
+                        {/* اسم العميل + AI badge */}
+                        <TableCell className="max-w-[150px]">
                           <div className="flex items-center gap-1.5">
-                            <EditableCell
-                              value={lead.customerName}
-                              onSave={(v) => handleUpdateField(lead.id, 'customerName', v)}
-                              placeholder="اسم العميل"
-                            />
-                            <AIScoreBadge
-                              leadId={lead.id}
-                              leadName={lead.customerName}
-                              status={lead.status}
-                              meetings={lead.meetingDate ? 1 : 0}
-                              attended={lead.attended}
-                              salesStatus={lead.salesStatus}
-                              contactResult={lead.contactResult}
-                            />
+                            <EditableCell value={lead.customerName} onSave={(v) => handleUpdateField(lead.id, 'customerName', v)} placeholder="اسم العميل" />
+                            <AIScoreBadge leadId={lead.id} leadName={lead.customerName} status={lead.status} meetings={lead.meetingDate ? 1 : 0} attended={lead.attended} salesStatus={lead.salesStatus} contactResult={lead.contactResult} />
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <BriefCell
-                            value={lead.brief || ''}
-                            onSave={(v) => handleUpdateField(lead.id, 'brief', v)}
-                            placeholder="البريف"
-                          />
+                        {/* البريف */}
+                        <TableCell className="max-w-[180px]">
+                          <BriefCell value={lead.brief || ''} onSave={(v) => handleUpdateField(lead.id, 'brief', v)} placeholder="البريف" />
                         </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            <a
-                              href={`tel:${lead.phone}`}
-                              className="w-6 h-6 rounded-md bg-[#00d4aa]/10 flex items-center justify-center text-[#00d4aa] hover:bg-[#00d4aa]/20 transition-colors shrink-0"
-                            >
-                              <Phone size={10} />
-                            </a>
-                            <EditableCell
-                              value={lead.phone}
-                              onSave={(v) => handleUpdateField(lead.id, 'phone', v)}
-                              placeholder="الرقم"
-                            />
+                        {/* رقم الجوال + duplicate highlight */}
+                        <TableCell className="max-w-[130px]">
+                          {(() => {
+                            const norm = lead.phone ? normalizePhone(lead.phone) : ''
+                            const dupInfo = norm ? duplicatePhoneMap.get(norm) : undefined
+                            const shouldHighlight = !!(dupInfo && dupInfo.count > 1)
+                            const highlightTele = shouldHighlight ? dupInfo!.firstTele : ''
+                            return (
+                              <div className={`flex items-center gap-1.5 max-w-[130px] rounded px-1 ${shouldHighlight ? 'bg-red-500/10' : ''}`} title={shouldHighlight ? `مكرر (${dupInfo!.count} مرات) — أول تسجيل: ${highlightTele}` : ''}>
+                                <a href={`tel:${lead.phone}`} className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors shrink-0 ${shouldHighlight ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25' : 'bg-[#00d4aa]/10 text-[#00d4aa] hover:bg-[#00d4aa]/20'}`} onClick={(e) => e.stopPropagation()}>
+                                  <Phone size={10} />
+                                </a>
+                                <div className="flex flex-col min-w-0">
+                                  <EditableCell value={lead.phone} onSave={(v) => handleUpdateField(lead.id, 'phone', v)} placeholder="الرقم" />
+                                  {shouldHighlight && (
+                                    <span className="text-[10px] text-red-400/80 leading-tight truncate font-medium" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                                      ↻ {highlightTele}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })()}
+                        </TableCell>
+                        {/* لينك المتجر */}
+                        <TableCell className="max-w-[150px]">
+                          <div className="flex items-center gap-1.5 max-w-[150px]">
+                            {lead.storeUrl && (
+                              <a href={lead.storeUrl} target="_blank" rel="noopener noreferrer" className="w-6 h-6 rounded-md bg-[#6c63ff]/10 flex items-center justify-center text-[#6c63ff] hover:bg-[#6c63ff]/20 transition-colors shrink-0" onClick={(e) => e.stopPropagation()}>
+                                <ExternalLink size={10} />
+                              </a>
+                            )}
+                            <EditableCell value={lead.storeUrl} onSave={(v) => handleUpdateField(lead.id, 'storeUrl', v)} placeholder="المتجر" />
                           </div>
                         </TableCell>
+                        {/* حالة التواصل */}
                         <TableCell>
                           <LazySelectCell
-                            value={lead.salesStatus || ''}
-                            options={SALES_STATUSES}
-                            onChange={(v) => handleUpdateField(lead.id, 'salesStatus', v)}
-                            displayMap={salesStatusLabels}
-                            className="w-[120px]"
+                            value={lead.contactResult || 'none'}
+                            options={CONTACT_RESULTS}
+                            onChange={(v) => handleUpdateField(lead.id, 'contactResult', v === 'none' ? '' : v)}
+                            displayMap={contactResultLabels}
+                            className="w-[110px]"
+                          />
+                        </TableCell>
+                        {/* حالة العميل */}
+                        <TableCell>
+                          <LazySelectCell
+                            value={lead.status || ''}
+                            options={STATUSES}
+                            onChange={(v) => handleUpdateField(lead.id, 'status', v)}
+                            displayMap={statusLabels}
+                            className="w-[110px]"
                             allowClear
                           />
                         </TableCell>
-                        <TableCell>
-                          <EditableCell
-                            value={lead.meetingDate}
-                            onSave={(v) => handleUpdateField(lead.id, 'meetingDate', v)}
-                            type="date"
-                            placeholder="التاريخ"
+                        {/* ملاحظات السيلز (replaces salesStatus) */}
+                        <TableCell className="max-w-[150px]">
+                          <NotesCell
+                            value={lead.salesStatus || ''}
+                            onSave={(v) => handleUpdateField(lead.id, 'salesStatus', v)}
+                            placeholder="ملاحظات"
                           />
                         </TableCell>
-                        <TableCell>
-                          <EditableCell
-                            value={lead.meetingTime}
-                            onSave={(v) => handleUpdateField(lead.id, 'meetingTime', v)}
-                            type="time"
-                            placeholder="الوقت"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-1.5">
-                            <button
-                              onClick={() => handleMarkAttendance(lead.id, 'attended')}
-                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${
-                                lead.attended === 'attended'
-                                  ? 'bg-[#00d4aa]/30 text-[#00d4aa] border-[#00d4aa]/50 shadow-[0_0_8px_rgba(0,212,170,0.3)]'
-                                  : 'bg-[#1c2234] text-[#4a5280] border-transparent hover:bg-[#00d4aa]/10 hover:text-[#00d4aa] hover:border-[#00d4aa]/20'
-                              }`}
-                              title="حضر"
-                            >
-                              حضر
-                            </button>
-                            <button
-                              onClick={() => handleMarkAttendance(lead.id, 'pending')}
-                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${
-                                lead.attended === 'pending'
-                                  ? 'bg-[#ffd166]/30 text-[#ffd166] border-[#ffd166]/50 shadow-[0_0_8px_rgba(255,209,102,0.3)]'
-                                  : 'bg-[#1c2234] text-[#4a5280] border-transparent hover:bg-[#ffd166]/10 hover:text-[#ffd166] hover:border-[#ffd166]/20'
-                              }`}
-                              title="فى الانتظار"
-                            >
-                              انتظار
-                            </button>
-                            <button
-                              onClick={() => handleMarkAttendance(lead.id, 'no-show')}
-                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${
-                                lead.attended === 'no-show'
-                                  ? 'bg-red-500/30 text-red-400 border-red-400/50 shadow-[0_0_8px_rgba(255,107,107,0.3)]'
-                                  : 'bg-[#1c2234] text-[#4a5280] border-transparent hover:bg-red-500/10 hover:text-red-400 hover:border-red-400/20'
-                              }`}
-                              title="لم يحضر"
-                            >
-                              لم يحضر
-                            </button>
-                          </div>
-                        </TableCell>
-                        <TableCell>
+                        {/* حذف */}
+                        <TableCell className="w-[50px]">
                           <button
-                            onClick={() => handleDeleteLead(lead.id)}
-                            className="w-7 h-7 rounded-md bg-red-500/10 text-red-400 flex items-center justify-center hover:bg-red-500/20 transition-colors cursor-pointer"
-                            title="حذف"
+                            onClick={() => { setDeleteTarget({ id: lead.id, name: lead.customerName || 'عميل' }); setDeleteConfirmOpen(true) }}
+                            className="w-7 h-7 rounded-md bg-red-500/10 flex items-center justify-center text-red-400 hover:bg-red-500/20 transition-colors cursor-pointer"
                           >
                             <Trash2 size={12} />
                           </button>
@@ -804,39 +1095,60 @@ export function SalesSheet() {
             </Table>
           </div>
 
+          {/* Pagination */}
           {filteredLeads.length > 0 && (
-            <div className="border-t border-white/[0.06] px-4 py-2.5 flex items-center justify-between text-[12px] font-medium text-[#4a5280]">
-              <span>عرض {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, filteredLeads.length)} من {filteredLeads.length} عميل</span>
+            <div className="flex items-center justify-between px-4 py-3 border-t border-white/[0.06]">
+              <span className="text-[12px] text-[#4a5280]">
+                عرض {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, filteredLeads.length)} من {filteredLeads.length} عميل
+              </span>
               <div className="flex items-center gap-2">
-                {selected.length > 0 && (
-                  <span className="text-[#6c63ff]">{selected.length} محدد</span>
-                )}
-                {totalPages > 1 && (
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                      className="w-7 h-7 rounded-md bg-[#1c2234] text-[#8892b0] flex items-center justify-center hover:bg-[#2a3050] transition-colors cursor-pointer disabled:opacity-30"
-                    >
-                      <ChevronRight size={12} />
-                    </button>
-                    <span className="text-[#f0f2ff] font-bold px-2">
-                      {currentPage} / {totalPages}
-                    </span>
-                    <button
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                      className="w-7 h-7 rounded-md bg-[#1c2234] text-[#8892b0] flex items-center justify-center hover:bg-[#2a3050] transition-colors cursor-pointer disabled:opacity-30"
-                    >
-                      <ChevronLeft size={12} />
-                    </button>
-                  </div>
-                )}
+                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="w-8 h-8 rounded-md bg-[#0a0d14] border border-white/[0.06] flex items-center justify-center text-[#8892b0] hover:text-[#f0f2ff] disabled:opacity-30 cursor-pointer transition-colors">
+                  <ChevronRight size={14} />
+                </button>
+                <span className="text-[13px] font-bold text-[#f0f2ff]">{currentPage} / {totalPages}</span>
+                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="w-8 h-8 rounded-md bg-[#0a0d14] border border-white/[0.06] flex items-center justify-center text-[#8892b0] hover:text-[#f0f2ff] disabled:opacity-30 cursor-pointer transition-colors">
+                  <ChevronLeft size={14} />
+                </button>
               </div>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Quick Paste Dialog */}
+      <QuickPasteDialog
+        open={pasteOpen}
+        onClose={() => setPasteOpen(false)}
+        leads={leads}
+        salesName={pasteSalesName}
+        onSaved={handlePasteSaved}
+        addToast={addToast}
+      />
+
+      {/* Delete confirmation */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="bg-[#111520] border-white/[0.08] text-[#f0f2ff]" showCloseButton>
+          <DialogHeader>
+            <DialogTitle className="text-[16px] font-bold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              تأكيد الحذف
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-[14px] text-[#8892b0]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            هل أنت متأكد من حذف "{deleteTarget?.name}"؟ لا يمكن التراجع عن هذا الإجراء.
+          </p>
+          <DialogFooter>
+            <DialogClose asChild>
+              <button className="px-4 py-2 rounded-lg text-[14px] font-bold bg-white/[0.04] text-[#8892b0] hover:bg-white/[0.08] cursor-pointer">إلغاء</button>
+            </DialogClose>
+            <button
+              onClick={() => { if (deleteTarget) handleDeleteLead(deleteTarget.id); setDeleteConfirmOpen(false) }}
+              className="px-4 py-2 rounded-lg text-[14px] font-bold bg-red-500 text-white hover:bg-red-600 cursor-pointer"
+            >
+              حذف
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -18,10 +18,24 @@ import { SmartReplyButton } from './smart-reply-button'
  */
 
 export function AIPanel() {
-  const leads = useCrmStore((s) => s.leads)
+  const allLeads = useCrmStore((s) => s.leads)
   const team = useCrmStore((s) => s.team)
   const currentUser = useCrmStore((s) => s.currentUser)
   const currentRole = useCrmStore((s) => s.currentRole)
+
+  // FIX: Filter leads by role — employees see only their own leads,
+  // admin sees all. This makes the AI panel personalized per user.
+  const leads = useMemo(() => {
+    if (!allLeads) return []
+    if (currentRole === 'admin') return allLeads.filter((l) => !l.isArchived)
+    if (currentRole === 'tele' && currentUser) {
+      return allLeads.filter((l) => l.tele === currentUser && !l.isArchived)
+    }
+    if (currentRole === 'sales' && currentUser) {
+      return allLeads.filter((l) => l.sales === currentUser && !l.isArchived)
+    }
+    return allLeads.filter((l) => !l.isArchived)
+  }, [allLeads, currentRole, currentUser])
 
   // Compute team performance metrics for AI analysis
   const teamMetrics = useMemo(() => {
@@ -194,7 +208,8 @@ export function AIPanel() {
         </div>
       </div>
 
-      {/* Per-employee coaching list */}
+      {/* Per-employee coaching list — admin sees all, employees see only themselves */}
+      {currentRole === 'admin' && (
       <div className="rounded-xl border border-white/[0.06] bg-[#111520] p-4">
         <h3 className="text-[14px] font-bold text-[#f0f2ff] mb-3" style={{ fontFamily: 'Cairo, sans-serif' }}>
           كوتشينج لكل موظف
@@ -235,6 +250,7 @@ export function AIPanel() {
           ))}
         </div>
       </div>
+      )}
 
       {/* Smart Reply tool */}
       <SmartReplyTool />

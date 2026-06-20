@@ -36,6 +36,18 @@ import {
 // Animation variants removed - using CSS transitions for better performance
 
 /* ═══════════════════════════════════════════════════════
+   Auth helper — injects session token into /api/auth requests
+   ═══════════════════════════════════════════════════════ */
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  try {
+    const token = localStorage.getItem('venom-session')
+    if (token) headers['Authorization'] = `Bearer ${token}`
+  } catch { /* ignore */ }
+  return headers
+}
+
+/* ═══════════════════════════════════════════════════════
    Tab Config
    ═══════════════════════════════════════════════════════ */
 const ADMIN_TABS: { key: AdminTab; label: string; icon: React.ElementType }[] = [
@@ -729,7 +741,7 @@ function UsersTab() {
     try {
       const res = await fetch('/api/auth', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ action: 'list-users' }),
       })
       const data = await res.json()
@@ -753,7 +765,7 @@ function UsersTab() {
     try {
       const res = await fetch('/api/auth', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           action: 'create-user',
           username: newUser.username.trim(),
@@ -803,7 +815,7 @@ function UsersTab() {
     try {
       await fetch('/api/auth', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ action: 'toggle-user', userId, isActive: !isActive }),
       })
       addToast('success', isActive ? 'تم تعطيل المستخدم' : 'تم تفعيل المستخدم')
@@ -823,7 +835,7 @@ function UsersTab() {
     try {
       const res = await fetch('/api/auth', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ action: 'reset-password', userId: resetUserId, newPassword: resetPassword }),
       })
       const data = await res.json()
@@ -848,7 +860,7 @@ function UsersTab() {
     try {
       const res = await fetch('/api/auth', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ action: 'delete-user', userId: deleteUserId }),
       })
       const data = await res.json()

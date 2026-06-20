@@ -5,7 +5,7 @@ import { useCrmStore, getDateRange } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import {
   Flame, UserPlus, Phone, CalendarCheck, UserCheck, Percent,
-  TrendingUp, TrendingDown, PhoneCall, MessageCircle, Trophy,
+  TrendingUp, TrendingDown, PhoneCall, MessageCircle, Trophy, ArrowRightLeft,
   Target, ArrowLeft, Clock, Users, Settings2, Save, PhoneOff,
   PhoneIncoming, Calendar, CheckCircle2, Hourglass,
 } from 'lucide-react'
@@ -635,7 +635,7 @@ export function Dashboard() {
       colorBg: 'rgba(108,99,255,.15)',
       value: kpiValues.leadsCreatedMonth,
       label: 'ليدز جديدة الشهر',
-      target: 100, // default monthly target for progress bar
+      target: 100,
     },
     {
       icon: <Phone size={20} />,
@@ -650,9 +650,18 @@ export function Dashboard() {
       color: '#ffd166',
       colorBg: 'rgba(255,209,102,.15)',
       value: kpiValues.meetingsBooked,
-      label: 'اجتماعات الشهر',
+      label: 'اجتماعات السيلز',
       target: 50,
     },
+    // Tele-transferred meetings (only show for sales role)
+    ...(currentRole === 'sales' ? [{
+      icon: <ArrowRightLeft size={20} />,
+      color: '#6c9fff',
+      colorBg: 'rgba(108,159,255,.15)',
+      value: kpiValues.teleTransferMeetings,
+      label: 'تحويلات التلى',
+      target: 50,
+    }] : []),
     {
       icon: <UserCheck size={20} />,
       color: '#00d4aa',
@@ -661,13 +670,22 @@ export function Dashboard() {
       label: 'حضور مؤكد',
       target: 30,
     },
+    // WhatsApp stat
+    {
+      icon: <MessageCircle size={20} />,
+      color: '#25D366',
+      colorBg: 'rgba(37,211,102,.15)',
+      value: kpiValues.whatsappSent,
+      label: 'واتس',
+      target: 100,
+    },
     {
       icon: <Percent size={20} />,
       color: '#ff6b6b',
       colorBg: 'rgba(255,107,107,.15)',
       value: kpiValues.conversionRate,
       label: 'نسبة التحويل',
-      target: 50, // 50% target
+      target: 50,
       isPercentage: true,
     },
   ]
@@ -1381,7 +1399,7 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* ─── مركزك (Your Rank) — Tele team only ─── */}
+        {/* ─── مركزك (Your Rank) — Tele + Sales ─── */}
         <div>
           <div className="bg-[#111520] border border-white/[0.06] rounded-2xl p-5 md:p-6 text-center">
             <div className="flex items-center justify-center gap-2 text-[19px] font-extrabold text-[#ffffff] mb-4">
@@ -1389,7 +1407,7 @@ export function Dashboard() {
               مركزك
             </div>
 
-            {currentRole === 'tele' && currentUser ? (
+            {((currentRole === 'tele' || currentRole === 'sales') && currentUser) ? (
               <>
                 <div className="text-[46px] leading-none">
                   {rankInfo.position === 1 ? '🥇' : rankInfo.position === 2 ? '🥈' : rankInfo.position === 3 ? '🥉' : '🏆'}
@@ -1401,17 +1419,16 @@ export function Dashboard() {
                   {getPositionLabelAr(rankInfo.position)}
                 </div>
                 <div className="text-[14px] font-bold text-[#b0b8d0] mt-1">
-                  {rankInfo.meetingsCount} اجتماع — {monthAr} {new Date().getFullYear()}
+                  {rankInfo.meetingsCount} {currentRole === 'tele' ? 'اجتماع' : 'نقطة'} — {monthAr} {new Date().getFullYear()}
                 </div>
                 {rankInfo.totalMembers > 1 && (
                   <div className="mt-3 pt-3 border-t border-white/[0.06]">
                     <div className="flex items-center justify-center gap-1.5 mb-2">
                       <span className="w-2 h-2 rounded-full bg-[#00ffbb]" />
                       <span className="text-[14px] font-bold text-[#00ffbb]">
-                        أعلى من {rankInfo.percentile}% من الفريق
+                        أعلى من {rankInfo.percentile}% من {currentRole === 'tele' ? 'فريق التلي' : 'فريق السيلز'}
                       </span>
                     </div>
-                    {/* Percentile progress bar */}
                     <AnimatedProgressBar
                       percentage={rankInfo.percentile}
                       color="#00ffbb"
@@ -1428,10 +1445,10 @@ export function Dashboard() {
                   className="text-[18px] font-bold text-[#8892b0] mt-2"
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 >
-                  متاح لفريق التلي فقط
+                  متاح لفريق التلي والسيلز
                 </div>
                 <div className="text-[14px] font-bold text-[#b0b8d0] mt-1">
-                  تصنيف بناءً على عدد الاجتماعات
+                  {currentRole === 'tele' ? 'تصنيف بناءً على عدد الاجتماعات' : 'تصنيف بناءً على متوسط الاجتماعات والمكالمات والتقفيلات'}
                 </div>
               </>
             )}

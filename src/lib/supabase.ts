@@ -294,7 +294,10 @@ export async function apiGetLeads(includeArchived = false): Promise<Lead[]> {
   const params = new URLSearchParams()
   if (includeArchived) params.set('archived', 'true')
 
-  const res = await fetch(`/api/leads?${params.toString()}`, { headers: authHeaders() })
+  const res = await fetch(`/api/leads?${params.toString()}`, {
+    headers: authHeaders(),
+    cache: 'no-store',
+  })
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({}))
     const msg = errBody?.error || `فشل تحميل البيانات (HTTP ${res.status})`
@@ -308,7 +311,10 @@ export async function apiGetLeads(includeArchived = false): Promise<Lead[]> {
 }
 
 export async function apiGetArchivedLeads(): Promise<Lead[]> {
-  const res = await fetch('/api/leads?archived_only=true', { headers: authHeaders() })
+  const res = await fetch('/api/leads?archived_only=true', {
+    headers: authHeaders(),
+    cache: 'no-store',
+  })
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({}))
     const msg = errBody?.error || `فشل تحميل الأرشيف (HTTP ${res.status})`

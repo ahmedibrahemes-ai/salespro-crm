@@ -177,7 +177,9 @@ export async function GET(request: NextRequest) {
       recordLeadsHit()
       const cached = getLeadsCache(cacheKey)!
       const response = NextResponse.json(cached)
-      response.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60')
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+      response.headers.set('Pragma', 'no-cache')
+      response.headers.set('Expires', '0')
       response.headers.set('X-Cache', 'HIT')
       return response
     }
@@ -317,8 +319,9 @@ export async function GET(request: NextRequest) {
 
     const response = NextResponse.json(responseBody)
     // Shorter cache TTL for paginated responses (data changes more often)
-    const maxAge = isPaginated ? 30 : 120
-    response.headers.set('Cache-Control', `private, max-age=${maxAge}, stale-while-revalidate=${maxAge * 2}`)
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+    response.headers.set('Pragma', 'no-cache')
+    response.headers.set('Expires', '0')
     response.headers.set('X-Cache', 'MISS')
     return response
   } catch (err) {
@@ -445,21 +448,28 @@ export async function POST(request: NextRequest) {
         }
 
         // Proceed with ALL leads (don't filter any out)
-        // FIX: Add incremental created_at timestamps so that leads created in
-        // the same batch have a STABLE, DETERMINISTIC order on refresh.
-        // Without this, all leads get the same created_at, and the id DESC
-        // fallback (UUID) is random — causing order to change on every refresh.
+        // FIX: Assign incremental created_at so sort order is STABLE on refresh.
+        // Without this, Postgres NOW() evaluates ONCE per INSERT statement,
+        // so all rows get the SAME timestamp → secondary sort by id (random
+        // for UUID) scrambles order on every query.
+        //
+        // Direction: First pasted row (idx=0) gets the NEWEST timestamp
+        // so it appears at the TOP when sorted DESC (matching Quick Paste order).
         const BATCH_SIZE = 500
-        const baseTime = new Date()
+        const baseTime = Date.now()
         let allCreated: DbLead[] = []
         for (let i = 0; i < leads.length; i += BATCH_SIZE) {
           const batch = leads.slice(i, i + BATCH_SIZE)
-          const dbData = batch.map((lead, idx) => {
-            const data = leadToDb(lead)
-            // Add 1ms per lead — ensures unique, ordered timestamps
-            const leadTime = new Date(baseTime.getTime() + i + idx)
-            data.created_at = leadTime.toISOString()
-            return data
+          const dbData = batch.map((lead, idxInBatch) => {
+            const globalIdx = i + idxInBatch
+            // First pasted (idx=0) → baseTime (newest)
+            // Second pasted (idx=1) → baseTime - 1ms
+            // ... Last pasted → baseTime - (N-1)ms (oldest in batch)
+            const rowTime = baseTime - globalIdx
+            return {
+              ...leadToDb(lead),
+              created_at: new Date(rowTime).toISOString(),
+            }
           })
           const { data: created, error } = await client.from('leads').insert(dbData).select()
           if (error) {

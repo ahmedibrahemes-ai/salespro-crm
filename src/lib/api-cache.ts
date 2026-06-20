@@ -63,7 +63,7 @@ export function getCacheMetrics(): CacheMetrics & { uptimeSeconds: number; hitRa
 // ===== Stats cache =====
 
 let statsCache: { data: Record<string, unknown>; timestamp: number } | null = null
-const STATS_CACHE_TTL = 60_000 // 60 seconds
+const STATS_CACHE_TTL = 10_000 // 10 seconds (was 60s — Vercel multi-instance causes stale data)
 
 export function isStatsCacheValid(): boolean {
   return statsCache !== null && Date.now() - statsCache.timestamp < STATS_CACHE_TTL
@@ -81,7 +81,7 @@ export function setStatsCache(data: Record<string, unknown>): void {
 // ===== Leads cache =====
 
 let leadsCache: { data: unknown; timestamp: number; key: string } | null = null
-const LEADS_CACHE_TTL = 30_000 // 30 seconds
+const LEADS_CACHE_TTL = 2_000 // 2 seconds (was 30s — Vercel multi-instance causes stale data)
 
 export function isLeadsCacheValid(key: string): boolean {
   return leadsCache !== null && leadsCache.key === key && Date.now() - leadsCache.timestamp < LEADS_CACHE_TTL

@@ -207,10 +207,12 @@ function NotesCell({
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
+  const [open, setOpen] = useState(false)
 
   const commit = useCallback(() => {
     if (draft !== value) onSave(draft)
     setEditing(false)
+    setOpen(false)
   }, [draft, value, onSave])
 
   if (editing) {
@@ -231,13 +233,46 @@ function NotesCell({
     )
   }
 
+  const isEmpty = !value || value.trim() === ''
+
+  if (isEmpty) {
+    return (
+      <span
+        onClick={() => { setDraft(value); setEditing(true) }}
+        className="cursor-pointer hover:bg-[#1c2234] rounded px-1.5 py-0.5 transition-colors text-[13px] text-[#4a5280] min-h-[28px] inline-block truncate max-w-full not-italic"
+      >
+        {placeholder}
+      </span>
+    )
+  }
+
   return (
-    <span
-      onClick={() => { setDraft(value); setEditing(true) }}
-      className="cursor-pointer hover:bg-[#1c2234] rounded px-1.5 py-0.5 transition-colors text-[13px] text-[#8892b0] min-h-[28px] inline-block truncate max-w-full italic"
-    >
-      {value || <span className="text-[#4a5280] not-italic">{placeholder}</span>}
-    </span>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <span
+          onClick={() => { setDraft(value); setEditing(true) }}
+          onMouseEnter={() => setOpen(true)}
+          onMouseLeave={() => setOpen(false)}
+          className="cursor-pointer hover:bg-[#1c2234] rounded px-1.5 py-0.5 transition-colors text-[13px] text-[#8892b0] min-h-[28px] inline-block truncate max-w-full italic block"
+          title=""
+        >
+          {value}
+        </span>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="start"
+        className="bg-[#1a1f2e] border-white/[0.08] text-[#f0f2ff] max-w-[400px] w-[400px] p-3 z-50"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <div className="text-[13px] leading-relaxed whitespace-pre-wrap break-words" style={{ fontFamily: 'Cairo, sans-serif' }} dir="rtl">
+          {value}
+        </div>
+        <div className="mt-2 pt-2 border-t border-white/[0.06] text-[10px] text-[#4a5280]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          اضغط للتعديل
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 

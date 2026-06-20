@@ -244,7 +244,7 @@ export function FollowUpSection() {
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[180px] max-w-[180px]">البريف</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[110px]">تاريخ الاجتماع</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[110px]">حالة العميل</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[150px]">ملاحظات السيلز</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[180px]">ملاحظات Follow-Up</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -256,8 +256,10 @@ export function FollowUpSection() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  paginatedLeads.map((lead, idx) => (
-                    <TableRow key={lead.id} className="border-b border-white/[0.04] hover:bg-[#1c2234]/50 transition-colors">
+                  paginatedLeads.map((lead, idx) => {
+                    const isTeleTransfer = !!(lead.tele && lead.tele.trim() !== '')
+                    return (
+                    <TableRow key={lead.id} className={`border-b border-white/[0.04] hover:bg-[#1c2234]/50 transition-colors ${isTeleTransfer ? 'bg-[#6c63ff]/[0.03]' : ''}`}>
                       <TableCell className="w-[36px] text-center text-[13px] text-[#4a5280]">{idx + 1}</TableCell>
                       {/* لينك المتجر */}
                       <TableCell className="max-w-[160px]">
@@ -269,13 +271,20 @@ export function FollowUpSection() {
                       {/* رقم الجوال */}
                       <TableCell className="max-w-[130px]">
                         <div className="flex items-center gap-1.5 max-w-[130px]">
-                          <a href={`tel:${lead.phone}`} className="w-6 h-6 rounded-md bg-[#00d4aa]/10 flex items-center justify-center text-[#00d4aa] hover:bg-[#00d4aa]/20 transition-colors shrink-0" onClick={(e) => e.stopPropagation()}><Phone size={10} /></a>
+                          <a href={`tel:${lead.phone}`} className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors shrink-0 ${isTeleTransfer ? 'bg-[#6c63ff]/10 text-[#6c63ff] hover:bg-[#6c63ff]/20' : 'bg-[#00d4aa]/10 text-[#00d4aa] hover:bg-[#00d4aa]/20'}`} onClick={(e) => e.stopPropagation()}><Phone size={10} /></a>
                           <EditableCell value={lead.phone} onSave={(v) => handleUpdateField(lead.id, 'phone', v)} placeholder="الرقم" />
                         </div>
                       </TableCell>
-                      {/* اسم العميل */}
+                      {/* اسم العميل + badge للتحويلات */}
                       <TableCell className="max-w-[150px]">
-                        <EditableCell value={lead.customerName} onSave={(v) => handleUpdateField(lead.id, 'customerName', v)} placeholder="اسم العميل" />
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <EditableCell value={lead.customerName} onSave={(v) => handleUpdateField(lead.id, 'customerName', v)} placeholder="اسم العميل" />
+                          {isTeleTransfer && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#6c63ff]/15 text-[#6c63ff] whitespace-nowrap shrink-0" title={`تحويل من: ${lead.tele}`}>
+                              ↻ {lead.tele}
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       {/* البريف */}
                       <TableCell className="max-w-[180px]">
@@ -291,12 +300,13 @@ export function FollowUpSection() {
                           {SALES_STATUSES.find(s => s.key === lead.status)?.label || '—'}
                         </span>
                       </TableCell>
-                      {/* ملاحظات */}
-                      <TableCell className="max-w-[150px]">
+                      {/* ملاحظات Follow-Up — مفتوحة للتعديل المباشر */}
+                      <TableCell className="max-w-[180px]">
                         <NotesCell value={lead.salesStatus || ''} onSave={(v) => handleUpdateField(lead.id, 'salesStatus', v)} placeholder="ملاحظات" />
                       </TableCell>
                     </TableRow>
-                  ))
+                    )
+                  })
                 )}
               </TableBody>
             </Table>

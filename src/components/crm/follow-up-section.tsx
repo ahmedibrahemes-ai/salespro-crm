@@ -114,7 +114,11 @@ export function FollowUpSection() {
   const selectedSales = effectiveSelectedSales
   const setSelectedSales = (val: string) => { if (!isLockedToSelf) setStoreSelectedSales(val) }
 
-  /* Filter: ALL leads with meetingDate set OR status === 'meeting' */
+  /* Filter: leads in meeting/followup status (NOT 'not-interested' or empty or closed)
+     Shows: meeting, followup-1, followup-2, followup-3
+     Hides: not-interested, null/empty, closed-won, closed-lost */
+  const VALID_FOLLOWUP_STATUSES = new Set(['meeting', 'followup-1', 'followup-2', 'followup-3'])
+
   const { filteredLeads, stats } = useMemo(() => {
     const needsDateFilter = dateFilter.preset !== 'all'
     const dateRange = needsDateFilter ? getDateRange(dateFilter.preset, dateFilter.customFrom, dateFilter.customTo) : null
@@ -124,12 +128,13 @@ export function FollowUpSection() {
 
     for (const l of leads) {
       if (l.isArchived) continue
-      // ONLY leads with a meeting (meetingDate set or status === 'meeting')
-      if (!l.meetingDate && l.status !== 'meeting') continue
+      // ONLY leads with valid follow-up statuses (meeting, followup-1/2/3)
+      // 'not-interested', null, 'closed-won', 'closed-lost' are EXCLUDED
+      if (!l.status || !VALID_FOLLOWUP_STATUSES.has(l.status)) continue
       if (isLockedToSelf && l.sales !== currentUser) continue
       if (!isLockedToSelf && selectedSales !== 'all' && l.sales !== selectedSales) continue
       if (q && !(l.customerName?.toLowerCase().includes(q) || l.phone?.toLowerCase().includes(q) || l.storeUrl?.toLowerCase().includes(q))) continue
-      if (dateRange && (l.createdAt < dateRange.from || l.createdAt >= dateRange.to)) continue
+      if (dateRange && (l.createdAt < dateRange.from && l.createdAt >= dateRange.to)) continue
 
       result.push(l)
       total++
@@ -137,6 +142,16 @@ export function FollowUpSection() {
       if (l.attended === 'no-show') noShow++
       if (l.salesStatus === 'closed-won') closedWon++
     }
+
+    // Sort by assignedAt (tele transfer time) DESC, then by createdAt DESC as fallback
+    // This keeps the order stable based on when the lead was FIRST assigned to sales
+    // (not when status was last changed — so changing to followup-1 doesn't reshuffle)
+    result.sort((a, b) => {
+      const aTime = a.assignedAt || a.createdAt || 0
+      const bTime = b.assignedAt || b.createdAt || 0
+      return bTime - aTime
+    })
+
     return { filteredLeads: result, stats: { total, attended, noShow, closedWon } }
   }, [leads, selectedSales, searchQuery, dateFilter, isLockedToSelf, currentUser])
 

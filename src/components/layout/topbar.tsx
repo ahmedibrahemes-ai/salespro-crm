@@ -14,7 +14,7 @@ const VIEW_TITLES: Record<ViewName, { title: string; subtitle: string }> = {
   'my-sheet': { title: 'شيت التيلي', subtitle: 'إدارة العملاء والمتابعة' },
   'my-meetings': { title: 'اجتماعاتي', subtitle: 'متابعة الاجتماعات القادمة' },
   'sales-sheet': { title: 'شيت السيلز', subtitle: 'إدارة عملاء المبيعات' },
-  'follow-up': { title: 'متابعة الاجتماعات', subtitle: 'العملاء الذين دخلوا اجتماع' },
+  'follow-up': { title: 'Follow-Up', subtitle: 'متابعة العملاء في الاجتماعات' },
   'customers-status': { title: 'حالة العملاء', subtitle: 'متابعة حالة جميع العملاء' },
   'daily-report': { title: 'تقرير يومي', subtitle: 'ملخص الأنشطة اليومية' },
   'my-archive': { title: 'أرشيفي', subtitle: 'بيانات مؤرشفة' },

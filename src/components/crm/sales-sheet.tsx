@@ -1023,28 +1023,31 @@ export function SalesSheet() {
                 ) : (
                   paginatedLeads.map((lead, idx) => {
                     const isSelected = selected.includes(lead.id)
+                    const pageNum = (currentPage - 1) * PAGE_SIZE + idx + 1
                     return (
                       <TableRow key={lead.id} className={`border-b border-white/[0.04] transition-colors ${isSelected ? 'bg-[#6c63ff]/5' : 'hover:bg-[#1c2234]/50'}`}>
-                        {/* # */}
-                        <TableCell className="w-[36px] text-center text-[13px] text-[#4a5280]">
-                          {idx + 1}
+                        {/* # — أبيض */}
+                        <TableCell className="w-[36px] text-center text-[13px] font-bold text-[#f0f2ff]">
+                          {pageNum}
                         </TableCell>
                         {/* Checkbox */}
                         <TableCell className="w-[40px]">
                           <Checkbox checked={isSelected} onCheckedChange={() => toggleLeadSelection(viewKey, lead.id)} className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]" />
                         </TableCell>
-                        {/* 1. لينك المتجر */}
+                        {/* 1. لينك المتجر — أزرق */}
                         <TableCell className="max-w-[160px]">
                           <div className="flex items-center gap-1.5 max-w-[160px]">
                             {lead.storeUrl && (
-                              <a href={lead.storeUrl} target="_blank" rel="noopener noreferrer" className="w-6 h-6 rounded-md bg-[#6c63ff]/10 flex items-center justify-center text-[#6c63ff] hover:bg-[#6c63ff]/20 transition-colors shrink-0" onClick={(e) => e.stopPropagation()}>
+                              <a href={lead.storeUrl} target="_blank" rel="noopener noreferrer" className="w-6 h-6 rounded-md bg-[#6c9fff]/10 flex items-center justify-center text-[#6c9fff] hover:bg-[#6c9fff]/20 transition-colors shrink-0" onClick={(e) => e.stopPropagation()}>
                                 <ExternalLink size={10} />
                               </a>
                             )}
-                            <EditableCell value={lead.storeUrl} onSave={(v) => handleUpdateField(lead.id, 'storeUrl', v)} placeholder="المتجر" />
+                            <span className="text-[#6c9fff] text-[13px] truncate">
+                              <EditableCell value={lead.storeUrl} onSave={(v) => handleUpdateField(lead.id, 'storeUrl', v)} placeholder="المتجر" />
+                            </span>
                           </div>
                         </TableCell>
-                        {/* 2. رقم الجوال + duplicate highlight */}
+                        {/* 2. رقم الجوال — أحمر/أخضر + duplicate highlight */}
                         <TableCell className="max-w-[130px]">
                           {(() => {
                             const norm = lead.phone ? normalizePhone(lead.phone) : ''
@@ -1053,11 +1056,13 @@ export function SalesSheet() {
                             const highlightTele = shouldHighlight ? dupInfo!.firstTele : ''
                             return (
                               <div className={`flex items-center gap-1.5 max-w-[130px] rounded px-1 ${shouldHighlight ? 'bg-red-500/10' : ''}`} title={shouldHighlight ? `مكرر (${dupInfo!.count} مرات) — أول تسجيل: ${highlightTele}` : ''}>
-                                <a href={`tel:${lead.phone}`} className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors shrink-0 ${shouldHighlight ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25' : 'bg-[#00d4aa]/10 text-[#00d4aa] hover:bg-[#00d4aa]/20'}`} onClick={(e) => e.stopPropagation()}>
+                                <a href={`tel:${lead.phone}`} className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors shrink-0 ${shouldHighlight ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25' : 'bg-[#ff6b6b]/10 text-[#ff6b6b] hover:bg-[#ff6b6b]/20'}`} onClick={(e) => e.stopPropagation()}>
                                   <Phone size={10} />
                                 </a>
                                 <div className="flex flex-col min-w-0">
-                                  <EditableCell value={lead.phone} onSave={(v) => handleUpdateField(lead.id, 'phone', v)} placeholder="الرقم" />
+                                  <span className="text-[#ff6b6b]">
+                                    <EditableCell value={lead.phone} onSave={(v) => handleUpdateField(lead.id, 'phone', v)} placeholder="الرقم" />
+                                  </span>
                                   {shouldHighlight && (
                                     <span className="text-[10px] text-red-400/80 leading-tight truncate font-medium" style={{ fontFamily: 'Cairo, sans-serif' }}>
                                       ↻ {highlightTele}

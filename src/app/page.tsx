@@ -313,8 +313,15 @@ export default function Home() {
   }, [currentView, currentRole, isAuthenticated, setCurrentView])
 
   // Load data when authenticated
+  // CRITICAL: This effect runs on mount AND when auth state changes.
+  // We always re-fetch leads on mount (page refresh) to ensure the UI
+  // matches the database. The sessionStorage cache is ONLY used to speed
+  // up the initial render — it's cleared on any create/delete operation.
   useEffect(() => {
-    if (!isAuthenticated || dataLoaded) return
+    if (!isAuthenticated) return
+    // If leads are already loaded in THIS session (not from persist), skip.
+    // But on page refresh, leadsLoaded will be false (not persisted), so we re-fetch.
+    if (dataLoaded && leadsLoaded) return
 
     async function loadData() {
       setLoading(true)
@@ -330,12 +337,13 @@ export default function Home() {
         setTeam(team)
         setTeleAccess(permissions.teleAccess)
         setSalesAccess(permissions.salesAccess)
-        // Mark data as loaded — dashboard shows immediately (KPIs show loading state)
         setDataLoaded(true)
         setLoading(false)
 
         // ─── Background: load leads (non-blocking) ───
-        // Try sessionStorage cache first (avoids 4s API call on page refresh).
+        // Try sessionStorage cache first (only if it exists and is fresh).
+        // The cache is cleared after any create/delete, so it's always fresh
+        // when we read it here.
         const CACHE_KEY = 'venom-leads-cache'
         const CACHE_TTL = 2 * 60 * 1000 // 2 minutes
 
@@ -354,7 +362,7 @@ export default function Home() {
         if (cachedLeads) {
           setLeads(cachedLeads)
         } else {
-          // No cache — fetch all leads in the background
+          // No cache — fetch all leads from the API (database)
           try {
             const active = await apiGetLeads(false)
             setLeads(active)
@@ -367,8 +375,6 @@ export default function Home() {
             }
           } catch (err) {
             console.error('Failed to load leads (background):', err)
-            // Don't show error — the dashboard already loaded with team data
-            // User can retry by refreshing
           }
         }
       } catch (err) {
@@ -382,7 +388,7 @@ export default function Home() {
     }
 
     loadData()
-  }, [isAuthenticated, dataLoaded, setLeads, setTeam, setDataLoaded, setLoading, setDataError])
+  }, [isAuthenticated, dataLoaded, leadsLoaded, setLeads, setTeam, setDataLoaded, setLoading, setDataError])
 
   // Lazy-load archived leads when user navigates to archive view
   useEffect(() => {

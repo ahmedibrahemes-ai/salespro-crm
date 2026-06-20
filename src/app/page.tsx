@@ -281,6 +281,7 @@ export default function Home() {
   const setArchivedLoaded = useCrmStore((s) => s.setArchivedLoaded)
   const dataError = useCrmStore((s) => s.dataError)
   const setDataError = useCrmStore((s) => s.setDataError)
+  const leadsLoaded = useCrmStore((s) => s.leadsLoaded)
 
   // Hydrate auth from localStorage on first mount
   useEffect(() => {
@@ -319,9 +320,22 @@ export default function Home() {
       setLoading(true)
       setDataError(null)
       try {
-        // PERF: Try sessionStorage cache first (avoids 4s API call on page refresh).
-        // The cache is valid for 2 minutes — realtime subscriptions keep data fresh
-        // after that, so stale data is corrected automatically.
+        // PERF: Load team + permissions FIRST (fast, ~0.3s) so the dashboard
+        // renders immediately. Leads (6,219 rows, ~4s) load in the background.
+        const [team, permissions] = await Promise.all([
+          apiGetTeam().catch(() => ({ tele: [], sales: [], admin: [] })),
+          apiGetAccessPermissions().catch(() => ({ teleAccess: {}, salesAccess: {} })),
+        ])
+
+        setTeam(team)
+        setTeleAccess(permissions.teleAccess)
+        setSalesAccess(permissions.salesAccess)
+        // Mark data as loaded — dashboard shows immediately (KPIs show loading state)
+        setDataLoaded(true)
+        setLoading(false)
+
+        // ─── Background: load leads (non-blocking) ───
+        // Try sessionStorage cache first (avoids 4s API call on page refresh).
         const CACHE_KEY = 'venom-leads-cache'
         const CACHE_TTL = 2 * 60 * 1000 // 2 minutes
 
@@ -338,36 +352,23 @@ export default function Home() {
         } catch { /* ignore parse errors */ }
 
         if (cachedLeads) {
-          // Use cached leads, still fetch team + permissions (small payloads)
-          const [team, permissions] = await Promise.all([
-            apiGetTeam().catch(() => ({ tele: [], sales: [], admin: [] })),
-            apiGetAccessPermissions().catch(() => ({ teleAccess: {}, salesAccess: {} })),
-          ])
           setLeads(cachedLeads)
-          setTeam(team)
-          setTeleAccess(permissions.teleAccess)
-          setSalesAccess(permissions.salesAccess)
-          setDataLoaded(true)
         } else {
-          // No cache — fetch everything
-          const [active, team, permissions] = await Promise.all([
-            apiGetLeads(false),
-            apiGetTeam().catch(() => ({ tele: [], sales: [], admin: [] })),
-            apiGetAccessPermissions().catch(() => ({ teleAccess: {}, salesAccess: {} })),
-          ])
-
-          setLeads(active)
-          setTeam(team)
-          setTeleAccess(permissions.teleAccess)
-          setSalesAccess(permissions.salesAccess)
-          setDataLoaded(true)
-
-          // Save to sessionStorage for next refresh
+          // No cache — fetch all leads in the background
           try {
-            sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: active, timestamp: Date.now() }))
-          } catch {
-            // Quota exceeded — clear old cache and try again
-            try { sessionStorage.removeItem(CACHE_KEY) } catch { /* ignore */ }
+            const active = await apiGetLeads(false)
+            setLeads(active)
+
+            // Save to sessionStorage for next refresh
+            try {
+              sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: active, timestamp: Date.now() }))
+            } catch {
+              try { sessionStorage.removeItem(CACHE_KEY) } catch { /* ignore */ }
+            }
+          } catch (err) {
+            console.error('Failed to load leads (background):', err)
+            // Don't show error — the dashboard already loaded with team data
+            // User can retry by refreshing
           }
         }
       } catch (err) {
@@ -594,6 +595,18 @@ export default function Home() {
                 setDataLoaded(false)
               }}
             />
+          ) : !leadsLoaded && (currentView === 'my-sheet' || currentView === 'sales-sheet') ? (
+            <div className="flex-1 flex items-center justify-center min-h-[40vh]">
+              <div className="text-center">
+                <Loader2 size={28} className="animate-spin text-[#6c63ff] mx-auto mb-3" />
+                <p className="text-[14px] font-semibold text-[#8892b0]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                  جاري تحميل بيانات العملاء...
+                </p>
+                <p className="text-[11px] text-[#4a5280] mt-1" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                  قد يستغرق هذا بضع ثوانٍ
+                </p>
+              </div>
+            </div>
           ) : (
             <ViewRouter currentView={currentView} />
           )}

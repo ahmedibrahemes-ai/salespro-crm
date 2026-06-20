@@ -166,6 +166,7 @@ interface CrmStore {
   dataLoaded: boolean
   archivedLoaded: boolean
   loading: boolean
+  leadsLoaded: boolean
   dataError: string | null  // FIX: surface data-load errors to the UI (was silently returning [])
   setLeads: (leads: Lead[]) => void
   setArchivedLeads: (leads: Lead[]) => void
@@ -328,6 +329,7 @@ export const useCrmStore = create<CrmStore>()(
   dataLoaded: false,
   archivedLoaded: false,
   loading: false,
+  leadsLoaded: false,
   dataError: null,
   setDataError: (dataError) => set({ dataError }),
   setLeads: (leads) => {
@@ -341,7 +343,7 @@ export const useCrmStore = create<CrmStore>()(
     deduped.sort((a, b) => compareIds(b.id, a.id))
     const leadsById: Record<string, Lead> = {}
     deduped.forEach((l: Lead) => { leadsById[l.id] = l })
-    set({ leads: deduped, leadsById })
+    set({ leads: deduped, leadsById, leadsLoaded: true })
   },
   setArchivedLeads: (archivedLeads) => {
     set((state) => {
@@ -382,6 +384,7 @@ export const useCrmStore = create<CrmStore>()(
       dataLoaded: false,
       archivedLoaded: false,
       dataError: null,
+      leadsLoaded: false,
       notificationsLoaded: false,
       activeFilter: {},
       selectedTeleMember: 'all',

@@ -85,18 +85,23 @@ function LazySelectCell({
   displayMap,
   placeholder = '—',
   className = '',
+  allowClear = false,
 }: {
-  value: string
+  value: string | null | undefined
   options: Array<{ key: string; label: string }>
   onChange: (val: string) => void
   displayMap?: Record<string, string>
   placeholder?: string
   className?: string
+  allowClear?: boolean
 }) {
   const [open, setOpen] = useState(false)
 
+  // Display label: only show if value matches an option, otherwise placeholder
+  const matchingOption = options.find(o => o.key === value)
+  const displayLabel = matchingOption?.label || (displayMap?.[value || ''] && value ? displayMap[value] : '') || placeholder
+
   if (!open) {
-    const displayLabel = displayMap?.[value] || options.find(o => o.key === value)?.label || value || placeholder
     return (
       <button
         onClick={() => setOpen(true)}
@@ -111,18 +116,26 @@ function LazySelectCell({
     <Select
       value={value || undefined}
       onValueChange={(v) => {
-        onChange(v)
-        setOpen(false)
+        if (v === '__clear__') {
+          onChange('')
+        } else {
+          onChange(v)
+        }
       }}
-      open={open}
       onOpenChange={(o) => {
         if (!o) setOpen(false)
       }}
+      defaultOpen
     >
       <SelectTrigger className={`h-7 text-[13px] bg-[#0a0d14] border-[#6c63ff]/40 text-[#f0f2ff] ${className}`}>
-        <SelectValue />
+        <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent className="bg-[#111520] border-white/[0.08]">
+        {allowClear && value && (
+          <SelectItem value="__clear__" className="text-[13px] text-amber-400 border-b border-white/[0.04]">
+            ✕ مسح الحالة
+          </SelectItem>
+        )}
         {options.map((opt) => (
           <SelectItem key={opt.key} value={opt.key} className="text-[13px] text-[#f0f2ff]">
             {opt.label}
@@ -255,7 +268,8 @@ export function SalesSheet() {
 
   /* ─── Update lead field ─── */
   const handleUpdateField = useCallback(async (id: string, field: string, value: string) => {
-    const updates: Partial<Lead> = { [field]: value }
+    // Empty string means "clear" — store as null in DB
+    const updates: Partial<Lead> = { [field]: value || null }
     updateLeadInCache(id, updates)
     try {
       await apiUpdateLead(id, updates)
@@ -624,6 +638,7 @@ export function SalesSheet() {
                             onChange={(v) => handleUpdateField(lead.id, 'salesStatus', v)}
                             displayMap={salesStatusLabels}
                             className="w-[120px]"
+                            allowClear
                           />
                         </TableCell>
                         <TableCell>

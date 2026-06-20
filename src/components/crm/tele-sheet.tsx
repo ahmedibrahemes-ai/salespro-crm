@@ -147,6 +147,7 @@ function LazySelectCell({
   displayMap,
   placeholder = '—',
   className = '',
+  allowClear = false,
 }: {
   value: string | null | undefined
   options: Array<{ key: string; label: string }>
@@ -154,6 +155,7 @@ function LazySelectCell({
   displayMap?: Record<string, string>
   placeholder?: string
   className?: string
+  allowClear?: boolean
 }) {
   const [open, setOpen] = useState(false)
 
@@ -178,7 +180,12 @@ function LazySelectCell({
     <Select
       value={value || undefined}
       onValueChange={(v) => {
-        onChange(v)
+        // Special value '__clear__' resets the status to null (—)
+        if (v === '__clear__') {
+          onChange('')
+        } else {
+          onChange(v)
+        }
       }}
       onOpenChange={(o) => {
         if (!o) setOpen(false)
@@ -189,6 +196,14 @@ function LazySelectCell({
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent className="bg-[#111520] border-white/[0.08]">
+        {/* Clear option — only shown if allowClear is enabled and there's a value */}
+        {allowClear && value && (
+          <>
+            <SelectItem value="__clear__" className="text-[13px] text-amber-400 border-b border-white/[0.04]">
+              ✕ مسح الحالة
+            </SelectItem            >
+          </>
+        )}
         {options.map((opt) => (
           <SelectItem key={opt.key} value={opt.key} className="text-[13px] text-[#f0f2ff]">
             {opt.label}
@@ -1131,7 +1146,8 @@ export function TeleSheet() {
 
   /* ─── Update lead field ─── */
   const handleUpdateField = useCallback(async (id: string, field: string, value: string) => {
-    const updates: Partial<Lead> = { [field]: value }
+    // Empty string means "clear" — store as null in DB
+    const updates: Partial<Lead> = { [field]: value || null }
     if (field === 'contactResult') {
       updates.contactResultAt = value ? Date.now() : null
     }
@@ -1784,6 +1800,7 @@ export function TeleSheet() {
                             onChange={(v) => handleUpdateField(lead.id, 'status', v)}
                             displayMap={statusLabels}
                             className="w-[110px]"
+                            allowClear
                           />
                         </TableCell>
 

@@ -1198,24 +1198,43 @@ export function TeleSheet() {
   }, [filteredLeads, currentPage])
 
   /* ─── Duplicate phone detection across ALL leads ───
-     Builds a map: normalizedPhone → { count, firstTele, firstLeadId }
-     Used to highlight duplicate phones in the sheet with light red
-     and show the first tele name who recorded the number. */
+     Builds a map: normalizedPhone → { count, firstTele, firstLeadId, teles: Set }
+     - teles: set of all teles who have this phone (for cross-sheet detection)
+     - firstTele/firstLeadId: the first person to record this number
+
+     Highlighting logic:
+     - Same sheet duplicate (2+ leads with same phone, same tele) → ALL highlighted
+     - Cross-sheet duplicate (phone exists in another tele's sheet) → only the
+       LATER occurrences are highlighted; the first occurrence stays normal */
   const duplicatePhoneMap = useMemo(() => {
-    const map = new Map<string, { count: number; firstTele: string; firstLeadId: string }>()
+    const map = new Map<string, {
+      count: number
+      firstTele: string
+      firstLeadId: string
+      teles: Set<string>  // all teles who have this phone
+      leadsByTele: Map<string, string[]>  // tele → lead IDs with this phone
+    }>()
     for (const l of leads) {
       if (!l.phone || !l.phone.trim()) continue
       const norm = normalizePhone(l.phone)
       if (!norm) continue
+      const tele = l.tele || '—'
       const existing = map.get(norm)
       if (existing) {
         existing.count++
-        // Keep the first occurrence (earliest createdAt)
+        existing.teles.add(tele)
+        const ids = existing.leadsByTele.get(tele) || []
+        ids.push(l.id)
+        existing.leadsByTele.set(tele, ids)
       } else {
+        const leadsByTele = new Map<string, string[]>()
+        leadsByTele.set(tele, [l.id])
         map.set(norm, {
           count: 1,
-          firstTele: l.tele || '—',
+          firstTele: tele,
           firstLeadId: l.id,
+          teles: new Set([tele]),
+          leadsByTele,
         })
       }
     }
@@ -1879,17 +1898,36 @@ export function TeleSheet() {
                           {(() => {
                             const norm = lead.phone ? normalizePhone(lead.phone) : ''
                             const dupInfo = norm ? duplicatePhoneMap.get(norm) : undefined
-                            const isDuplicate = dupInfo && dupInfo.count > 1
-                            const isFirstOccurrence = dupInfo && dupInfo.firstLeadId === lead.id
+                            const leadTele = lead.tele || '—'
+
+                            // Determine if THIS lead should be highlighted:
+                            // 1. Same-sheet duplicate (2+ leads with same phone in same tele) → ALL highlighted
+                            // 2. Cross-sheet duplicate (phone in another tele's sheet) → only later occurrences highlighted
+                            let shouldHighlight = false
+                            let highlightTele = ''
+
+                            if (dupInfo && dupInfo.count > 1) {
+                              const isCrossSheet = dupInfo.teles.size > 1
+                              if (isCrossSheet) {
+                                // Cross-sheet: highlight only if this is NOT the first occurrence
+                                const isFirstOccurrence = dupInfo.firstLeadId === lead.id
+                                shouldHighlight = !isFirstOccurrence
+                                highlightTele = dupInfo.firstTele
+                              } else {
+                                // Same-sheet duplicate: highlight ALL occurrences
+                                shouldHighlight = true
+                                highlightTele = leadTele
+                              }
+                            }
 
                             return (
                               <div
-                                className={`flex items-center gap-1.5 max-w-[130px] rounded px-1 ${isDuplicate ? 'bg-red-500/10' : ''}`}
-                                title={isDuplicate && !isFirstOccurrence ? `مكرر في شيت: ${dupInfo!.firstTele}` : isDuplicate ? 'أول تسجيل لهذا الرقم' : ''}
+                                className={`flex items-center gap-1.5 max-w-[130px] rounded px-1 ${shouldHighlight ? 'bg-red-500/10' : ''}`}
+                                title={shouldHighlight ? `مكرر في شيت: ${highlightTele}` : ''}
                               >
                                 <a
                                   href={`tel:${lead.phone}`}
-                                  className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors shrink-0 ${isDuplicate ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25' : 'bg-[#00d4aa]/10 text-[#00d4aa] hover:bg-[#00d4aa]/20'}`}
+                                  className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors shrink-0 ${shouldHighlight ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25' : 'bg-[#00d4aa]/10 text-[#00d4aa] hover:bg-[#00d4aa]/20'}`}
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <Phone size={10} />
@@ -1900,9 +1938,9 @@ export function TeleSheet() {
                                     onSave={(v) => handleUpdateField(lead.id, 'phone', v)}
                                     placeholder="الرقم"
                                   />
-                                  {isDuplicate && !isFirstOccurrence && (
-                                    <span className="text-[9px] text-red-400/70 leading-tight truncate" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                                      ↻ {dupInfo!.firstTele}
+                                  {shouldHighlight && (
+                                    <span className="text-[10px] text-red-400/80 leading-tight truncate font-medium" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                                      ↻ {highlightTele}
                                     </span>
                                   )}
                                 </div>

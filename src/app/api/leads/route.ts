@@ -461,9 +461,9 @@ export async function POST(request: NextRequest) {
             console.warn(`[api/leads] Bulk create: insert().select() returned null data for batch starting at index ${i}`)
           }
         }
-        // Preserve insertion order — Supabase returns rows in the order they were inserted
-        // for bulk operations. We reverse so the last-inserted (newest) is first.
-        allCreated.reverse()
+        // Supabase returns rows in insertion order (first inserted = first in array).
+        // We keep this order — the client prepends them to the leads array,
+        // so the first-pasted row appears at the top of the sheet.
         if (allCreated.length !== leads.length) {
           console.warn(`[api/leads] Bulk create MISMATCH: ${leads.length} requested, ${allCreated.length} created`)
         } else {

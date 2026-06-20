@@ -38,8 +38,13 @@ export const supabase = createClient(
 function getSessionToken(): string | null {
   if (typeof window === 'undefined') return null
   try {
-    return localStorage.getItem('venom-session')
-  } catch {
+    const token = localStorage.getItem('venom-session')
+    if (!token) {
+      console.warn('[auth] No session token found in localStorage — API calls will fail with 401')
+    }
+    return token
+  } catch (e) {
+    console.error('[auth] Failed to read session token:', e)
     return null
   }
 }

@@ -723,7 +723,10 @@ export function SalesSheet() {
       if (q && !(l.customerName?.toLowerCase().includes(q) || l.phone?.toLowerCase().includes(q) || l.storeUrl?.toLowerCase().includes(q))) continue
       if (dateRange && (l.createdAt < dateRange.from || l.createdAt >= dateRange.to)) continue
 
-      // Leads with meeting dates STAY in the sales sheet (don't move to meetings page)
+      // FIX: Hide leads transferred from tele that have a meeting
+      // (tele-assigned leads with meetingDate go to my-meetings / follow-up only)
+      if (l.tele && l.tele.trim() !== '' && l.meetingDate && l.meetingDate.trim() !== '') continue
+
       result.push(l)
       total++
       if (l.meetingDate === todayStr) meetingsToday++
@@ -1003,7 +1006,7 @@ export function SalesSheet() {
                     <Checkbox checked={selected.length === paginatedLeads.length && paginatedLeads.length > 0} onCheckedChange={(checked) => { if (checked) selectAllLeads(viewKey, paginatedLeads.map((l) => l.id)); else clearSelectedLeadIds(viewKey) }} className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]" />
                   </TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[160px] max-w-[160px]">لينك المتجر</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[130px] max-w-[130px]">رقم الجوال</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[170px] max-w-[170px]">رقم الجوال</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[150px] max-w-[150px]">اسم العميل</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[180px] max-w-[180px]">البريف</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[110px]">حالة التواصل</TableHead>
@@ -1034,30 +1037,30 @@ export function SalesSheet() {
                         <TableCell className="w-[40px]">
                           <Checkbox checked={isSelected} onCheckedChange={() => toggleLeadSelection(viewKey, lead.id)} className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]" />
                         </TableCell>
-                        {/* 1. لينك المتجر — أزرق */}
+                        {/* 1. لينك المتجر — أزرق + أيقونة يسار */}
                         <TableCell className="max-w-[160px]">
-                          <div className="flex items-center gap-1.5 max-w-[160px]">
+                          <div className="flex items-center gap-2 max-w-[160px]">
                             {lead.storeUrl && (
-                              <a href={lead.storeUrl} target="_blank" rel="noopener noreferrer" className="w-6 h-6 rounded-md bg-[#6c9fff]/10 flex items-center justify-center text-[#6c9fff] hover:bg-[#6c9fff]/20 transition-colors shrink-0" onClick={(e) => e.stopPropagation()}>
-                                <ExternalLink size={10} />
+                              <a href={lead.storeUrl} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-lg bg-[#6c9fff]/15 flex items-center justify-center text-[#6c9fff] hover:bg-[#6c9fff]/30 transition-all shrink-0 ring-1 ring-[#6c9fff]/20" onClick={(e) => e.stopPropagation()} title="فتح المتجر">
+                                <ExternalLink size={16} />
                               </a>
                             )}
-                            <span className="text-[#6c9fff] text-[13px] truncate">
+                            <span className="text-[#6c9fff] text-[13px] truncate flex-1 min-w-0">
                               <EditableCell value={lead.storeUrl} onSave={(v) => handleUpdateField(lead.id, 'storeUrl', v)} placeholder="المتجر" />
                             </span>
                           </div>
                         </TableCell>
-                        {/* 2. رقم الجوال — أحمر/أخضر + duplicate highlight */}
-                        <TableCell className="max-w-[130px]">
+                        {/* 2. رقم الجوال — أحمر + duplicate highlight */}
+                        <TableCell className="max-w-[170px]">
                           {(() => {
                             const norm = lead.phone ? normalizePhone(lead.phone) : ''
                             const dupInfo = norm ? duplicatePhoneMap.get(norm) : undefined
                             const shouldHighlight = !!(dupInfo && dupInfo.count > 1)
                             const highlightTele = shouldHighlight ? dupInfo!.firstTele : ''
                             return (
-                              <div className={`flex items-center gap-1.5 max-w-[130px] rounded px-1 ${shouldHighlight ? 'bg-red-500/10' : ''}`} title={shouldHighlight ? `مكرر (${dupInfo!.count} مرات) — أول تسجيل: ${highlightTele}` : ''}>
-                                <a href={`tel:${lead.phone}`} className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors shrink-0 ${shouldHighlight ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25' : 'bg-[#ff6b6b]/10 text-[#ff6b6b] hover:bg-[#ff6b6b]/20'}`} onClick={(e) => e.stopPropagation()}>
-                                  <Phone size={10} />
+                              <div className={`flex items-center gap-1.5 max-w-[170px] rounded px-1 ${shouldHighlight ? 'bg-red-500/10' : ''}`} title={shouldHighlight ? `مكرر (${dupInfo!.count} مرات) — أول تسجيل: ${highlightTele}` : ''}>
+                                <a href={`tel:${lead.phone}`} className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all shrink-0 ${shouldHighlight ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25' : 'bg-[#ff6b6b]/10 text-[#ff6b6b] hover:bg-[#ff6b6b]/20'}`} onClick={(e) => e.stopPropagation()}>
+                                  <Phone size={14} />
                                 </a>
                                 <div className="flex flex-col min-w-0">
                                   <span className="text-[#ff6b6b]">

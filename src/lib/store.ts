@@ -58,7 +58,6 @@ export type ViewName =
   | 'dashboard'
   | 'my-sheet'
   | 'my-meetings'
-  | 'meetings'
   | 'sales-sheet'
   | 'customers-status'
   | 'daily-report'
@@ -76,7 +75,7 @@ export const VIEW_PERMISSIONS: Record<ViewName, Array<'tele' | 'sales' | 'admin'
   'my-sheet': ['tele', 'admin'],
   'sales-sheet': ['sales', 'admin'],
   'my-meetings': ['tele', 'sales', 'admin'],
-  'meetings': ['sales', 'admin'],
+  // 'meetings' removed — merged into 'my-meetings'
   'my-archive': ['tele', 'sales', 'admin'],
   'customers-status': ['tele', 'sales', 'admin'],
   'daily-report': ['tele', 'sales', 'admin'],

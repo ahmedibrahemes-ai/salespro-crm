@@ -1,8 +1,34 @@
 'use client'
 
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react'
-import { useCrmStore, CONTACT_RESULTS, STATUSES, getDateRange } from '@/lib/store'
+import { useCrmStore, getDateRange } from '@/lib/store'
 import { normalizePhone } from '@/lib/crm-utils'
+
+/* ═══════════════════════════════════════════════════════
+   Sales-specific Contact Results (adds call + whatsapp options)
+   ═══════════════════════════════════════════════════════ */
+const SALES_CONTACT_RESULTS = [
+  { key: 'none', label: '—', color: 'text-muted-foreground' },
+  { key: 'replied', label: '✅ رد', color: 'text-emerald-400' },
+  { key: 'no-reply', label: '📵 لم يرد', color: 'text-amber-400' },
+  { key: 'busy', label: '🔴 مشغول', color: 'text-amber-400' },
+  { key: 'wrong-number', label: '❌ رقم غلط', color: 'text-red-400' },
+  { key: 'customer-service', label: '🎧 خدمة عملاء', color: 'text-blue-400' },
+  { key: 'call', label: '📞 كول', color: 'text-purple-400' },
+  { key: 'whatsapp', label: '💬 واتس', color: 'text-green-400' },
+  { key: 'call-whatsapp', label: '📞💬 كول + واتس', color: 'text-cyan-400' },
+]
+
+/* ═══════════════════════════════════════════════════════
+   Sales-specific Statuses (removed 'whatsapp' — it's in contact results)
+   ═══════════════════════════════════════════════════════ */
+const SALES_STATUSES = [
+  { key: 'meeting', label: '📅 اجتماع', cls: 'status-done' },
+  { key: 'not-interested', label: '🚫 غير مهتم', cls: 'status-closed-lost' },
+  { key: 'followup-1', label: '🔄 متابعة 1', cls: 'status-followup' },
+  { key: 'followup-2', label: '🔄 متابعة 2', cls: 'status-followup' },
+  { key: 'followup-3', label: '🔄 متابعة 3', cls: 'status-followup' },
+]
 import type { Lead } from '@/lib/supabase'
 import { apiCreateLead, apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk, apiBulkCreateLeads } from '@/lib/supabase'
 import {
@@ -446,13 +472,13 @@ function QuickPasteDialog({ open, onClose, leads, salesName, onSaved, addToast }
 
   const contactResultLabels = useMemo(() => {
     const m: Record<string, string> = {}
-    CONTACT_RESULTS.forEach(cr => { m[cr.key] = cr.label })
+    SALES_CONTACT_RESULTS.forEach(cr => { m[cr.key] = cr.label })
     return m
   }, [])
 
   const statusLabels = useMemo(() => {
     const m: Record<string, string> = {}
-    STATUSES.forEach(s => { m[s.key] = s.label })
+    SALES_STATUSES.forEach(s => { m[s.key] = s.label })
     return m
   }, [])
 
@@ -800,13 +826,13 @@ export function SalesSheet() {
 
   const contactResultLabels = useMemo(() => {
     const m: Record<string, string> = {}
-    CONTACT_RESULTS.forEach(cr => { m[cr.key] = cr.label })
+    SALES_CONTACT_RESULTS.forEach(cr => { m[cr.key] = cr.label })
     return m
   }, [])
 
   const statusLabels = useMemo(() => {
     const m: Record<string, string> = {}
-    STATUSES.forEach(s => { m[s.key] = s.label })
+    SALES_STATUSES.forEach(s => { m[s.key] = s.label })
     return m
   }, [])
 
@@ -977,12 +1003,12 @@ export function SalesSheet() {
                   <TableHead className="w-[40px] text-right text-[13px] font-bold text-[#4a5280]">
                     <Checkbox checked={selected.length === paginatedLeads.length && paginatedLeads.length > 0} onCheckedChange={(checked) => { if (checked) selectAllLeads(viewKey, paginatedLeads.map((l) => l.id)); else clearSelectedLeadIds(viewKey) }} className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]" />
                   </TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">لينك المتجر</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[130px]">رقم الجوال</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">اسم العميل</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[180px]">البريف</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[130px]">رقم الجوال</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280]">لينك المتجر</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[110px]">حالة التواصل</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[110px]">حالة العميل</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[120px]">حالة التواصل</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[120px]">حالة العميل</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[150px]">ملاحظات السيلز</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[50px]">حذف</TableHead>
                 </TableRow>
@@ -1003,18 +1029,18 @@ export function SalesSheet() {
                         <TableCell className="w-[40px]">
                           <Checkbox checked={isSelected} onCheckedChange={() => toggleLeadSelection(viewKey, lead.id)} className="border-white/20 data-[state=checked]:bg-[#6c63ff] data-[state=checked]:border-[#6c63ff]" />
                         </TableCell>
-                        {/* اسم العميل + AI badge */}
+                        {/* 1. لينك المتجر */}
                         <TableCell className="max-w-[150px]">
-                          <div className="flex items-center gap-1.5">
-                            <EditableCell value={lead.customerName} onSave={(v) => handleUpdateField(lead.id, 'customerName', v)} placeholder="اسم العميل" />
-                            <AIScoreBadge leadId={lead.id} leadName={lead.customerName} status={lead.status} meetings={lead.meetingDate ? 1 : 0} attended={lead.attended} salesStatus={lead.salesStatus} contactResult={lead.contactResult} />
+                          <div className="flex items-center gap-1.5 max-w-[150px]">
+                            {lead.storeUrl && (
+                              <a href={lead.storeUrl} target="_blank" rel="noopener noreferrer" className="w-6 h-6 rounded-md bg-[#6c63ff]/10 flex items-center justify-center text-[#6c63ff] hover:bg-[#6c63ff]/20 transition-colors shrink-0" onClick={(e) => e.stopPropagation()}>
+                                <ExternalLink size={10} />
+                              </a>
+                            )}
+                            <EditableCell value={lead.storeUrl} onSave={(v) => handleUpdateField(lead.id, 'storeUrl', v)} placeholder="المتجر" />
                           </div>
                         </TableCell>
-                        {/* البريف */}
-                        <TableCell className="max-w-[180px]">
-                          <BriefCell value={lead.brief || ''} onSave={(v) => handleUpdateField(lead.id, 'brief', v)} placeholder="البريف" />
-                        </TableCell>
-                        {/* رقم الجوال + duplicate highlight */}
+                        {/* 2. رقم الجوال + duplicate highlight */}
                         <TableCell className="max-w-[130px]">
                           {(() => {
                             const norm = lead.phone ? normalizePhone(lead.phone) : ''
@@ -1038,22 +1064,22 @@ export function SalesSheet() {
                             )
                           })()}
                         </TableCell>
-                        {/* لينك المتجر */}
+                        {/* 3. اسم العميل + AI badge */}
                         <TableCell className="max-w-[150px]">
-                          <div className="flex items-center gap-1.5 max-w-[150px]">
-                            {lead.storeUrl && (
-                              <a href={lead.storeUrl} target="_blank" rel="noopener noreferrer" className="w-6 h-6 rounded-md bg-[#6c63ff]/10 flex items-center justify-center text-[#6c63ff] hover:bg-[#6c63ff]/20 transition-colors shrink-0" onClick={(e) => e.stopPropagation()}>
-                                <ExternalLink size={10} />
-                              </a>
-                            )}
-                            <EditableCell value={lead.storeUrl} onSave={(v) => handleUpdateField(lead.id, 'storeUrl', v)} placeholder="المتجر" />
+                          <div className="flex items-center gap-1.5">
+                            <EditableCell value={lead.customerName} onSave={(v) => handleUpdateField(lead.id, 'customerName', v)} placeholder="اسم العميل" />
+                            <AIScoreBadge leadId={lead.id} leadName={lead.customerName} status={lead.status} meetings={lead.meetingDate ? 1 : 0} attended={lead.attended} salesStatus={lead.salesStatus} contactResult={lead.contactResult} />
                           </div>
+                        </TableCell>
+                        {/* 4. البريف */}
+                        <TableCell className="max-w-[180px]">
+                          <BriefCell value={lead.brief || ''} onSave={(v) => handleUpdateField(lead.id, 'brief', v)} placeholder="البريف" />
                         </TableCell>
                         {/* حالة التواصل */}
                         <TableCell>
                           <LazySelectCell
                             value={lead.contactResult || 'none'}
-                            options={CONTACT_RESULTS}
+                            options={SALES_CONTACT_RESULTS}
                             onChange={(v) => handleUpdateField(lead.id, 'contactResult', v === 'none' ? '' : v)}
                             displayMap={contactResultLabels}
                             className="w-[110px]"
@@ -1063,7 +1089,7 @@ export function SalesSheet() {
                         <TableCell>
                           <LazySelectCell
                             value={lead.status || ''}
-                            options={STATUSES}
+                            options={SALES_STATUSES}
                             onChange={(v) => handleUpdateField(lead.id, 'status', v)}
                             displayMap={statusLabels}
                             className="w-[110px]"

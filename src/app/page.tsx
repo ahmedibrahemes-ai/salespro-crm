@@ -19,7 +19,7 @@ const MyMeetings = lazy(() => import('@/components/crm/my-meetings').then(m => (
 const BulkAdd = lazy(() => import('@/components/crm/bulk-add').then(m => ({ default: m.BulkAdd })))
 const MyArchive = lazy(() => import('@/components/crm/my-archive').then(m => ({ default: m.MyArchive })))
 const DailyReport = lazy(() => import('@/components/crm/daily-report').then(m => ({ default: m.DailyReport })))
-const MeetingsPage = lazy(() => import('@/components/crm/meetings-page').then(m => ({ default: m.MeetingsPage })))
+// MeetingsPage removed — merged into MyMeetings (same functionality)
 const CustomersStatus = lazy(() => import('@/components/crm/customers-status').then(m => ({ default: m.CustomersStatus })))
 const EmployeeProfile = lazy(() => import('@/components/crm/employee-profile').then(m => ({ default: m.EmployeeProfile })))
 const TransfersPage = lazy(() => import('@/components/crm/transfers-page').then(m => ({ default: m.TransfersPage })))
@@ -146,8 +146,6 @@ function ViewRouter({ currentView }: { currentView: ViewName }) {
         return <AdminPanel />
       case 'daily-report':
         return <DailyReport />
-      case 'meetings':
-        return <MeetingsPage />
       case 'customers-status':
         return <CustomersStatus />
       case 'transfers':

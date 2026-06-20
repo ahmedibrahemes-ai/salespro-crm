@@ -703,7 +703,7 @@ export function Dashboard() {
   /* ─── Pending clients handler ─── */
   const handleShowPendingClients = useCallback(() => {
     // Admin monitors meetings via the general meetings page; tele goes to transfers
-    setCurrentView(currentRole === 'admin' ? 'meetings' : 'transfers')
+    setCurrentView('my-meetings')
   }, [setCurrentView, currentRole])
 
   /* ─── Target type labels ─── */

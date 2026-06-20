@@ -7,7 +7,7 @@ import { apiUpdateLead } from '@/lib/supabase'
 import { isTodayDateString, isTodayTimestamp, isThisWeek } from '@/lib/crm-utils'
 import {
   Calendar, Clock, Phone, ExternalLink,
-  Check, X, CalendarDays, XCircle,
+  Check, X, CalendarDays, XCircle, StickyNote,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +15,56 @@ import { Input } from '@/components/ui/input'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
+
+/* ═══════════════════════════════════════════════════════
+   Inline Notes Cell — editable text for Follow-Up notes
+   (same as sales-sheet NotesCell, stored in salesStatus field)
+   ═══════════════════════════════════════════════════════ */
+function MeetingNotesCell({
+  value,
+  onSave,
+}: {
+  value: string
+  onSave: (val: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+
+  const commit = useCallback(() => {
+    if (draft !== value) onSave(draft)
+    setEditing(false)
+  }, [draft, value, onSave])
+
+  if (editing) {
+    return (
+      <input
+        type="text"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit()
+          if (e.key === 'Escape') { setDraft(value); setEditing(false) }
+        }}
+        className="bg-[#0a0d14] border border-[#6c63ff]/40 rounded px-2 py-1 text-[12px] text-[#f0f2ff] w-full outline-none focus:border-[#6c63ff]"
+        placeholder="اكتب ملاحظة..."
+        autoFocus
+      />
+    )
+  }
+
+  return (
+    <div
+      onClick={() => { setDraft(value); setEditing(true) }}
+      className="cursor-pointer hover:bg-[#1c2234] rounded px-2 py-1 transition-colors flex items-center gap-1.5 min-h-[28px]"
+    >
+      <StickyNote size={12} className="text-[#4a5280] shrink-0" />
+      <span className={`text-[12px] truncate ${value ? 'text-[#8892b0]' : 'text-[#4a5280]'}`}>
+        {value || 'ملاحظات Follow-Up'}
+      </span>
+    </div>
+  )
+}
 
 /* ═══════════════════════════════════════════════════════
    Date helpers
@@ -59,11 +109,13 @@ type StatFilter = 'all' | 'today' | 'attended' | 'no-show' | 'pending' | 'closed
 function MeetingCard({
   lead,
   onMarkAttendance,
+  onUpdateField,
   currentUser,
   currentRole,
 }: {
   lead: Lead
   onMarkAttendance: (id: string, value: string) => void
+  onUpdateField: (id: string, field: string, value: string) => void
   currentUser: string | null
   currentRole: string | null
 }) {
@@ -178,7 +230,7 @@ function MeetingCard({
               </>
             )}
 
-            {/* Attendance badge (read-only for tele, interactive for sales) */}
+            {/* Attendance badge */}
             <Badge className={`${attendanceColor} text-[11px] font-bold border`}>
               {ATTENDANCE_STATUSES.find((a) => a.key === lead.attended)?.label || '⏳ انتظار'}
             </Badge>
@@ -191,19 +243,26 @@ function MeetingCard({
               <Phone size={12} />
             </a>
 
-            {/* Attendance buttons — only for sales users */}
-            {!isTele && (isMeetingToday || isPastMeeting) && lead.attended !== 'attended' && lead.attended !== 'no-show' && (
+            {/* Attendance buttons — sales can ALWAYS change (even if already set) */}
+            {!isTele && (
               <div className="flex gap-1">
                 <button
                   onClick={() => onMarkAttendance(lead.id, 'attended')}
-                  className="w-7 h-7 rounded-md bg-emerald-500/15 text-emerald-400 flex items-center justify-center hover:bg-emerald-500/25 transition-colors cursor-pointer"
+                  className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors cursor-pointer ${lead.attended === 'attended' ? 'bg-emerald-500/30 text-emerald-400 ring-1 ring-emerald-500/50' : 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25'}`}
                   title="حضر"
                 >
                   <Check size={12} />
                 </button>
                 <button
+                  onClick={() => onMarkAttendance(lead.id, 'pending')}
+                  className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors cursor-pointer ${lead.attended === 'pending' || !lead.attended ? 'bg-amber-500/30 text-amber-400 ring-1 ring-amber-500/50' : 'bg-amber-500/15 text-amber-400 hover:bg-amber-500/25'}`}
+                  title="انتظار"
+                >
+                  <Clock size={12} />
+                </button>
+                <button
                   onClick={() => onMarkAttendance(lead.id, 'no-show')}
-                  className="w-7 h-7 rounded-md bg-red-500/15 text-red-400 flex items-center justify-center hover:bg-red-500/25 transition-colors cursor-pointer"
+                  className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors cursor-pointer ${lead.attended === 'no-show' ? 'bg-red-500/30 text-red-400 ring-1 ring-red-500/50' : 'bg-red-500/15 text-red-400 hover:bg-red-500/25'}`}
                   title="لم يحضر"
                 >
                   <X size={12} />
@@ -212,6 +271,20 @@ function MeetingCard({
             )}
           </div>
         </div>
+
+        {/* ملاحظات Follow-Up — editable for sales, read-only for tele */}
+        {!isTele && (
+          <div className="mt-3 pt-3 border-t border-white/[0.04]">
+            <div className="flex items-center gap-1.5 mb-1">
+              <StickyNote size={12} className="text-[#6c63ff]" />
+              <span className="text-[11px] font-bold text-[#4a5280]">ملاحظات Follow-Up</span>
+            </div>
+            <MeetingNotesCell
+              value={lead.salesStatus || ''}
+              onSave={(v) => onUpdateField(lead.id, 'salesStatus', v)}
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -384,6 +457,13 @@ export function MyMeetings() {
     }
   }, [updateLeadInCache, currentUser, addToast])
 
+  /* ─── Update field (for notes) ─── */
+  const handleUpdateField = useCallback(async (id: string, field: string, value: string) => {
+    const updates: Partial<Lead> = { [field]: value || null }
+    updateLeadInCache(id, updates)
+    try { await apiUpdateLead(id, updates) } catch { addToast('error', 'فشل التحديث') }
+  }, [updateLeadInCache, addToast])
+
   /* ─── Stat card config ─── */
   const statCards = useMemo(() => {
     const cards: Array<{ key: StatFilter; label: string; value: number; color: string; activeBg: string }> = []
@@ -541,6 +621,7 @@ export function MyMeetings() {
               key={lead.id}
               lead={lead}
               onMarkAttendance={handleMarkAttendance}
+              onUpdateField={handleUpdateField}
               currentUser={currentUser}
               currentRole={currentRole}
             />

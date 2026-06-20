@@ -148,7 +148,7 @@ function LazySelectCell({
   placeholder = '—',
   className = '',
 }: {
-  value: string
+  value: string | null | undefined
   options: Array<{ key: string; label: string }>
   onChange: (val: string) => void
   displayMap?: Record<string, string>
@@ -161,7 +161,7 @@ function LazySelectCell({
     // Only show a label if the value exists in options or displayMap.
     // Otherwise show the placeholder (—) so legacy values like 'new' don't appear.
     const matchingOption = options.find(o => o.key === value)
-    const displayLabel = matchingOption?.label || (displayMap?.[value] && value ? displayMap[value] : '') || placeholder
+    const displayLabel = matchingOption?.label || (displayMap?.[value || ''] && value ? displayMap[value] : '') || placeholder
     return (
       <button
         onClick={() => setOpen(true)}
@@ -185,7 +185,7 @@ function LazySelectCell({
       }}
     >
       <SelectTrigger className={`h-7 text-[13px] bg-[#0a0d14] border-[#6c63ff]/40 text-[#f0f2ff] ${className}`}>
-        <SelectValue />
+        <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent className="bg-[#111520] border-white/[0.08]">
         {options.map((opt) => (

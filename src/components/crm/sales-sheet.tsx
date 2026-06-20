@@ -1011,7 +1011,7 @@ export function SalesSheet() {
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[180px] max-w-[180px]">البريف</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[110px]">حالة التواصل</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[110px]">حالة العميل</TableHead>
-                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[150px]">ملاحظات السيلز</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[180px]">ملاحظات Follow-Up</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[60px]">حذف</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1109,8 +1109,8 @@ export function SalesSheet() {
                             allowClear
                           />
                         </TableCell>
-                        {/* ملاحظات السيلز (replaces salesStatus) */}
-                        <TableCell className="max-w-[150px]">
+                        {/* ملاحظات Follow-Up — مرتبطة بصفحة follow-up (salesStatus) */}
+                        <TableCell className="max-w-[180px]">
                           <NotesCell
                             value={lead.salesStatus || ''}
                             onSave={(v) => handleUpdateField(lead.id, 'salesStatus', v)}

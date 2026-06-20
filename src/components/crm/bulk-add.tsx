@@ -33,7 +33,7 @@ interface BulkRow {
   brief: string
   tele: string
   sales: string
-  status: string
+  status: string | null
   errors: string[]
   included: boolean
   isDuplicate: boolean
@@ -338,7 +338,7 @@ export function BulkAdd() {
       brief: '',
       tele: currentUser || team.tele[0] || '',
       sales: currentRole === 'sales' && currentUser ? currentUser : '',
-      status: 'new',
+      status: null,
       errors: [],
       included: true,
       isDuplicate: false,
@@ -542,7 +542,7 @@ export function BulkAdd() {
         brief: '',
         tele: currentUser || team.tele[0] || '',
         sales: currentRole === 'sales' && currentUser ? currentUser : '',
-        status: 'new',
+        status: null,
         errors: [],
         included: true,
         isDuplicate: false,
@@ -686,7 +686,7 @@ export function BulkAdd() {
         brief: '',
         tele: currentUser || team.tele[0] || '',
         sales: currentRole === 'sales' && currentUser ? currentUser : '',
-        status: 'new',
+        status: null,
         errors: [],
         included: true,
         isDuplicate: false,
@@ -743,7 +743,7 @@ export function BulkAdd() {
         brief: r.brief,
         tele: isTele ? currentUser! : r.tele,
         sales: r.sales || null,
-        status: r.status || 'new',
+        status: r.status || '',
         contactResult: '',
       }))
 
@@ -1265,7 +1265,7 @@ export function BulkAdd() {
 
                               {/* Status */}
                               <TableCell>
-                                <Select value={row.status} onValueChange={(v) => updateRow(row.id, 'status', v)}>
+                                <Select value={row.status || ''} onValueChange={(v) => updateRow(row.id, 'status', v)}>
                                   <SelectTrigger className="h-7 text-[13px] w-[90px] bg-[#0a0d14] border-white/[0.08] text-[#f0f2ff]">
                                     <SelectValue />
                                   </SelectTrigger>

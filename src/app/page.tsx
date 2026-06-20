@@ -442,7 +442,7 @@ export default function Home() {
               meetingTime: (newRow.meeting_time as string) || '',
               meetingType: (newRow.meeting_type as string) || '',
               meetingLink: (newRow.meeting_link as string) || '',
-              status: (newRow.status as string) || 'new',
+              status: (newRow.status as string) || '',
               salesStatus: (newRow.sales_status as string) || null,
               attended: null,
               attendanceMarkedAt: null,
@@ -496,7 +496,7 @@ export default function Home() {
             if ('store_url' in newRow) updates.storeUrl = (newRow.store_url as string) ?? ''
             if ('brief' in newRow) updates.brief = (newRow.brief as string) ?? ''
             if ('contact_result' in newRow) updates.contactResult = (newRow.contact_result as string) ?? ''
-            if ('status' in newRow) updates.status = (newRow.status as string) ?? 'new'
+            if ('status' in newRow) updates.status = (newRow.status as string) ?? ''
             if ('sales_status' in newRow) updates.salesStatus = (newRow.sales_status as string) ?? null
             if ('attended' in newRow) updates.attended = (newRow.attended as string) ?? null
             if ('sales_name' in newRow) updates.sales = newRow.sales_name ? String(newRow.sales_name).trim() : null

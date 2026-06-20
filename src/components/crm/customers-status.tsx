@@ -103,7 +103,7 @@ export function CustomersStatus() {
     const statusCounts: Record<string, number> = {}
     STATUSES.forEach((s) => { statusCounts[s.key] = 0 })
     for (const l of result) {
-      const status = l.status || 'new'
+      const status = l.status || ''
       statusCounts[status] = (statusCounts[status] || 0) + 1
     }
     const breakdown = STATUSES.map((s) => ({
@@ -125,7 +125,7 @@ export function CustomersStatus() {
       if (l.meetingDate && l.meetingDate !== '') meetings++
       if (l.status === 'closed-won' || l.salesStatus === 'closed-won') closedWon++
       if (l.status === 'closed-lost' || l.salesStatus === 'closed-lost') closedLost++
-      const s = l.status || 'new'
+      const s = l.status || ''
       if (s === 'new' || s === 'no-reply' || (!l.contactResult || l.contactResult === 'none' || l.contactResult === '')) pending++
     }
 

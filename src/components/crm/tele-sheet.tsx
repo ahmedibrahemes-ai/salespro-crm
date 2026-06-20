@@ -630,7 +630,7 @@ function QuickPasteDialog({ open, onClose, leads, teleName, onSaved, addToast }:
         storeUrl: r.storeUrl || undefined,
         customerName: r.customerName || undefined,
         tele: teleName,
-        status: 'new',
+        status: null,
         contactResult: '',
       }))
 
@@ -1111,7 +1111,7 @@ export function TeleSheet() {
         storeUrl: newLead.storeUrl,
         brief: newLead.brief,
         tele: teleName,
-        status: 'new',
+        status: null,
         contactResult: '',
       })
       addLeadToCache(created)
@@ -1775,7 +1775,7 @@ export function TeleSheet() {
                         {/* حالة العميل — LazySelectCell */}
                         <TableCell>
                           <LazySelectCell
-                            value={lead.status || 'new'}
+                            value={lead.status || ''}
                             options={STATUSES}
                             onChange={(v) => handleUpdateField(lead.id, 'status', v)}
                             displayMap={statusLabels}

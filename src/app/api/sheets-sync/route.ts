@@ -220,7 +220,7 @@ export async function POST(request: NextRequest) {
           store_url: storeUrl || null,
           customer_name: finalCustomerName,
           tele_name: teleName || null,
-          status: 'new',
+          status: null,
           contact_result: null,
           is_archived: false,
         })

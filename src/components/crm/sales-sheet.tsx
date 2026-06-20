@@ -619,7 +619,7 @@ export function SalesSheet() {
                         </TableCell>
                         <TableCell>
                           <LazySelectCell
-                            value={lead.salesStatus || 'new'}
+                            value={lead.salesStatus || ''}
                             options={SALES_STATUSES}
                             onChange={(v) => handleUpdateField(lead.id, 'salesStatus', v)}
                             displayMap={salesStatusLabels}

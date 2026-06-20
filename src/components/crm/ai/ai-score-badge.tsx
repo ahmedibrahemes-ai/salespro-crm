@@ -21,7 +21,7 @@ import { useAI } from '@/hooks/use-ai'
 interface AIScoreBadgeProps {
   leadId: string
   leadName: string
-  status: string
+  status: string | null
   meetings: number
   attended: string | null
   salesStatus: string | null

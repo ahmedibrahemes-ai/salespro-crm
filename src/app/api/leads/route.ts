@@ -28,7 +28,7 @@ function leadFromDb(row: DbLead) {
     meetingTime: row.meeting_time ? row.meeting_time.substring(0, 5) : '',
     meetingType: row.meeting_type || '',
     meetingLink: row.meeting_link || '',
-    status: row.status || 'new',
+    status: row.status || null,
     salesStatus: row.sales_status || null,
     attended: normalizeAttended(row.attended),
     attendanceMarkedAt: safeTimestamp(row.attendance_marked_at),
@@ -61,7 +61,7 @@ function leadToDb(lead: Record<string, unknown>): Record<string, unknown> {
     meeting_time: safeTime(lead.meetingTime as string || null),
     meeting_type: lead.meetingType || null,
     meeting_link: lead.meetingLink || null,
-    status: lead.status || 'new',
+    status: lead.status || null,
     sales_status: lead.salesStatus || null,
     attended: lead.attended === undefined ? null : lead.attended,
     attendance_marked_at: lead.attendanceMarkedAt ? new Date(lead.attendanceMarkedAt as number).toISOString() : null,
@@ -91,7 +91,7 @@ function partialLeadToDb(updates: Record<string, unknown>): Record<string, unkno
   if ('meetingTime' in updates) dbData.meeting_time = safeTime(updates.meetingTime as string || null)
   if ('meetingType' in updates) dbData.meeting_type = updates.meetingType || null
   if ('meetingLink' in updates) dbData.meeting_link = updates.meetingLink || null
-  if ('status' in updates) dbData.status = updates.status || 'new'
+  if ('status' in updates) dbData.status = updates.status || null
   if ('salesStatus' in updates) dbData.sales_status = updates.salesStatus || null
   if ('attended' in updates) dbData.attended = updates.attended === undefined ? null : updates.attended
   if ('attendanceMarkedAt' in updates) dbData.attendance_marked_at = updates.attendanceMarkedAt ? new Date(updates.attendanceMarkedAt as number).toISOString() : null

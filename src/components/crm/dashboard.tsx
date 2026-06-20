@@ -337,14 +337,31 @@ export function Dashboard() {
       return leads.filter((l) => l.tele === currentUser && !l.isArchived)
     }
     if (currentRole === 'sales' && currentUser) {
-      return leads.filter((l) => l.sales === currentUser && !l.isArchived)
+      // FIX: Sales leads = ONLY leads where tele is NOT set (sales-originated)
+      // Tele-transferred leads (with tele set) are tracked separately
+      return leads.filter((l) => l.sales === currentUser && !l.isArchived && (!l.tele || l.tele.trim() === ''))
     }
     // Admin: filter by selected member if one is chosen
     if (currentRole === 'admin' && adminSelectedMember.type !== 'all') {
       const { type, name } = adminSelectedMember
-      return leads.filter((l) => !l.isArchived && (type === 'tele' ? l.tele === name : l.sales === name))
+      if (type === 'sales') {
+        // For sales selection: show only sales-originated leads (no tele)
+        return leads.filter((l) => !l.isArchived && l.sales === name && (!l.tele || l.tele.trim() === ''))
+      }
+      return leads.filter((l) => !l.isArchived && l.tele === name)
     }
     return leads.filter((l) => !l.isArchived)
+  }, [leads, currentUser, currentRole, adminSelectedMember])
+
+  /* ─── Tele-transferred leads for this sales rep (separate from myLeads) ─── */
+  const teleTransferredLeads = useMemo(() => {
+    if (currentRole === 'sales' && currentUser) {
+      return leads.filter((l) => l.sales === currentUser && !l.isArchived && l.tele && l.tele.trim() !== '')
+    }
+    if (currentRole === 'admin' && adminSelectedMember.type === 'sales') {
+      return leads.filter((l) => !l.isArchived && l.sales === adminSelectedMember.name && l.tele && l.tele.trim() !== '')
+    }
+    return []
   }, [leads, currentUser, currentRole, adminSelectedMember])
 
   /* ─── All leads (admin sees all, others see own) ─── */
@@ -367,9 +384,11 @@ export function Dashboard() {
 
     let leadsCreatedMonth = 0
     let callsMonth = 0
-    let meetingsBooked = 0
+    let meetingsBooked = 0       // sales-originated meetings
+    let teleTransferMeetings = 0 // tele-transferred meetings
     let attendedConfirmed = 0
     let closedWon = 0
+    let whatsappSent = 0         // WhatsApp messages sent
 
     for (const l of myLeads) {
       // Leads created this month
@@ -382,25 +401,36 @@ export function Dashboard() {
         }
       }
 
-      // Meetings this month: based on assignedAt
+      // Sales-originated meetings this month (assignedAt within month)
       if (l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
         meetingsBooked++
       }
 
-      // Attended confirmed this month (based on assignedAt within month)
+      // Attended confirmed this month
       if (l.attended === 'attended' && l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
         attendedConfirmed++
       }
 
-      // Closed won (all-time for conversion rate)
+      // Closed won (all-time)
       if (l.status === 'closed-won') closedWon++
+
+      // WhatsApp sent (contactResult includes whatsapp or call-whatsapp)
+      if (l.contactResult === 'whatsapp' || l.contactResult === 'call-whatsapp') {
+        whatsappSent++
+      }
     }
 
-    // Conversion rate: this month meetings → closed-won
+    // Tele-transferred meetings (from teleTransferredLeads)
+    for (const l of teleTransferredLeads) {
+      if (l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
+        teleTransferMeetings++
+      }
+    }
+
     const conversionRate = meetingsBooked > 0 ? Math.round((attendedConfirmed / meetingsBooked) * 1000) / 10 : 0
 
-    return { leadsCreatedMonth, callsMonth, meetingsBooked, attendedConfirmed, closedWon, conversionRate }
-  }, [myLeads, monthRange])
+    return { leadsCreatedMonth, callsMonth, meetingsBooked, teleTransferMeetings, attendedConfirmed, closedWon, conversionRate, whatsappSent }
+  }, [myLeads, teleTransferredLeads, monthRange])
 
   /* ─── Uncontacted leads count (for urgent strip) ─── */
   const uncontactedCount = useMemo(() => {
@@ -541,34 +571,56 @@ export function Dashboard() {
     return { totalMeetings, attendedMeetings, pendingMeetings, noShowMeetings, attendanceRate }
   }, [myLeads, meetingStatsPeriod])
 
-  /* ─── RANK (مركزك) — Tele team only, based on meetings booked ─── */
+  /* ─── RANK (مركزك) — Tele: meetings, Sales: avg(meetings+calls+closings) ─── */
   const rankInfo = useMemo(() => {
-    if (currentRole !== 'tele' || !currentUser) {
-      return { position: 0, totalMembers: 0, meetingsCount: 0, percentile: 0 }
-    }
-
-    const meetingCounts: Record<string, number> = {}
-    for (const member of team.tele) {
-      meetingCounts[member] = 0
-    }
-
-    for (const l of allActiveLeads) {
-      if (l.assignedAt && l.tele && team.tele.includes(l.tele)) {
-        meetingCounts[l.tele] = (meetingCounts[l.tele] || 0) + 1
+    if (currentRole === 'tele' && currentUser) {
+      const meetingCounts: Record<string, number> = {}
+      for (const member of team.tele) meetingCounts[member] = 0
+      for (const l of allActiveLeads) {
+        if (l.assignedAt && l.tele && team.tele.includes(l.tele)) {
+          meetingCounts[l.tele] = (meetingCounts[l.tele] || 0) + 1
+        }
       }
+      const sorted = Object.entries(meetingCounts).sort((a, b) => b[1] - a[1])
+      const idx = sorted.findIndex(([name]) => name === currentUser)
+      const position = idx >= 0 ? idx + 1 : sorted.length
+      const meetingsCount = meetingCounts[currentUser] || 0
+      const totalMembers = sorted.length
+      const membersBelow = sorted.filter(([_, count]) => count < meetingsCount).length
+      const percentile = totalMembers > 1 ? Math.round((membersBelow / (totalMembers - 1)) * 100) : 0
+      return { position, totalMembers, meetingsCount, percentile }
     }
 
-    const sorted = Object.entries(meetingCounts).sort((a, b) => b[1] - a[1])
-    const idx = sorted.findIndex(([name]) => name === currentUser)
-    const position = idx >= 0 ? idx + 1 : sorted.length
-    const meetingsCount = meetingCounts[currentUser] || 0
-    const totalMembers = sorted.length
+    if (currentRole === 'sales' && currentUser) {
+      // Sales rank: average of (meetings + calls + closings) per sales member
+      const stats: Record<string, { meetings: number; calls: number; closings: number; avg: number }> = {}
+      for (const member of team.sales) {
+        stats[member] = { meetings: 0, calls: 0, closings: 0, avg: 0 }
+      }
+      for (const l of allActiveLeads) {
+        if (l.sales && team.sales.includes(l.sales)) {
+          if (l.assignedAt) stats[l.sales].meetings++
+          if (l.contactResult && l.contactResult !== 'none' && l.contactResult !== '') stats[l.sales].calls++
+          if (l.status === 'closed-won') stats[l.sales].closings++
+        }
+      }
+      // Calculate average score per member
+      for (const member of team.sales) {
+        const s = stats[member]
+        s.avg = (s.meetings + s.calls + s.closings) / 3
+      }
+      const sorted = Object.entries(stats).sort((a, b) => b[1].avg - a[1].avg)
+      const idx = sorted.findIndex(([name]) => name === currentUser)
+      const position = idx >= 0 ? idx + 1 : sorted.length
+      const myStats = stats[currentUser] || { meetings: 0, calls: 0, closings: 0, avg: 0 }
+      const totalMembers = sorted.length
+      const membersBelow = sorted.filter(([_, s]) => s.avg < myStats.avg).length
+      const percentile = totalMembers > 1 ? Math.round((membersBelow / (totalMembers - 1)) * 100) : 0
+      return { position, totalMembers, meetingsCount: myStats.meetings, percentile }
+    }
 
-    const membersBelow = sorted.filter(([_, count]) => count < meetingsCount).length
-    const percentile = totalMembers > 1 ? Math.round((membersBelow / (totalMembers - 1)) * 100) : 0
-
-    return { position, totalMembers, meetingsCount, percentile }
-  }, [currentRole, currentUser, team.tele, allActiveLeads])
+    return { position: 0, totalMembers: 0, meetingsCount: 0, percentile: 0 }
+  }, [currentRole, currentUser, team, allActiveLeads])
 
   /* ─── Motivational message ─── */
   const motivation = useMemo(() => {

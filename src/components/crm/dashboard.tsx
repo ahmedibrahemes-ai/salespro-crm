@@ -628,67 +628,85 @@ export function Dashboard() {
   }, [kpiValues.meetingsBooked, kpiValues.callsMonth, targetProgress.pct])
 
   /* ─── KPI Cards Config — MONTH BASED ─── */
-  const kpis = [
-    {
-      icon: <UserPlus size={20} />,
-      color: '#6c63ff',
-      colorBg: 'rgba(108,99,255,.15)',
-      value: kpiValues.leadsCreatedMonth,
-      label: 'ليدز جديدة الشهر',
-      target: 100,
-    },
-    {
-      icon: <Phone size={20} />,
-      color: '#00d4aa',
-      colorBg: 'rgba(0,212,170,.15)',
-      value: kpiValues.callsMonth,
-      label: 'مكالمات الشهر',
-      target: 200,
-    },
-    {
-      icon: <CalendarCheck size={20} />,
-      color: '#ffd166',
-      colorBg: 'rgba(255,209,102,.15)',
-      value: kpiValues.meetingsBooked,
-      label: 'اجتماعات السيلز',
-      target: 50,
-    },
-    // Tele-transferred meetings (only show for sales role)
-    ...(currentRole === 'sales' ? [{
-      icon: <ArrowRightLeft size={20} />,
-      color: '#6c9fff',
-      colorBg: 'rgba(108,159,255,.15)',
-      value: kpiValues.teleTransferMeetings,
-      label: 'تحويلات التلى',
-      target: 50,
-    }] : []),
-    {
-      icon: <UserCheck size={20} />,
-      color: '#00d4aa',
-      colorBg: 'rgba(0,212,170,.15)',
-      value: kpiValues.attendedConfirmed,
-      label: 'حضور مؤكد',
-      target: 30,
-    },
-    // WhatsApp stat
-    {
-      icon: <MessageCircle size={20} />,
-      color: '#25D366',
-      colorBg: 'rgba(37,211,102,.15)',
-      value: kpiValues.whatsappSent,
-      label: 'واتس',
-      target: 100,
-    },
-    {
-      icon: <Percent size={20} />,
-      color: '#ff6b6b',
-      colorBg: 'rgba(255,107,107,.15)',
-      value: kpiValues.conversionRate,
-      label: 'نسبة التحويل',
-      target: 50,
-      isPercentage: true,
-    },
-  ]
+  interface KpiCard {
+    icon: React.ReactNode
+    color: string
+    colorBg: string
+    value: number
+    label: string
+    target: number
+    isPercentage?: boolean
+  }
+
+  const kpis = useMemo<KpiCard[]>(() => {
+    const base: KpiCard[] = [
+      {
+        icon: <UserPlus size={20} />,
+        color: '#6c63ff',
+        colorBg: 'rgba(108,99,255,.15)',
+        value: kpiValues.leadsCreatedMonth,
+        label: 'ليدز جديدة الشهر',
+        target: 100,
+      },
+      {
+        icon: <Phone size={20} />,
+        color: '#00d4aa',
+        colorBg: 'rgba(0,212,170,.15)',
+        value: kpiValues.callsMonth,
+        label: 'مكالمات الشهر',
+        target: 200,
+      },
+      {
+        icon: <CalendarCheck size={20} />,
+        color: '#ffd166',
+        colorBg: 'rgba(255,209,102,.15)',
+        value: kpiValues.meetingsBooked,
+        label: 'اجتماعات السيلز',
+        target: 50,
+      },
+    ]
+
+    if (currentRole === 'sales') {
+      base.push({
+        icon: <ArrowRightLeft size={20} />,
+        color: '#6c9fff',
+        colorBg: 'rgba(108,159,255,.15)',
+        value: kpiValues.teleTransferMeetings,
+        label: 'تحويلات التلى',
+        target: 50,
+      })
+    }
+
+    base.push(
+      {
+        icon: <UserCheck size={20} />,
+        color: '#00d4aa',
+        colorBg: 'rgba(0,212,170,.15)',
+        value: kpiValues.attendedConfirmed,
+        label: 'حضور مؤكد',
+        target: 30,
+      },
+      {
+        icon: <MessageCircle size={20} />,
+        color: '#25D366',
+        colorBg: 'rgba(37,211,102,.15)',
+        value: kpiValues.whatsappSent,
+        label: 'واتس',
+        target: 100,
+      },
+      {
+        icon: <Percent size={20} />,
+        color: '#ff6b6b',
+        colorBg: 'rgba(255,107,107,.15)',
+        value: kpiValues.conversionRate,
+        label: 'نسبة التحويل',
+        target: 50,
+        isPercentage: true,
+      }
+    )
+
+    return base
+  }, [kpiValues, currentRole])
 
   /* ─── Important Ratios (نسب مهمة) ─── */
   const importantRatios = useMemo(() => {

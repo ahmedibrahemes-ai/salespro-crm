@@ -1148,16 +1148,33 @@ export function TeleSheet() {
   const handleUpdateField = useCallback(async (id: string, field: string, value: string) => {
     // Empty string means "clear" — store as null in DB
     const updates: Partial<Lead> = { [field]: value || null }
+
     if (field === 'contactResult') {
       updates.contactResultAt = value ? Date.now() : null
     }
-    // Auto-set meetingDate when status changes to 'meeting'
-    if (field === 'status' && value === 'meeting') {
-      const lead = leads.find(l => l.id === id)
-      if (lead && !lead.meetingDate) {
-        updates.meetingDate = new Date().toISOString().split('T')[0]
+
+    // ─── Cascade logic for status changes ───
+    if (field === 'status') {
+      if (value === 'meeting') {
+        // Setting to 'meeting': auto-set meetingDate if empty
+        const lead = leads.find(l => l.id === id)
+        if (lead && !lead.meetingDate) {
+          updates.meetingDate = new Date().toISOString().split('T')[0]
+        }
+      } else {
+        // Changing away from 'meeting' (or clearing): remove all meeting-related fields
+        // These only make sense if status === 'meeting'
+        updates.meetingDate = ''
+        updates.meetingTime = ''
+        updates.meetingType = ''
+        updates.meetingLink = ''
       }
     }
+
+    // ─── Cascade logic for attendance (if status is cleared, reset attendance too) ───
+    // Note: attendance is only relevant for transferred leads with a meeting.
+    // We don't auto-clear attendance here because the sales rep marks it.
+
     updateLeadInCache(id, updates)
     try {
       await apiUpdateLead(id, updates)

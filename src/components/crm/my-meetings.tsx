@@ -12,6 +12,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -29,10 +30,12 @@ function MeetingNotesCell({
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
+  const [open, setOpen] = useState(false)
 
   const commit = useCallback(() => {
     if (draft !== value) onSave(draft)
     setEditing(false)
+    setOpen(false)
   }, [draft, value, onSave])
 
   if (editing) {
@@ -53,16 +56,47 @@ function MeetingNotesCell({
     )
   }
 
+  const isEmpty = !value || value.trim() === ''
+
+  if (isEmpty) {
+    return (
+      <div
+        onClick={() => { setDraft(value); setEditing(true) }}
+        className="cursor-pointer hover:bg-[#1c2234] rounded px-2 py-1 transition-colors flex items-center gap-1.5 min-h-[28px]"
+      >
+        <StickyNote size={12} className="text-[#4a5280] shrink-0" />
+        <span className="text-[12px] text-[#4a5280]">ملاحظات Follow-Up</span>
+      </div>
+    )
+  }
+
   return (
-    <div
-      onClick={() => { setDraft(value); setEditing(true) }}
-      className="cursor-pointer hover:bg-[#1c2234] rounded px-2 py-1 transition-colors flex items-center gap-1.5 min-h-[28px]"
-    >
-      <StickyNote size={12} className="text-[#4a5280] shrink-0" />
-      <span className={`text-[12px] truncate ${value ? 'text-[#8892b0]' : 'text-[#4a5280]'}`}>
-        {value || 'ملاحظات Follow-Up'}
-      </span>
-    </div>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <div
+          onClick={() => { setDraft(value); setEditing(true) }}
+          onMouseEnter={() => setOpen(true)}
+          onMouseLeave={() => setOpen(false)}
+          className="cursor-pointer hover:bg-[#1c2234] rounded px-2 py-1 transition-colors flex items-center gap-1.5 min-h-[28px]"
+        >
+          <StickyNote size={12} className="text-[#6c63ff] shrink-0" />
+          <span className="text-[12px] truncate text-[#8892b0]">{value}</span>
+        </div>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="start"
+        className="bg-[#1a1f2e] border-white/[0.08] text-[#f0f2ff] max-w-[400px] w-[400px] p-3 z-50"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <div className="text-[13px] leading-relaxed whitespace-pre-wrap break-words" style={{ fontFamily: 'Cairo, sans-serif' }} dir="rtl">
+          {value}
+        </div>
+        <div className="mt-2 pt-2 border-t border-white/[0.06] text-[10px] text-[#4a5280]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          اضغط للتعديل
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 

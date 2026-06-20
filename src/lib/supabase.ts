@@ -34,15 +34,32 @@ export const supabase = createClient(
 // Authentication is done via our signed session token (HMAC) — no more
 // reliance on Supabase auth sessions for API authorization.
 
-/** Get the signed session token from localStorage (client-side only). */
+/** Get the signed session token.
+ *  Tries localStorage first, then falls back to the Zustand store (persisted).
+ *  This dual approach ensures the token is always available on page refresh. */
 function getSessionToken(): string | null {
   if (typeof window === 'undefined') return null
   try {
+    // Try localStorage first (fastest)
     const token = localStorage.getItem('venom-session')
-    if (!token) {
-      console.warn('[auth] No session token found in localStorage — API calls will fail with 401')
+    if (token) return token
+
+    // Fallback: check Zustand store (persisted via localStorage)
+    // This handles edge cases where localStorage 'venom-session' was cleared
+    // but the Zustand persist still has the token
+    const storeData = localStorage.getItem('venom-crm-storage')
+    if (storeData) {
+      const parsed = JSON.parse(storeData)
+      const storeToken = parsed?.state?.sessionToken
+      if (storeToken) {
+        // Restore to localStorage for future fast access
+        try { localStorage.setItem('venom-session', storeToken) } catch { /* ignore */ }
+        return storeToken
+      }
     }
-    return token
+
+    console.warn('[auth] No session token found — API calls will fail with 401')
+    return null
   } catch (e) {
     console.error('[auth] Failed to read session token:', e)
     return null

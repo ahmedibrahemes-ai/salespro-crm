@@ -58,11 +58,13 @@ export function LoginScreen() {
 
       if (data.success && data.user && data.token) {
         // Persist the session token for authenticated API calls
+        // Store in BOTH localStorage (for direct access) AND Zustand store
+        // (persisted, survives refresh as fallback)
         try {
           localStorage.setItem('venom-session', data.token)
         } catch { /* ignore quota errors */ }
-        // Login with the user's display name, role, userId, and username from the server
-        login(data.user.displayName, data.user.role, data.user.id, data.user.username)
+        // Login with the user's display name, role, userId, username, and token
+        login(data.user.displayName, data.user.role, data.user.id, data.user.username, data.token)
       } else {
         setError('حدث خطأ غير متوقع — لم يتم استلام بيانات الجلسة')
       }

@@ -177,7 +177,7 @@ interface CrmStore {
   setDataError: (error: string | null) => void
 
   // Actions
-  login: (user: string, role: 'tele' | 'sales' | 'admin', userId?: string, username?: string) => void
+  login: (user: string, role: 'tele' | 'sales' | 'admin', userId?: string, username?: string, token?: string) => void
   logout: () => void
   updateLeadInCache: (id: string, updates: Partial<Lead>) => void
   addLeadToCache: (lead: Lead) => void
@@ -217,6 +217,9 @@ interface CrmStore {
   setSelectedTeleMember: (member: string) => void
   selectedSalesMember: string
   setSelectedSalesMember: (member: string) => void
+  // Session token (persisted via Zustand — fallback for localStorage)
+  sessionToken: string | null
+  setSessionToken: (token: string | null) => void
   selectedLeadIds: Record<string, string[]>
   toggleLeadSelection: (viewKey: string, id: string) => void
   setSelectedLeadIds: (viewKey: string, ids: string[]) => void
@@ -360,9 +363,17 @@ export const useCrmStore = create<CrmStore>()(
   setLoading: (loading) => set({ loading }),
 
   // Actions
-  login: (user, role, userId?, username?) => {
+  login: (user, role, userId?, username?, token?) => {
     persistAuth(user, role, userId, username)
-    set({ currentUser: user, currentRole: role, isAuthenticated: true, currentView: 'dashboard', userId: userId || null, username: username || null })
+    set({
+      currentUser: user,
+      currentRole: role,
+      isAuthenticated: true,
+      currentView: 'dashboard',
+      userId: userId || null,
+      username: username || null,
+      sessionToken: token || null,
+    })
   },
   logout: () => {
     persistAuth(null, null)
@@ -391,6 +402,7 @@ export const useCrmStore = create<CrmStore>()(
       activeFilter: {},
       selectedTeleMember: 'all',
       selectedSalesMember: 'all',
+      sessionToken: null,
       selectedLeadIds: {},
       searchQueries: {},
       dateRangeFilters: {},
@@ -619,6 +631,8 @@ export const useCrmStore = create<CrmStore>()(
   setSelectedTeleMember: (member) => set({ selectedTeleMember: member }),
   selectedSalesMember: 'all',
   setSelectedSalesMember: (member) => set({ selectedSalesMember: member }),
+  sessionToken: null,
+  setSessionToken: (token) => set({ sessionToken: token }),
   selectedLeadIds: {},
   toggleLeadSelection: (viewKey, id) =>
     set((s) => {
@@ -812,6 +826,7 @@ export const useCrmStore = create<CrmStore>()(
         selectedTeleMember: s.selectedTeleMember,
         selectedSalesMember: s.selectedSalesMember,
         theme: s.theme,
+        sessionToken: s.sessionToken,
       }),
       merge: (persisted, current) => {
         const p = (persisted || {}) as Partial<typeof current>

@@ -1198,43 +1198,51 @@ export function TeleSheet() {
   }, [filteredLeads, currentPage])
 
   /* ─── Duplicate phone detection across ALL leads ───
-     Builds a map: normalizedPhone → { count, firstTele, firstLeadId, teles: Set }
+     Builds a map: normalizedPhone → { count, firstTele, firstLeadId, firstCreatedAt, teles }
+     - firstLeadId/firstTele: the EARLIEST created lead with this phone (by createdAt)
      - teles: set of all teles who have this phone (for cross-sheet detection)
-     - firstTele/firstLeadId: the first person to record this number
 
      Highlighting logic:
      - Same sheet duplicate (2+ leads with same phone, same tele) → ALL highlighted
      - Cross-sheet duplicate (phone exists in another tele's sheet) → only the
-       LATER occurrences are highlighted; the first occurrence stays normal */
+       LATER occurrences are highlighted; the earliest occurrence stays normal
+
+     BUG FIX: Previously, firstLeadId was set based on iteration order (which is
+     sorted by ID descending), not by creation time. This caused inconsistent
+     duplicate detection when leads were deleted and re-added (same numbers
+     gave different duplicate counts). Now we compare createdAt to find the
+     true earliest occurrence. */
   const duplicatePhoneMap = useMemo(() => {
     const map = new Map<string, {
       count: number
       firstTele: string
       firstLeadId: string
-      teles: Set<string>  // all teles who have this phone
-      leadsByTele: Map<string, string[]>  // tele → lead IDs with this phone
+      firstCreatedAt: number
+      teles: Set<string>
     }>()
     for (const l of leads) {
       if (!l.phone || !l.phone.trim()) continue
       const norm = normalizePhone(l.phone)
       if (!norm) continue
       const tele = l.tele || '—'
+      const createdAt = l.createdAt || 0
       const existing = map.get(norm)
       if (existing) {
         existing.count++
         existing.teles.add(tele)
-        const ids = existing.leadsByTele.get(tele) || []
-        ids.push(l.id)
-        existing.leadsByTele.set(tele, ids)
+        // Update first occurrence if this lead is older
+        if (createdAt < existing.firstCreatedAt) {
+          existing.firstCreatedAt = createdAt
+          existing.firstLeadId = l.id
+          existing.firstTele = tele
+        }
       } else {
-        const leadsByTele = new Map<string, string[]>()
-        leadsByTele.set(tele, [l.id])
         map.set(norm, {
           count: 1,
           firstTele: tele,
           firstLeadId: l.id,
+          firstCreatedAt: createdAt,
           teles: new Set([tele]),
-          leadsByTele,
         })
       }
     }

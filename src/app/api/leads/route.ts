@@ -232,7 +232,8 @@ export async function GET(request: NextRequest) {
       let dataQuery = client
         .from('leads')
         .select(selectColumns)
-        .order('created_at', { ascending: false }) // newest first by creation time
+        .order('created_at', { ascending: false }) // primary: newest first
+        .order('id', { ascending: false }) // secondary: stable sort for same-timestamp leads
         .range(from, to)
 
       if (archivedOnly) {
@@ -267,7 +268,8 @@ export async function GET(request: NextRequest) {
         let query = client
           .from('leads')
           .select(selectColumns)
-          .order('created_at', { ascending: false }) // newest first by creation time
+          .order('created_at', { ascending: false }) // primary: newest first
+          .order('id', { ascending: false }) // secondary: stable sort for same-timestamp leads
           .range(from, from + PAGE_SIZE - 1)
 
         if (archivedOnly) {
@@ -459,8 +461,9 @@ export async function POST(request: NextRequest) {
             console.warn(`[api/leads] Bulk create: insert().select() returned null data for batch starting at index ${i}`)
           }
         }
-        // Sort by auto-increment ID to preserve insertion order
-        allCreated.sort((a, b) => Number(a.id) - Number(b.id))
+        // Preserve insertion order — Supabase returns rows in the order they were inserted
+        // for bulk operations. We reverse so the last-inserted (newest) is first.
+        allCreated.reverse()
         if (allCreated.length !== leads.length) {
           console.warn(`[api/leads] Bulk create MISMATCH: ${leads.length} requested, ${allCreated.length} created`)
         } else {

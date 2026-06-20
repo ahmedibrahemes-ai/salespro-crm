@@ -715,8 +715,13 @@ function QuickPasteDialog({ open, onClose, leads, teleName, onSaved, addToast }:
 
   /* ─── Remove all duplicate rows from table ─── */
   const removeDuplicateRows = useCallback(() => {
-    setRows((prev) => prev.filter((r) => !r.isDuplicate))
-  }, [])
+    // BUG FIX: rows state has isDuplicate=false (it's only updated in rowsWithDuplicates).
+    // We need to get the duplicate IDs from rowsWithDuplicates, then filter rows by those IDs.
+    const duplicateIds = new Set(
+      rowsWithDuplicates.filter((r) => r.isDuplicate).map((r) => r.id)
+    )
+    setRows((prev) => prev.filter((r) => !duplicateIds.has(r.id)))
+  }, [rowsWithDuplicates])
 
   /* ─── Select/Deselect all ─── */
   const toggleAll = useCallback((checked: boolean) => {
@@ -1191,6 +1196,31 @@ export function TeleSheet() {
     const start = (currentPage - 1) * PAGE_SIZE
     return filteredLeads.slice(start, start + PAGE_SIZE)
   }, [filteredLeads, currentPage])
+
+  /* ─── Duplicate phone detection across ALL leads ───
+     Builds a map: normalizedPhone → { count, firstTele, firstLeadId }
+     Used to highlight duplicate phones in the sheet with light red
+     and show the first tele name who recorded the number. */
+  const duplicatePhoneMap = useMemo(() => {
+    const map = new Map<string, { count: number; firstTele: string; firstLeadId: string }>()
+    for (const l of leads) {
+      if (!l.phone || !l.phone.trim()) continue
+      const norm = normalizePhone(l.phone)
+      if (!norm) continue
+      const existing = map.get(norm)
+      if (existing) {
+        existing.count++
+        // Keep the first occurrence (earliest createdAt)
+      } else {
+        map.set(norm, {
+          count: 1,
+          firstTele: l.tele || '—',
+          firstLeadId: l.id,
+        })
+      }
+    }
+    return map
+  }, [leads])
 
   // Reset page when filters change
   const [prevFilterKey, setPrevFilterKey] = useState('')
@@ -1844,22 +1874,41 @@ export function TeleSheet() {
                           </div>
                         </TableCell>
 
-                        {/* رقم الجوال — with tel: link, editable */}
+                        {/* رقم الجوال — with tel: link, editable + duplicate highlight */}
                         <TableCell className="max-w-[130px]">
-                          <div className="flex items-center gap-1.5 max-w-[130px]">
-                            <a
-                              href={`tel:${lead.phone}`}
-                              className="w-6 h-6 rounded-md bg-[#00d4aa]/10 flex items-center justify-center text-[#00d4aa] hover:bg-[#00d4aa]/20 transition-colors shrink-0"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Phone size={10} />
-                            </a>
-                            <EditableCell
-                              value={lead.phone}
-                              onSave={(v) => handleUpdateField(lead.id, 'phone', v)}
-                              placeholder="الرقم"
-                            />
-                          </div>
+                          {(() => {
+                            const norm = lead.phone ? normalizePhone(lead.phone) : ''
+                            const dupInfo = norm ? duplicatePhoneMap.get(norm) : undefined
+                            const isDuplicate = dupInfo && dupInfo.count > 1
+                            const isFirstOccurrence = dupInfo && dupInfo.firstLeadId === lead.id
+
+                            return (
+                              <div
+                                className={`flex items-center gap-1.5 max-w-[130px] rounded px-1 ${isDuplicate ? 'bg-red-500/10' : ''}`}
+                                title={isDuplicate && !isFirstOccurrence ? `مكرر في شيت: ${dupInfo!.firstTele}` : isDuplicate ? 'أول تسجيل لهذا الرقم' : ''}
+                              >
+                                <a
+                                  href={`tel:${lead.phone}`}
+                                  className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors shrink-0 ${isDuplicate ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25' : 'bg-[#00d4aa]/10 text-[#00d4aa] hover:bg-[#00d4aa]/20'}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Phone size={10} />
+                                </a>
+                                <div className="flex flex-col min-w-0">
+                                  <EditableCell
+                                    value={lead.phone}
+                                    onSave={(v) => handleUpdateField(lead.id, 'phone', v)}
+                                    placeholder="الرقم"
+                                  />
+                                  {isDuplicate && !isFirstOccurrence && (
+                                    <span className="text-[9px] text-red-400/70 leading-tight truncate" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                                      ↻ {dupInfo!.firstTele}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })()}
                         </TableCell>
 
                         {/* اسم العميل — editable + AI score badge */}

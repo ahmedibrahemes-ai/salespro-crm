@@ -1177,13 +1177,10 @@ export function TeleSheet() {
       if (l.sales) transferred++
     }
 
-    // Sort newest first by createdAt (primary), then by ID (fallback for same-timestamp)
-    // UUIDs are time-ordered, so string comparison works as a stable fallback
-    result.sort((a, b) => {
-      const timeDiff = (b.createdAt || 0) - (a.createdAt || 0)
-      if (timeDiff !== 0) return timeDiff
-      return b.id.localeCompare(a.id)
-    })
+    // PRESERVE the order from the store (which matches the API's created_at DESC).
+    // We do NOT re-sort here — the store already has leads in the correct order,
+    // and re-sorting client-side can cause inconsistencies.
+    // New leads are prepended to the array (newest first).
 
     return { filteredLeads: result, stats: { total, contacted, meetings, transferred } }
   }, [leads, selectedTele, searchQuery, dateFilter, isLockedToSelf, currentUser, currentFilter])

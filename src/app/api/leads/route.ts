@@ -232,7 +232,7 @@ export async function GET(request: NextRequest) {
       let dataQuery = client
         .from('leads')
         .select(selectColumns)
-        .order('id', { ascending: false }) // newest first for paginated view
+        .order('created_at', { ascending: false }) // newest first by creation time
         .range(from, to)
 
       if (archivedOnly) {
@@ -267,7 +267,7 @@ export async function GET(request: NextRequest) {
         let query = client
           .from('leads')
           .select(selectColumns)
-          .order('id', { ascending: true })
+          .order('created_at', { ascending: false }) // newest first by creation time
           .range(from, from + PAGE_SIZE - 1)
 
         if (archivedOnly) {

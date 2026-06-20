@@ -339,13 +339,10 @@ export const useCrmStore = create<CrmStore>()(
       seen.add(l.id)
       return true
     })
-    // Sort newest first by createdAt (primary), then by ID (fallback for same-timestamp)
-    // UUIDs are time-ordered, so string comparison works as a stable fallback
-    deduped.sort((a, b) => {
-      const timeDiff = (b.createdAt || 0) - (a.createdAt || 0)
-      if (timeDiff !== 0) return timeDiff
-      return b.id.localeCompare(a.id)
-    })
+    // PRESERVE the order from the API (which sorts by created_at DESC).
+    // We do NOT re-sort here — the API already returns newest first,
+    // and re-sorting client-side with millisecond timestamps can cause
+    // inconsistencies due to precision differences.
     const leadsById: Record<string, Lead> = {}
     deduped.forEach((l: Lead) => { leadsById[l.id] = l })
     set({ leads: deduped, leadsById, leadsLoaded: true })
@@ -427,12 +424,8 @@ export const useCrmStore = create<CrmStore>()(
     set((state) => {
       if (lead.id in state.leadsById) return state
 
-      // Insert at the beginning (newest first) + re-sort by createdAt for stability
-      const newLeads = [lead, ...state.leads].sort((a, b) => {
-        const timeDiff = (b.createdAt || 0) - (a.createdAt || 0)
-        if (timeDiff !== 0) return timeDiff
-        return b.id.localeCompare(a.id)
-      })
+      // Insert at the BEGINNING — new leads are always newest
+      const newLeads = [lead, ...state.leads]
       const newLeadsById = { ...state.leadsById, [lead.id]: lead }
 
       return { leads: newLeads, leadsById: newLeadsById, leadsVersion: state.leadsVersion + 1 }
@@ -441,23 +434,17 @@ export const useCrmStore = create<CrmStore>()(
   batchAddLeadsToCache: (newLeads) => {
     if (!Array.isArray(newLeads) || newLeads.length === 0) return
     set((state) => {
-      let added = 0
-      const updatedLeads = [...state.leads]
+      const leadsToAdd: Lead[] = []
       let newLeadsById = { ...state.leadsById }
       for (const lead of newLeads) {
         if (!lead || lead.id == null) continue
         if (lead.id in state.leadsById) continue
-        updatedLeads.push(lead)
+        leadsToAdd.push(lead)
         newLeadsById[lead.id] = lead
-        added++
       }
-      if (added === 0) return state
-      // Sort by createdAt (newest first), then by ID (fallback for same-timestamp)
-      updatedLeads.sort((a, b) => {
-        const timeDiff = (b.createdAt || 0) - (a.createdAt || 0)
-        if (timeDiff !== 0) return timeDiff
-        return b.id.localeCompare(a.id)
-      })
+      if (leadsToAdd.length === 0) return state
+      // Prepend new leads (they're newest) — preserve their original order
+      const updatedLeads = [...leadsToAdd, ...state.leads]
       return { leads: updatedLeads, leadsById: newLeadsById, leadsVersion: state.leadsVersion + 1 }
     })
   },

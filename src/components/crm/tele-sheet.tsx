@@ -157,11 +157,11 @@ function LazySelectCell({
 }) {
   const [open, setOpen] = useState(false)
 
+  // Display label: only show if value matches an option, otherwise placeholder
+  const matchingOption = options.find(o => o.key === value)
+  const displayLabel = matchingOption?.label || (displayMap?.[value || ''] && value ? displayMap[value] : '') || placeholder
+
   if (!open) {
-    // Only show a label if the value exists in options or displayMap.
-    // Otherwise show the placeholder (—) so legacy values like 'new' don't appear.
-    const matchingOption = options.find(o => o.key === value)
-    const displayLabel = matchingOption?.label || (displayMap?.[value || ''] && value ? displayMap[value] : '') || placeholder
     return (
       <button
         onClick={() => setOpen(true)}
@@ -172,17 +172,18 @@ function LazySelectCell({
     )
   }
 
+  // Select is uncontrolled for open state — lets Radix manage it natively
+  // This avoids race conditions between setOpen(false) and onValueChange
   return (
     <Select
       value={value || undefined}
       onValueChange={(v) => {
         onChange(v)
-        setOpen(false)
       }}
-      open={open}
       onOpenChange={(o) => {
         if (!o) setOpen(false)
       }}
+      defaultOpen
     >
       <SelectTrigger className={`h-7 text-[13px] bg-[#0a0d14] border-[#6c63ff]/40 text-[#f0f2ff] ${className}`}>
         <SelectValue placeholder={placeholder} />

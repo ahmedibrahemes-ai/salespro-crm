@@ -702,6 +702,13 @@ export async function POST(request: NextRequest) {
           .maybeSingle()
 
         if (existing) {
+          // Reactivation: clear sales_name AND tele_name on the old leads so the
+          // new user (same displayName) starts FRESH. Without this, the reactivated
+          // user inherits the previous holder's leads — they'd appear as fake/default
+          // customers in the sales sheet and اجتماعات التلي. (Attendance/meeting
+          // fields are preserved on the leads for historical reports.)
+          await client.from('leads').update({ tele_name: null }).eq('tele_name', name)
+          await client.from('leads').update({ sales_name: null }).eq('sales_name', name)
           const { data: member, error } = await client
             .from('team_members')
             .update({ is_active: true, role })

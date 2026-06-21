@@ -560,7 +560,7 @@ export function EmployeeProfile() {
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#ffd166]/10 border border-[#ffd166]/20 text-[#ffd166] text-[12px] font-semibold hover:bg-[#ffd166]/20 transition-colors cursor-pointer"
             >
               <Calendar size={15} />
-              اجتماعاتي
+              اجتماعات التلي
             </button>
           </>
         )}
@@ -578,7 +578,7 @@ export function EmployeeProfile() {
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#ffd166]/10 border border-[#ffd166]/20 text-[#ffd166] text-[12px] font-semibold hover:bg-[#ffd166]/20 transition-colors cursor-pointer"
             >
               <Calendar size={15} />
-              اجتماعاتي
+              اجتماعات التلي
             </button>
             <button
               onClick={() => handleQuickAction('my-archive')}

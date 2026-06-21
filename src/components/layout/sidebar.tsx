@@ -36,7 +36,7 @@ const NAV_ITEMS: NavItem[] = [
   { view: 'employee-profile', icon: UserCircle, label: 'صفحتي', roles: ['tele', 'sales', 'admin'] },
   { view: 'my-sheet', icon: Phone, label: 'شيت التيلي', roles: ['tele', 'admin'], showBadge: true },
   { view: 'sales-sheet', icon: Briefcase, label: 'شيت السيلز', roles: ['sales', 'admin'], showBadge: true },
-  { view: 'my-meetings', icon: Calendar, label: 'اجتماعاتي', roles: ['tele', 'sales', 'admin'], showBadge: true },
+  { view: 'my-meetings', icon: Calendar, label: 'اجتماعات التلي', roles: ['tele', 'sales', 'admin'], showBadge: true },
   { view: 'follow-up', icon: CalendarCheck, label: 'Follow-Up', roles: ['sales', 'admin'] },
   { view: 'transfers', icon: ArrowRightLeft, label: 'التحويلات', roles: ['tele'], showBadge: true },
   // 'meetings' view removed — merged into 'my-meetings' (same functionality)

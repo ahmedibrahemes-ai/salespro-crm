@@ -385,7 +385,7 @@ export function Dashboard() {
     let leadsCreatedMonth = 0
     let callsMonth = 0
     let meetingsBooked = 0       // sales-originated meetings (no attendance tracking)
-    let teleTransferMeetings = 0 // tele→sales transferred meetings (shown as "تحويلات التلى" KPI for sales)
+    let teleTransferMeetings = 0 // tele→sales transferred meetings (shown as "اجتماعات التلي" KPI for sales)
     let closedWon = 0
     let whatsappSent = 0         // WhatsApp messages sent
 
@@ -408,7 +408,7 @@ export function Dashboard() {
         }
       }
 
-      // Sales-originated meetings this month (for "اجتماعات السيلز" KPI).
+      // Sales-originated meetings this month (for "اجتماعاتي" KPI).
       // These do NOT have attendance → excluded from conversion rate.
       if (l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
         meetingsBooked++
@@ -434,7 +434,7 @@ export function Dashboard() {
     }
 
     // Tele-transferred meetings (from teleTransferredLeads — sales / admin-sales-selected).
-    // These feed the "تحويلات التلى" KPI AND the pipeline (attendance + conversion rate).
+    // These feed the "اجتماعات التلي" KPI AND the pipeline (attendance + conversion rate).
     for (const l of teleTransferredLeads) {
       if (l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
         teleTransferMeetings++
@@ -699,7 +699,7 @@ export function Dashboard() {
         color: '#ffd166',
         colorBg: 'rgba(255,209,102,.15)',
         value: kpiValues.meetingsBooked,
-        label: 'اجتماعات السيلز',
+        label: 'اجتماعاتي',
         target: 50,
       },
     ]
@@ -710,7 +710,7 @@ export function Dashboard() {
         color: '#6c9fff',
         colorBg: 'rgba(108,159,255,.15)',
         value: kpiValues.teleTransferMeetings,
-        label: 'تحويلات التلى',
+        label: 'اجتماعات التلي',
         target: 50,
       })
     }

@@ -524,7 +524,7 @@ export function MyMeetings() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-[19px] font-extrabold text-[#f0f2ff]" style={{ fontFamily: 'Cairo, sans-serif' }}>
-            اجتماعاتي
+            اجتماعات التلي
           </h2>
           <p className="text-[13px] font-semibold text-[#8892b0] mt-0.5">{isTele ? 'العملاء المحولين للسيلز وحالتهم' : 'متابعة الاجتماعات والحضور'}</p>
         </div>

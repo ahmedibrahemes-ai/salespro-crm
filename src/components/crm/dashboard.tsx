@@ -384,11 +384,18 @@ export function Dashboard() {
 
     let leadsCreatedMonth = 0
     let callsMonth = 0
-    let meetingsBooked = 0       // sales-originated meetings
-    let teleTransferMeetings = 0 // tele-transferred meetings
-    let attendedConfirmed = 0
+    let meetingsBooked = 0       // sales-originated meetings (no attendance tracking)
+    let teleTransferMeetings = 0 // tele→sales transferred meetings (shown as "تحويلات التلى" KPI for sales)
     let closedWon = 0
     let whatsappSent = 0         // WhatsApp messages sent
+
+    // Pipeline meetings = tele→sales transferred meetings that have the
+    // attendance/waiting system applied. These are the ONLY meetings that
+    // count toward "حضور مؤكد" and "نسبة التحويل".
+    // Sales-originated meetings do NOT have attendance tracking, so they are
+    // excluded from the conversion rate (per user's business rule).
+    let pipelineMeetings = 0
+    let pipelineAttended = 0
 
     for (const l of myLeads) {
       // Leads created this month
@@ -401,14 +408,20 @@ export function Dashboard() {
         }
       }
 
-      // Sales-originated meetings this month (assignedAt within month)
+      // Sales-originated meetings this month (for "اجتماعات السيلز" KPI).
+      // These do NOT have attendance → excluded from conversion rate.
       if (l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
         meetingsBooked++
       }
 
-      // Attended confirmed this month
-      if (l.attended === 'attended' && l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
-        attendedConfirmed++
+      // Pipeline meetings from myLeads (for tele / admin-tele / admin-all views
+      // where teleTransferredLeads is empty). We scan myLeads for tele-transferred
+      // leads (l.tele && l.sales) and count their attendance.
+      // For SALES, myLeads = sales-originated only (l.tele is empty), so this
+      // adds nothing — no double-count with the teleTransferredLeads loop below.
+      if (l.tele && l.tele.trim() !== '' && l.sales && l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
+        pipelineMeetings++
+        if (l.attended === 'attended') pipelineAttended++
       }
 
       // Closed won (all-time)
@@ -420,19 +433,21 @@ export function Dashboard() {
       }
     }
 
-    // Tele-transferred meetings (from teleTransferredLeads).
-    // These feed the SEPARATE "تحويلات التلى" KPI only — they do NOT count toward
-    // meetingsBooked / attendedConfirmed / conversionRate.
-    // "اجتماعات السيلز" = ONLY meetings the sales rep booked themselves in the
-    // sales sheet (sales-originated leads with assignedAt, set via Solution 2
-    // in sales-sheet/follow-up handleUpdateField when status='meeting').
+    // Tele-transferred meetings (from teleTransferredLeads — sales / admin-sales-selected).
+    // These feed the "تحويلات التلى" KPI AND the pipeline (attendance + conversion rate).
     for (const l of teleTransferredLeads) {
       if (l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
         teleTransferMeetings++
+        pipelineMeetings++
+        if (l.attended === 'attended') pipelineAttended++
       }
     }
 
-    const conversionRate = meetingsBooked > 0 ? Math.round((attendedConfirmed / meetingsBooked) * 1000) / 10 : 0
+    // "حضور مؤكد" = attended tele-transferred meetings (pipeline attended)
+    const attendedConfirmed = pipelineAttended
+    // "نسبة التحويل" = attended / total tele-transferred meetings
+    // (sales-originated meetings excluded — they don't have attendance tracking)
+    const conversionRate = pipelineMeetings > 0 ? Math.round((pipelineAttended / pipelineMeetings) * 1000) / 10 : 0
 
     return { leadsCreatedMonth, callsMonth, meetingsBooked, teleTransferMeetings, attendedConfirmed, closedWon, conversionRate, whatsappSent }
   }, [myLeads, teleTransferredLeads, monthRange])

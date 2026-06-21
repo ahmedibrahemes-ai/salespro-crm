@@ -581,7 +581,11 @@ export function Dashboard() {
     return { totalCalls, answered, unanswered, answerRate }
   }, [myLeads, callStatsPeriod])
 
-  /* ─── Meeting Stats (إحصائيات الاجتماعات) ─── */
+  /* ─── Meeting Stats (إحصائيات الاجتماعات) ───
+     Per business rule: attended/pending/no-show stats apply ONLY to
+     tele-transferred meetings. Sales-originated meetings don't have the
+     attendance/waiting system, so they must NOT appear in these numbers
+     (otherwise they'd inflate 'pending'). */
   const meetingStats = useMemo(() => {
     const { from, to } = getDateRange(meetingStatsPeriod)
 
@@ -590,8 +594,30 @@ export function Dashboard() {
     let pendingMeetings = 0
     let noShowMeetings = 0
 
+    // Scan myLeads for tele-transferred meetings (l.tele && l.sales).
+    // For sales users, myLeads = sales-originated only (l.tele is empty),
+    // so this picks up nothing — the teleTransferredLeads loop below covers
+    // them. For tele/admin-all/admin-tele-selected, myLeads contains the
+    // tele-transferred leads, so this counts them here.
     for (const l of myLeads) {
-      // Filter by assignedAt within the selected period
+      // Only tele-transferred meetings have attendance tracking
+      if (!l.tele || l.tele.trim() === '') continue
+      if (l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
+        totalMeetings++
+        if (l.attended === 'attended') {
+          attendedMeetings++
+        } else if (l.attended === 'no-show') {
+          noShowMeetings++
+        } else {
+          pendingMeetings++
+        }
+      }
+    }
+
+    // For sales / admin-sales-selected, teleTransferredLeads is populated.
+    // (No double-count with myLeads: for sales, myLeads = sales-originated
+    // only, so the loop above added nothing.)
+    for (const l of teleTransferredLeads) {
       if (l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
         totalMeetings++
         if (l.attended === 'attended') {
@@ -607,7 +633,7 @@ export function Dashboard() {
     const attendanceRate = totalMeetings > 0 ? Math.round((attendedMeetings / totalMeetings) * 100) : 0
 
     return { totalMeetings, attendedMeetings, pendingMeetings, noShowMeetings, attendanceRate }
-  }, [myLeads, meetingStatsPeriod])
+  }, [myLeads, teleTransferredLeads, meetingStatsPeriod])
 
   /* ─── RANK (مركزك) — Tele: meetings, Sales: avg(meetings+calls+closings) ─── */
   const rankInfo = useMemo(() => {

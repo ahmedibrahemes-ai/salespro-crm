@@ -729,6 +729,27 @@ export async function POST(request: NextRequest) {
 
       case 'removeTeamMember': {
         const name = data as string
+        // Solution A: clear sales_name AND tele_name on the orphaned leads so a
+        // future reactivated user (same name) does NOT inherit them. Without this,
+        // removeTeamMember only soft-deletes the team_member (is_active=false),
+        // leaving leads with sales_name/tele_name = <removed user> — when an admin
+        // re-adds a user with the same displayName, those orphaned leads reappear.
+        // We null out BOTH tele_name and sales_name since the removed member could
+        // be in either role. (Attendance/meeting fields are preserved for reports.)
+        const { error: clearTeleErr } = await client
+          .from('leads')
+          .update({ tele_name: null })
+          .eq('tele_name', name)
+        if (clearTeleErr) {
+          console.error('[api/leads] Remove team member — clear tele_name error:', clearTeleErr, '(mode:', mode, ')')
+        }
+        const { error: clearSalesErr } = await client
+          .from('leads')
+          .update({ sales_name: null })
+          .eq('sales_name', name)
+        if (clearSalesErr) {
+          console.error('[api/leads] Remove team member — clear sales_name error:', clearSalesErr, '(mode:', mode, ')')
+        }
         const { error } = await client
           .from('team_members')
           .update({ is_active: false })

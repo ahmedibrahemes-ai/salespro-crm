@@ -1043,7 +1043,12 @@ export function EmployeeProfile() {
                   </div>
                   {/* Attendance status / action */}
                   <div className="shrink-0">
-                    {currentRole === 'sales' && (!lead.attended || lead.attended === 'pending') ? (
+                    {currentRole === 'sales' && (!lead.tele || lead.tele.trim() === '') ? (
+                      /* Sales-originated meeting — NO attendance tracking.
+                         These meetings don't enter attended/waiting/no-show stats. */
+                      <Badge className="bg-[#ffd166]/15 text-[#ffd166] text-[11px] font-bold border-0">📅 اجتماعي</Badge>
+                    ) : currentRole === 'sales' && (!lead.attended || lead.attended === 'pending') ? (
+                      /* Tele-transferred meeting, pending — sales can mark attendance */
                       <div className="flex gap-1.5">
                         <button
                           onClick={(e) => { e.stopPropagation(); handleMarkAttendance(lead.id, 'attended') }}

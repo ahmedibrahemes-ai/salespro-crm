@@ -6,7 +6,7 @@ import type { Lead } from '@/lib/supabase'
 import { apiUpdateLead } from '@/lib/supabase'
 import { isCallContactResult, isClosedWon } from '@/lib/crm-utils'
 import {
-  Phone, Briefcase, Calendar, Trophy, Users, TrendingUp,
+  Phone, Briefcase, Calendar, CalendarCheck, Trophy, Users, TrendingUp,
   Clock, CheckCircle2, XCircle, HourglassIcon, Target,
   PhoneCall, UserCheck, ArrowRightLeft, Sun, Moon,
   UserPlus, FileSpreadsheet, DoorOpen, Archive,
@@ -358,19 +358,32 @@ export function EmployeeProfile() {
   const salesStats = useMemo(() => {
     if (currentRole !== 'sales') return null
     const total = myLeads.length
-    const meetings = myLeads.filter((l) => l.meetingDate).length
-    const attended = myLeads.filter((l) => l.attended === 'attended').length
-    const noShow = myLeads.filter((l) => l.attended === 'no-show').length
-    const pending = myLeads.filter((l) => !l.attended || l.attended === 'pending').length
+
+    // Split leads into sales-originated vs tele-transferred.
+    // Sales-originated meetings do NOT have the attendance/waiting system,
+    // so they are tracked separately as "اجتماعاتي" and excluded from
+    // attended / noShow / pending / attendanceRate.
+    const salesOriginated = myLeads.filter((l) => !l.tele || l.tele.trim() === '')
+    const teleTransferred = myLeads.filter((l) => l.tele && l.tele.trim() !== '')
+
+    // "اجتماعاتي" = meetings the sales rep booked themselves (sales-originated)
+    const myMeetings = salesOriginated.filter((l) => l.meetingDate || l.status === 'meeting' || l.assignedAt).length
+    // "اجتماعات التلي" = meetings tele transferred to this sales rep
+    const teleMeetings = teleTransferred.length
+
+    // Attendance stats apply ONLY to tele-transferred meetings
+    const attended = teleTransferred.filter((l) => l.attended === 'attended').length
+    const noShow = teleTransferred.filter((l) => l.attended === 'no-show').length
+    const pending = teleTransferred.filter((l) => !l.attended || l.attended === 'pending').length
     const closedWon = myLeads.filter((l) => isClosedWon(l)).length
     const attendanceRate = (attended + noShow) > 0 ? Math.round((attended / (attended + noShow)) * 100) : 0
     const closingRate = (attended + noShow) > 0 ? Math.round((closedWon / (attended + noShow)) * 100) : 0
     const inProgress = myLeads.filter((l) => l.salesStatus === 'followup' || l.salesStatus === 'negotiation').length
 
-    // Today's stats
+    // Today's stats — attendance from tele-transferred only
     const todayMeetings = myLeads.filter((l) => l.meetingDate === todayStr)
-    const todayAttended = todayMeetings.filter((l) => l.attended === 'attended').length
-    const todayPending = todayMeetings.filter((l) => !l.attended || l.attended === 'pending').length
+    const todayAttended = todayMeetings.filter((l) => l.tele && l.tele.trim() !== '' && l.attended === 'attended').length
+    const todayPending = todayMeetings.filter((l) => l.tele && l.tele.trim() !== '' && (!l.attended || l.attended === 'pending')).length
     const todayNew = myLeads.filter((l) => l.assignedAt && l.assignedAt >= todayStart).length
 
     // Yesterday comparison (simplified — count leads with yesterday's meeting date)
@@ -378,8 +391,8 @@ export function EmployeeProfile() {
     yesterday.setDate(yesterday.getDate() - 1)
     const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
     const yMeetingsCount = myLeads.filter((l) => l.meetingDate === yesterdayStr).length
-    const yAttendedCount = myLeads.filter((l) => l.meetingDate === yesterdayStr && l.attended === 'attended').length
-    const yPendingCount = myLeads.filter((l) => l.meetingDate === yesterdayStr && (!l.attended || l.attended === 'pending')).length
+    const yAttendedCount = myLeads.filter((l) => l.meetingDate === yesterdayStr && l.tele && l.tele.trim() !== '' && l.attended === 'attended').length
+    const yPendingCount = myLeads.filter((l) => l.meetingDate === yesterdayStr && l.tele && l.tele.trim() !== '' && (!l.attended || l.attended === 'pending')).length
     const yNewCount = myLeads.filter((l) => {
       if (!l.assignedAt) return false
       const assignedDate = new Date(l.assignedAt)
@@ -389,7 +402,7 @@ export function EmployeeProfile() {
     }).length
 
     return {
-      total, meetings, attended, noShow, pending, closedWon, attendanceRate, closingRate, inProgress,
+      total, myMeetings, teleMeetings, attended, noShow, pending, closedWon, attendanceRate, closingRate, inProgress,
       todayMeetings, todayAttended, todayPending, todayNew,
       yMeetingsCount, yAttendedCount, yPendingCount, yNewCount,
     }
@@ -896,10 +909,12 @@ export function EmployeeProfile() {
          4. KPI PERFORMANCE CARDS (Sales only) — Interactive
          ═══════════════════════════════════════════ */}
       {salesStats && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
           {[
+            { label: 'اجتماعاتي', value: salesStats.myMeetings, color: '#ffd166', icon: CalendarCheck, progress: salesStats.total > 0 ? Math.round((salesStats.myMeetings / salesStats.total) * 100) : 0, progressLabel: 'من العملاء', onClick: 'sales-sheet' as const },
+            { label: 'اجتماعات التلي', value: salesStats.teleMeetings, color: '#6c9fff', icon: ArrowRightLeft, progress: salesStats.total > 0 ? Math.round((salesStats.teleMeetings / salesStats.total) * 100) : 0, progressLabel: 'من العملاء', onClick: 'my-meetings' as const },
             { label: 'إجمالي العملاء', value: salesStats.total, color: '#6c63ff', icon: Users, progress: salesStats.attendanceRate, progressLabel: 'حضور', onClick: 'sales-sheet' as const },
-            { label: 'نسبة الحضور', value: `${salesStats.attendanceRate}%`, color: '#00d4aa', icon: UserCheck, progress: salesStats.attendanceRate, progressLabel: 'من الاجتماعات', onClick: 'my-meetings' as const },
+            { label: 'نسبة الحضور', value: `${salesStats.attendanceRate}%`, color: '#00d4aa', icon: UserCheck, progress: salesStats.attendanceRate, progressLabel: 'من اجتماعات التلي', onClick: 'my-meetings' as const },
             { label: 'نسبة التقفيل', value: `${salesStats.closingRate}%`, color: '#ffd166', icon: Target, progress: salesStats.closingRate, progressLabel: 'تقفيل', onClick: 'sales-sheet' as const },
             { label: 'قيد المتابعة', value: salesStats.inProgress, color: '#a8a3ff', icon: Activity, progress: salesStats.total > 0 ? Math.round((salesStats.inProgress / salesStats.total) * 100) : 0, progressLabel: 'متابعة', onClick: 'sales-sheet' as const },
             { label: 'تم التقفيل', value: salesStats.closedWon, color: '#00d4aa', icon: Trophy, progress: salesStats.total > 0 ? Math.round((salesStats.closedWon / salesStats.total) * 100) : 0, progressLabel: 'تقفيل', onClick: 'sales-sheet' as const },

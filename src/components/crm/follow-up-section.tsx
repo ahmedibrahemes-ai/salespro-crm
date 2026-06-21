@@ -247,7 +247,15 @@ export function FollowUpSection() {
       updates.contactResultAt = value ? Date.now() : null
     }
     if (field === 'status') {
-      if (value === CLOSED_WON_KEY) {
+      if (value === 'meeting') {
+        // Mark when sales booked/re-confirmed this meeting — only if not already set
+        // (tele-transferred leads already have assignedAt from the transfer).
+        // Ensures the meeting counts in dashboard KPIs.
+        const lead = leads.find(l => l.id === id)
+        if (lead && !lead.assignedAt) {
+          updates.assignedAt = Date.now()
+        }
+      } else if (value === CLOSED_WON_KEY) {
         // "تم التقفيل" — write to BOTH status and salesStatus so every stat agrees
         // (dashboard checks status; sales-sheet/follow-up/my-meetings check salesStatus).
         // Do NOT clear meeting fields — preserve meeting history for reports.

@@ -797,6 +797,13 @@ export function SalesSheet() {
         if (lead && !lead.meetingDate) {
           updates.meetingDate = new Date().toISOString().split('T')[0]
         }
+        // Mark when sales booked this meeting — only if not already set
+        // (tele-transferred leads already have assignedAt from the transfer).
+        // This makes sales-originated meetings count in the dashboard KPIs
+        // (meetingsBooked, attendedConfirmed, conversionRate).
+        if (lead && !lead.assignedAt) {
+          updates.assignedAt = Date.now()
+        }
       } else if (value === CLOSED_WON_KEY) {
         // "تم التقفيل" — write to BOTH status and salesStatus so every stat agrees
         // (dashboard checks status; sales-sheet/follow-up/my-meetings check salesStatus).

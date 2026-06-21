@@ -7,7 +7,7 @@ import { apiUpdateLead } from '@/lib/supabase'
 import { isTodayDateString, isTodayTimestamp, isThisWeek, isClosedWon } from '@/lib/crm-utils'
 import {
   Calendar, Clock, Phone, ExternalLink,
-  Check, X, CalendarDays, XCircle, StickyNote,
+  Check, X, CalendarDays, XCircle, StickyNote, Store, ArrowRightLeft,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -218,6 +218,44 @@ function MeetingCard({
                 )}
               </div>
 
+              {/* Tele name (who transferred the meeting) — shown to sales users */}
+              {!isTele && lead.tele && lead.tele.trim() !== '' && (
+                <div className="text-[11px] font-bold text-[#6c63ff] flex items-center gap-1 mt-1.5">
+                  <ArrowRightLeft size={10} />
+                  <span className="text-[#8892b0]">حول من التلي:</span>
+                  <span>{lead.tele}</span>
+                </div>
+              )}
+
+              {/* Store link + Phone number — quick actions */}
+              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                {lead.storeUrl && (
+                  <a
+                    href={lead.storeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#6c63ff]/10 text-[#6c63ff] hover:bg-[#6c63ff]/20 transition-colors text-[11px] font-bold"
+                    title={lead.storeUrl}
+                  >
+                    <Store size={10} />
+                    المتجر
+                  </a>
+                )}
+                {lead.phone && (
+                  <a
+                    href={`tel:${lead.phone}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#00d4aa]/10 text-[#00d4aa] hover:bg-[#00d4aa]/20 transition-colors text-[11px] font-bold"
+                    title={lead.phone}
+                    dir="ltr"
+                  >
+                    <Phone size={10} />
+                    {lead.phone}
+                  </a>
+                )}
+              </div>
+
               {/* Meeting link */}
               {lead.meetingType === 'online' && lead.meetingLink && (
                 <a
@@ -231,11 +269,35 @@ function MeetingCard({
                 </a>
               )}
 
-              {/* Brief */}
+              {/* Brief — click or hover to show full text in a popover popup */}
               {lead.brief && (
-                <div className="text-[12px] font-medium text-[#4a5280] mt-1.5 truncate max-w-[250px]">
-                  {lead.brief}
-                </div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <div
+                      className="text-[12px] font-medium text-[#4a5280] mt-1.5 truncate max-w-[250px] cursor-pointer hover:text-[#6c63ff] hover:bg-[#1c2234] rounded px-1 py-0.5 transition-colors"
+                      title="اضغط أو اشاور لرؤية البريف كامل"
+                    >
+                      {lead.brief}
+                    </div>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    side="top"
+                    align="start"
+                    className="bg-[#1a1f2e] border-white/[0.08] text-[#f0f2ff] max-w-[400px] w-[400px] p-3 z-50"
+                    onOpenAutoFocus={(e) => e.preventDefault()}
+                  >
+                    <div
+                      className="text-[13px] leading-relaxed whitespace-pre-wrap break-words"
+                      style={{ fontFamily: 'Cairo, sans-serif' }}
+                      dir="rtl"
+                    >
+                      {lead.brief}
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-white/[0.06] text-[10px] text-[#4a5280]" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                      البريف كامل
+                    </div>
+                  </PopoverContent>
+                </Popover>
               )}
             </div>
           </div>

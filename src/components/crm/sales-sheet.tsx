@@ -759,9 +759,10 @@ export function SalesSheet() {
       if (q && !(l.customerName?.toLowerCase().includes(q) || l.phone?.toLowerCase().includes(q) || l.storeUrl?.toLowerCase().includes(q))) continue
       if (dateRange && (l.createdAt < dateRange.from || l.createdAt >= dateRange.to)) continue
 
-      // FIX: Hide leads transferred from tele that have a meeting
-      // (tele-assigned leads with meetingDate go to my-meetings / follow-up only)
-      if (l.tele && l.tele.trim() !== '' && l.meetingDate && l.meetingDate.trim() !== '') continue
+      // NOTE: leads transferred from tele WITH a meetingDate are NO LONGER hidden.
+      // Per user request: when sales sets status='meeting', the lead must STAY
+      // in the sales sheet (it also appears in follow-up). Previously it was
+      // hidden here, which made it vanish from the sales sheet unexpectedly.
 
       result.push(l)
       total++

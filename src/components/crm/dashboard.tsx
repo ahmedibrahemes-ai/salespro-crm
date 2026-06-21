@@ -421,15 +421,14 @@ export function Dashboard() {
     }
 
     // Tele-transferred meetings (from teleTransferredLeads).
-    // These are the BULK of a sales rep's meetings (tele booked + transferred).
-    // They MUST contribute to meetingsBooked + attendedConfirmed too, otherwise
-    // the "اجتماعات السيلز" KPI and "نسبة التحويل" are always 0 for sales users.
-    // (Sales-originated meetings set assignedAt in sales-sheet/follow-up handleUpdateField.)
+    // These feed the SEPARATE "تحويلات التلى" KPI only — they do NOT count toward
+    // meetingsBooked / attendedConfirmed / conversionRate.
+    // "اجتماعات السيلز" = ONLY meetings the sales rep booked themselves in the
+    // sales sheet (sales-originated leads with assignedAt, set via Solution 2
+    // in sales-sheet/follow-up handleUpdateField when status='meeting').
     for (const l of teleTransferredLeads) {
       if (l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
         teleTransferMeetings++
-        meetingsBooked++
-        if (l.attended === 'attended') attendedConfirmed++
       }
     }
 

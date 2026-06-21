@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { useCrmStore, getDateRange } from '@/lib/store'
-import type { Lead } from '@/lib/supabase'
 import {
   Flame, UserPlus, Phone, CalendarCheck, UserCheck, Percent,
   TrendingUp, TrendingDown, PhoneCall, MessageCircle, Trophy, ArrowRightLeft,
@@ -437,31 +436,49 @@ export function Dashboard() {
     return myLeads.filter((l) => !l.contactResult || l.contactResult === 'none' || l.contactResult === '').length
   }, [myLeads])
 
-  /* ─── PENDING CLIENTS TRACKING (عملاء في الانتظار) ─── */
-  const pendingClients = useMemo(() => {
-    let filtered: Lead[]
+  /* ─── PENDING CLIENTS TRACKING (عملاء في الانتظار) ───
+     Source of truth MUST match my-meetings.tsx `dateFilteredLeads`:
+       - Tele user:  leads this tele transferred to sales   (l.tele === me && l.sales)
+       - Sales user: tele-transferred leads assigned to me  (l.sales === me && l.tele)
+       - Admin (all):           all tele→sales transfers
+       - Admin (tele selected): transfers by that tele
+       - Admin (sales selected): transfers to that sales
+
+     "Pending" = attendance not yet decided: (!l.attended || l.attended === 'pending')
+     The list (top 5) and the total are derived from ONE shared base list so they
+     can never diverge. */
+  const pendingClientsBase = useMemo(() => {
+    // Tele user: myLeads is already (l.tele === currentUser); keep those transferred to sales
     if (currentRole === 'tele' && currentUser) {
-      filtered = myLeads.filter(
-        (l) => l.sales && l.sales.trim() !== '' && (!l.attended || l.attended === 'pending')
-      )
-    } else {
-      filtered = allActiveLeads.filter(
-        (l) => l.sales && l.sales.trim() !== '' && (!l.attended || l.attended === 'pending')
-      )
+      return myLeads.filter((l) => l.sales && l.sales.trim() !== '')
     }
-    return filtered.slice(0, 5)
-  }, [myLeads, allActiveLeads, currentRole, currentUser])
+    // Sales user: teleTransferredLeads is already (l.sales === currentUser && l.tele)
+    if (currentRole === 'sales' && currentUser) {
+      return teleTransferredLeads
+    }
+    // Admin with a sales member selected: teleTransferredLeads already handles this
+    if (currentRole === 'admin' && adminSelectedMember.type === 'sales') {
+      return teleTransferredLeads
+    }
+    // Admin with a tele member selected: allActiveLeads is already (l.tele === name); keep those with sales
+    if (currentRole === 'admin' && adminSelectedMember.type === 'tele') {
+      return allActiveLeads.filter((l) => l.sales && l.sales.trim() !== '')
+    }
+    // Admin (all): every tele→sales transfer
+    return allActiveLeads.filter(
+      (l) => l.tele && l.tele.trim() !== '' && l.sales && l.sales.trim() !== ''
+    )
+  }, [myLeads, teleTransferredLeads, allActiveLeads, currentRole, currentUser, adminSelectedMember])
+
+  const pendingClients = useMemo(() => {
+    return pendingClientsBase
+      .filter((l) => !l.attended || l.attended === 'pending')
+      .slice(0, 5)
+  }, [pendingClientsBase])
 
   const pendingClientsTotal = useMemo(() => {
-    if (currentRole === 'tele' && currentUser) {
-      return myLeads.filter(
-        (l) => l.sales && l.sales.trim() !== '' && (!l.attended || l.attended === 'pending')
-      ).length
-    }
-    return allActiveLeads.filter(
-      (l) => l.sales && l.sales.trim() !== '' && (!l.attended || l.attended === 'pending')
-    ).length
-  }, [myLeads, allActiveLeads, currentRole, currentUser])
+    return pendingClientsBase.filter((l) => !l.attended || l.attended === 'pending').length
+  }, [pendingClientsBase])
 
   /* ─── Target progress (admin-controlled) ─── */
   const targetProgress = useMemo(() => {

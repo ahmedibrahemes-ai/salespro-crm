@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react'
 import { useCrmStore, getDateRange } from '@/lib/store'
-import { normalizePhone } from '@/lib/crm-utils'
+import { normalizePhone, isClosedWon, CLOSED_WON_KEY } from '@/lib/crm-utils'
 import type { Lead } from '@/lib/supabase'
 import { apiUpdateLead } from '@/lib/supabase'
 import {
@@ -87,6 +87,63 @@ function NotesCell({ value, onSave, placeholder = 'ملاحظات' }: { value: s
   )
 }
 
+/* Lazy-select dropdown for the "حالة العميل" column — same pattern as sales-sheet */
+function LazySelectCell({
+  value,
+  options,
+  onChange,
+  placeholder = '—',
+  allowClear = false,
+}: {
+  value: string | null | undefined
+  options: Array<{ key: string; label: string }>
+  onChange: (val: string) => void
+  placeholder?: string
+  allowClear?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const matchingOption = options.find(o => o.key === value)
+  const displayLabel = matchingOption?.label || placeholder
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="h-7 text-[13px] font-medium px-2 rounded border border-white/[0.06] bg-[#0a0d14] text-[#f0f2ff] hover:border-[#6c63ff]/30 transition-colors cursor-pointer text-right w-full"
+      >
+        {displayLabel}
+      </button>
+    )
+  }
+  return (
+    <Select
+      value={value || undefined}
+      onValueChange={(v) => {
+        if (v === '__clear__') onChange('')
+        else onChange(v)
+      }}
+      onOpenChange={(o) => { if (!o) setOpen(false) }}
+      defaultOpen
+    >
+      <SelectTrigger className="h-7 text-[13px] bg-[#0a0d14] border-[#6c63ff]/40 text-[#f0f2ff]">
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent className="bg-[#111520] border-white/[0.08]">
+        {allowClear && value && (
+          <SelectItem value="__clear__" className="text-[13px] text-amber-400 border-b border-white/[0.04]">
+            ✕ مسح الحالة
+          </SelectItem>
+        )}
+        {options.map((opt) => (
+          <SelectItem key={opt.key} value={opt.key} className="text-[13px] text-[#f0f2ff]">
+            {opt.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
 const SALES_CONTACT_RESULTS = [
   { key: 'none', label: '—' }, { key: 'replied', label: '✅ رد' }, { key: 'no-reply', label: '📵 لم يرد' },
   { key: 'busy', label: '🔴 مشغول' }, { key: 'wrong-number', label: '❌ رقم غلط' },
@@ -97,6 +154,7 @@ const SALES_STATUSES = [
   { key: 'meeting', label: '📅 اجتماع' }, { key: 'not-interested', label: '🚫 غير مهتم' },
   { key: 'followup-1', label: '🔄 متابعة 1' }, { key: 'followup-2', label: '🔄 متابعة 2' },
   { key: 'followup-3', label: '🔄 متابعة 3' },
+  { key: CLOSED_WON_KEY, label: '🏆 تم التقفيل' },
 ]
 
 const PAGE_SIZE = 50
@@ -131,10 +189,12 @@ export function FollowUpSection() {
   const selectedSales = effectiveSelectedSales
   const setSelectedSales = (val: string) => { if (!isLockedToSelf) setStoreSelectedSales(val) }
 
-  /* Filter: leads in meeting/followup status (NOT 'not-interested' or empty or closed)
-     Shows: meeting, followup-1, followup-2, followup-3
-     Hides: not-interested, null/empty, closed-won, closed-lost */
-  const VALID_FOLLOWUP_STATUSES = new Set(['meeting', 'followup-1', 'followup-2', 'followup-3'])
+  /* Filter: leads in meeting/followup status, PLUS closed-won (تم التقفيل).
+     - Shows: meeting, followup-1/2/3, closed-won
+     - Hides: not-interested, null/empty, closed-lost
+     closed-won leads stay visible (with a dark highlight) so sales don't
+     re-contact a customer whose deal is already closed. */
+  const VALID_FOLLOWUP_STATUSES = new Set(['meeting', 'followup-1', 'followup-2', 'followup-3', CLOSED_WON_KEY])
 
   const { filteredLeads, stats } = useMemo(() => {
     const needsDateFilter = dateFilter.preset !== 'all'
@@ -145,8 +205,7 @@ export function FollowUpSection() {
 
     for (const l of leads) {
       if (l.isArchived) continue
-      // ONLY leads with valid follow-up statuses (meeting, followup-1/2/3)
-      // 'not-interested', null, 'closed-won', 'closed-lost' are EXCLUDED
+      // ONLY leads with valid follow-up statuses (meeting, followup-1/2/3, closed-won)
       if (!l.status || !VALID_FOLLOWUP_STATUSES.has(l.status)) continue
       if (isLockedToSelf && l.sales !== currentUser) continue
       if (!isLockedToSelf && selectedSales !== 'all' && l.sales !== selectedSales) continue
@@ -157,7 +216,7 @@ export function FollowUpSection() {
       total++
       if (l.attended === 'attended') attended++
       if (l.attended === 'no-show') noShow++
-      if (l.salesStatus === 'closed-won') closedWon++
+      if (isClosedWon(l)) closedWon++
     }
 
     // Sort by assignedAt (tele transfer time) DESC, then by createdAt DESC as fallback
@@ -184,10 +243,27 @@ export function FollowUpSection() {
 
   const handleUpdateField = useCallback(async (id: string, field: string, value: string) => {
     const updates: Partial<Lead> = { [field]: value || null }
-    if (field === 'contactResult') updates.contactResultAt = value ? Date.now() : null
+    if (field === 'contactResult') {
+      updates.contactResultAt = value ? Date.now() : null
+    }
+    if (field === 'status') {
+      if (value === CLOSED_WON_KEY) {
+        // "تم التقفيل" — write to BOTH status and salesStatus so every stat agrees
+        // (dashboard checks status; sales-sheet/follow-up/my-meetings check salesStatus).
+        // Do NOT clear meeting fields — preserve meeting history for reports.
+        updates.salesStatus = CLOSED_WON_KEY
+      } else {
+        // Switching away from closed-won (or any other change): clear salesStatus if it was closed-won
+        // so the lead stops counting as تم التقفيل everywhere.
+        const lead = leads.find(l => l.id === id)
+        if (lead && lead.salesStatus === CLOSED_WON_KEY) {
+          updates.salesStatus = null
+        }
+      }
+    }
     updateLeadInCache(id, updates)
     try { await apiUpdateLead(id, updates) } catch { addToast('error', 'فشل التحديث') }
-  }, [updateLeadInCache, addToast])
+  }, [updateLeadInCache, addToast, leads])
 
   return (
     <div className="space-y-4" dir="rtl" style={{ fontFamily: 'Cairo, sans-serif' }}>
@@ -275,9 +351,22 @@ export function FollowUpSection() {
                 ) : (
                   paginatedLeads.map((lead, idx) => {
                     const isTeleTransfer = !!(lead.tele && lead.tele.trim() !== '')
+                    const closedWon = isClosedWon(lead)
                     return (
-                    <TableRow key={lead.id} className={`border-b border-white/[0.04] hover:bg-[#1c2234]/50 transition-colors ${isTeleTransfer ? 'bg-[#6c63ff]/[0.03]' : ''}`}>
-                      <TableCell className="w-[36px] text-center text-[13px] text-[#4a5280]">{idx + 1}</TableCell>
+                    <TableRow
+                      key={lead.id}
+                      className={`border-b border-white/[0.04] transition-colors ${
+                        closedWon
+                          ? 'bg-emerald-500/[0.10] hover:bg-emerald-500/[0.14] ring-1 ring-inset ring-emerald-500/30'
+                          : isTeleTransfer
+                            ? 'bg-[#6c63ff]/[0.03] hover:bg-[#1c2234]/50'
+                            : 'hover:bg-[#1c2234]/50'
+                      }`}
+                    >
+                      <TableCell className="w-[36px] text-center text-[13px] text-[#4a5280]">
+                        {idx + 1}
+                        {closedWon && <div className="text-[9px] font-bold text-emerald-400 mt-0.5">مقفّل</div>}
+                      </TableCell>
                       {/* لينك المتجر */}
                       <TableCell className="max-w-[160px]">
                         <div className="flex items-center gap-1.5 max-w-[160px]">
@@ -311,11 +400,15 @@ export function FollowUpSection() {
                       <TableCell>
                         <EditableCell value={lead.meetingDate} onSave={(v) => handleUpdateField(lead.id, 'meetingDate', v)} type="date" placeholder="التاريخ" />
                       </TableCell>
-                      {/* حالة العميل */}
+                      {/* حالة العميل — editable (same LazySelectCell as sales-sheet) */}
                       <TableCell>
-                        <span className="text-[13px] font-medium px-2 py-0.5 rounded border border-white/[0.06] bg-[#0a0d14] text-[#f0f2ff] inline-block w-full text-right">
-                          {SALES_STATUSES.find(s => s.key === lead.status)?.label || '—'}
-                        </span>
+                        <LazySelectCell
+                          value={lead.status || ''}
+                          options={SALES_STATUSES}
+                          onChange={(v) => handleUpdateField(lead.id, 'status', v)}
+                          placeholder="—"
+                          allowClear
+                        />
                       </TableCell>
                       {/* ملاحظات Follow-Up — مفتوحة للتعديل المباشر */}
                       <TableCell className="max-w-[180px]">

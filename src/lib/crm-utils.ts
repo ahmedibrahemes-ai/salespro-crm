@@ -142,6 +142,33 @@ export function isWhatsappContactResult(value: string | null | undefined): boole
   return v === 'whatsapp' || v === 'call-whatsapp'
 }
 
+// ===== Closed-Won Helpers =====
+
+/**
+ * The "تم التقفيل" (closed-won) status key, shared across the app.
+ * Used for both `lead.status` and `lead.salesStatus` so every counter agrees.
+ */
+export const CLOSED_WON_KEY = 'closed-won'
+
+/**
+ * Has this lead been closed/won (تم التقفيل)?
+ *
+ * Sales can mark a deal closed from EITHER the sales sheet OR the follow-up page.
+ * When they do, we write `closed-won` to BOTH `status` AND `salesStatus` (see
+ * handleUpdateField in sales-sheet.tsx / follow-up-section.tsx) so that:
+ *   - Dashboard KPI (l.status === 'closed-won') ✅
+ *   - Sales sheet stat (l.salesStatus === 'closed-won') ✅
+ *   - Follow-up / my-meetings / employee-profile / admin-panel stats ✅
+ *
+ * This helper defends against historical data where only one field was set:
+ * it returns true if EITHER field equals 'closed-won'.
+ *
+ * Use this everywhere we count "تم التقفيل".
+ */
+export function isClosedWon(lead: { status?: string | null; salesStatus?: string | null }): boolean {
+  return lead.status === CLOSED_WON_KEY || lead.salesStatus === CLOSED_WON_KEY
+}
+
 // ===== Data Normalization =====
 
 /** Normalize attendance values to standard strings */

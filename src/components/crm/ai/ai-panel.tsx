@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Sparkles, TrendingUp, Target, Award, Activity, DollarSign, Phone } from 'lucide-react'
 import { useCrmStore } from '@/lib/store'
+import { isClosedWon } from '@/lib/crm-utils'
 import { AIInsightButton } from './ai-insight-button'
 import { SmartReplyButton } from './smart-reply-button'
 
@@ -57,7 +58,7 @@ export function AIPanel() {
         perSales[lead.sales].total++
         if (lead.meetingDate) perSales[lead.sales].meetings++
         if (lead.attended === 'attended') perSales[lead.sales].attended++
-        if (lead.salesStatus === 'closed-won') perSales[lead.sales].closedWon++
+        if (isClosedWon(lead)) perSales[lead.sales].closedWon++
       }
     }
 

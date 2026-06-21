@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useCrmStore, STATUSES, SALES_STATUSES, CONTACT_RESULTS, formatDate, formatRelativeTime } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
-import { isCallContactResult } from '@/lib/crm-utils'
+import { isCallContactResult, isClosedWon } from '@/lib/crm-utils'
 import {
   Calendar,
   ChevronLeft,
@@ -250,7 +250,7 @@ export function DailyReport() {
       const hasMeetingToday = isMeetingToday(lead, selectedDate)
       const isAttendedToday = hasMeetingToday && lead.attended === 'attended'
       const isNoShowToday = hasMeetingToday && lead.attended === 'no-show'
-      const isClosedWonToday = lead.attendanceMarkedAt && isSameDay(lead.attendanceMarkedAt, selectedDate) && lead.status === 'closed-won'
+      const isClosedWonToday = lead.attendanceMarkedAt && isSameDay(lead.attendanceMarkedAt, selectedDate) && isClosedWon(lead)
       const isTransferredToday = lead.assignedAt && isSameDay(lead.assignedAt, selectedDate) && lead.sales
 
       if (isNewToday) newLeadsCount++

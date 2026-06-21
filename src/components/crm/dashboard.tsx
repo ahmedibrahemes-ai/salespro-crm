@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { useCrmStore, getDateRange } from '@/lib/store'
-import { isCallContactResult, isWhatsappContactResult } from '@/lib/crm-utils'
+import { isCallContactResult, isWhatsappContactResult, isClosedWon } from '@/lib/crm-utils'
 import {
   Flame, UserPlus, Phone, CalendarCheck, UserCheck, Percent,
   TrendingUp, TrendingDown, PhoneCall, MessageCircle, Trophy, ArrowRightLeft,
@@ -412,7 +412,7 @@ export function Dashboard() {
       }
 
       // Closed won (all-time)
-      if (l.status === 'closed-won') closedWon++
+      if (isClosedWon(l)) closedWon++
 
       // WhatsApp sent (contactResult includes whatsapp or call-whatsapp)
       if (isWhatsappContactResult(l.contactResult)) {
@@ -492,9 +492,9 @@ export function Dashboard() {
       achieved = myLeads.filter((l) => l.assignedAt && l.assignedAt >= from && l.assignedAt < to).length
     } else if (type === 'closings') {
       // Count closed-won deals
-      achieved = myLeads.filter((l) => l.status === 'closed-won').length
+      achieved = myLeads.filter((l) => isClosedWon(l)).length
     } else if (type === 'money') {
-      achieved = myLeads.filter((l) => l.status === 'closed-won').length
+      achieved = myLeads.filter((l) => isClosedWon(l)).length
     }
 
     const pct = value > 0 ? Math.min(Math.round((achieved / value) * 100), 100) : 0
@@ -619,7 +619,7 @@ export function Dashboard() {
         if (l.sales && team.sales.includes(l.sales)) {
           if (l.assignedAt) stats[l.sales].meetings++
           if (isCallContactResult(l.contactResult)) stats[l.sales].calls++
-          if (l.status === 'closed-won') stats[l.sales].closings++
+          if (isClosedWon(l)) stats[l.sales].closings++
         }
       }
       // Calculate average score per member

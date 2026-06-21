@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback } from 'react'
 import { useCrmStore, ATTENDANCE_STATUSES, SALES_STATUSES, formatDate, formatRelativeTime, formatTime, getDateRange } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import { apiUpdateLead } from '@/lib/supabase'
-import { isTodayDateString, isTodayTimestamp, isThisWeek } from '@/lib/crm-utils'
+import { isTodayDateString, isTodayTimestamp, isThisWeek, isClosedWon } from '@/lib/crm-utils'
 import {
   Calendar, Clock, Phone, ExternalLink,
   Check, X, CalendarDays, XCircle, StickyNote,
@@ -451,7 +451,7 @@ export function MyMeetings() {
     const attended = allMyMeetings.filter((l) => l.attended === 'attended')
     const noShow = allMyMeetings.filter((l) => l.attended === 'no-show')
     const pending = allMyMeetings.filter((l) => !l.attended || l.attended === 'pending')
-    const closedWon = allMyMeetings.filter((l) => l.salesStatus === 'closed-won')
+    const closedWon = allMyMeetings.filter((l) => isClosedWon(l))
 
     return {
       today: today,

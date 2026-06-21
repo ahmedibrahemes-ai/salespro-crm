@@ -10,7 +10,7 @@ import {
   apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk, apiUnarchiveLeads,
   apiAddTeamMember, apiRemoveTeamMember, apiRenameTeamMember, apiSaveAccessPermissions,
 } from '@/lib/supabase'
-import { isCallContactResult } from '@/lib/crm-utils'
+import { isCallContactResult, isClosedWon } from '@/lib/crm-utils'
 // Framer Motion removed for performance
 import {
   BarChart3, Phone, Users, Archive, Settings, UserCog, ChevronLeft,
@@ -82,7 +82,7 @@ function OverviewTab() {
         total: tLeads.length,
         contacted: tLeads.filter((l) => isCallContactResult(l.contactResult)).length,
         meetings: tLeads.filter((l) => l.meetingDate).length,
-        closed: tLeads.filter((l) => l.status === 'closed-won').length,
+        closed: tLeads.filter((l) => isClosedWon(l)).length,
       }
     }
 
@@ -93,7 +93,7 @@ function OverviewTab() {
         total: sLeads.length,
         contacted: sLeads.filter((l) => l.attended === 'attended').length,
         meetings: sLeads.filter((l) => l.meetingDate).length,
-        closed: sLeads.filter((l) => l.salesStatus === 'closed-won').length,
+        closed: sLeads.filter((l) => isClosedWon(l)).length,
       }
     }
 
@@ -102,7 +102,7 @@ function OverviewTab() {
 
   const { totalLeads, totalClosed, totalMeetings, conversionRate } = useMemo(() => {
     const total = activeLeads.length
-    const closed = activeLeads.filter((l) => l.status === 'closed-won' || l.salesStatus === 'closed-won').length
+    const closed = activeLeads.filter((l) => isClosedWon(l)).length
     const meetings = activeLeads.filter((l) => l.meetingDate).length
     const rate = total > 0 ? Math.round((closed / total) * 100) : 0
     return { totalLeads: total, totalClosed: closed, totalMeetings: meetings, conversionRate: rate }

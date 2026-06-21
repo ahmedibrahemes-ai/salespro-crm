@@ -4,7 +4,7 @@ import { useMemo, useCallback, useState, useEffect, useRef } from 'react'
 import { useCrmStore, STATUSES, SALES_STATUSES, ATTENDANCE_STATUSES, CONTACT_RESULTS, formatDate, formatRelativeTime } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import { apiUpdateLead } from '@/lib/supabase'
-import { isCallContactResult } from '@/lib/crm-utils'
+import { isCallContactResult, isClosedWon } from '@/lib/crm-utils'
 import {
   Phone, Briefcase, Calendar, Trophy, Users, TrendingUp,
   Clock, CheckCircle2, XCircle, HourglassIcon, Target,
@@ -362,7 +362,7 @@ export function EmployeeProfile() {
     const attended = myLeads.filter((l) => l.attended === 'attended').length
     const noShow = myLeads.filter((l) => l.attended === 'no-show').length
     const pending = myLeads.filter((l) => !l.attended || l.attended === 'pending').length
-    const closedWon = myLeads.filter((l) => l.salesStatus === 'closed-won').length
+    const closedWon = myLeads.filter((l) => isClosedWon(l)).length
     const attendanceRate = (attended + noShow) > 0 ? Math.round((attended / (attended + noShow)) * 100) : 0
     const closingRate = (attended + noShow) > 0 ? Math.round((closedWon / (attended + noShow)) * 100) : 0
     const inProgress = myLeads.filter((l) => l.salesStatus === 'followup' || l.salesStatus === 'negotiation').length

@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react'
 import { useCrmStore, ATTENDANCE_STATUSES, SALES_STATUSES, formatDate, formatRelativeTime, formatTime, getDateRange } from '@/lib/store'
+import { isClosedWon } from '@/lib/crm-utils'
 import type { Lead } from '@/lib/supabase'
 import {
   Search, Filter, Calendar, ChevronLeft, ChevronRight, Phone, ExternalLink, ArrowRightLeft,
@@ -158,7 +159,7 @@ export function TransfersPage() {
       (l) => !l.attended || l.attended === 'pending'
     ).length
     const closedWon = filteredLeads.filter(
-      (l) => l.salesStatus === 'closed-won'
+      (l) => isClosedWon(l)
     ).length
     return { total, attended, noShow, pending, closedWon }
   }, [filteredLeads])

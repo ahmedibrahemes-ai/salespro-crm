@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useCrmStore, STATUSES, SALES_STATUSES, CONTACT_RESULTS, formatDate } from '@/lib/store'
-import { isCallContactResult } from '@/lib/crm-utils'
+import { isCallContactResult, isClosedWon } from '@/lib/crm-utils'
 import {
   Users, Phone, Trophy, BarChart3, Search, Filter,
   CalendarCheck, UserCheck, XCircle, Clock,
@@ -124,7 +124,7 @@ export function CustomersStatus() {
     for (const l of result) {
       if (isCallContactResult(l.contactResult)) contacted++
       if (l.meetingDate && l.meetingDate !== '') meetings++
-      if (l.status === 'closed-won' || l.salesStatus === 'closed-won') closedWon++
+      if (isClosedWon(l)) closedWon++
       if (l.status === 'closed-lost' || l.salesStatus === 'closed-lost') closedLost++
       const s = l.status || ''
       if (s === 'no-reply' || (!l.contactResult || l.contactResult === 'none' || l.contactResult === '')) pending++
@@ -141,7 +141,7 @@ export function CustomersStatus() {
         mTotal++
         if (isCallContactResult(l.contactResult)) mContacted++
         if (l.meetingDate && l.meetingDate !== '') mMeetings++
-        if (l.status === 'closed-won') mClosed++
+        if (isClosedWon(l)) mClosed++
       }
       perfRows.push({ name, role: 'tele', total: mTotal, contacted: mContacted, meetings: mMeetings, closedWon: mClosed })
     }
@@ -152,7 +152,7 @@ export function CustomersStatus() {
         mTotal++
         if (isCallContactResult(l.contactResult)) mContacted++
         if (l.meetingDate && l.meetingDate !== '') mMeetings++
-        if (l.salesStatus === 'closed-won') mClosed++
+        if (isClosedWon(l)) mClosed++
       }
       perfRows.push({ name, role: 'sales', total: mTotal, contacted: mContacted, meetings: mMeetings, closedWon: mClosed })
     }

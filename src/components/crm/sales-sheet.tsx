@@ -759,10 +759,10 @@ export function SalesSheet() {
       if (q && !(l.customerName?.toLowerCase().includes(q) || l.phone?.toLowerCase().includes(q) || l.storeUrl?.toLowerCase().includes(q))) continue
       if (dateRange && (l.createdAt < dateRange.from || l.createdAt >= dateRange.to)) continue
 
-      // NOTE: leads transferred from tele WITH a meetingDate are NO LONGER hidden.
-      // Per user request: when sales sets status='meeting', the lead must STAY
-      // in the sales sheet (it also appears in follow-up). Previously it was
-      // hidden here, which made it vanish from the sales sheet unexpectedly.
+      // EXCLUDE tele-transferred leads — they belong to "اجتماعات التلي" and
+      // "follow-up" pages, NOT the sales sheet. The sales sheet shows ONLY
+      // sales-originated leads (leads the sales rep created/manages themselves).
+      if (l.tele && l.tele.trim() !== '') continue
 
       result.push(l)
       total++

@@ -4,6 +4,7 @@ import { useMemo, useCallback, useState, useEffect, useRef } from 'react'
 import { useCrmStore, STATUSES, SALES_STATUSES, ATTENDANCE_STATUSES, CONTACT_RESULTS, formatDate, formatRelativeTime } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import { apiUpdateLead } from '@/lib/supabase'
+import { isCallContactResult } from '@/lib/crm-utils'
 import {
   Phone, Briefcase, Calendar, Trophy, Users, TrendingUp,
   Clock, CheckCircle2, XCircle, HourglassIcon, Target,
@@ -274,14 +275,14 @@ export function EmployeeProfile() {
 
     // All-time stats (non-filtered, for overall KPIs)
     const totalAll = myLeads.length
-    const contactedAll = myLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length
+    const contactedAll = myLeads.filter((l) => isCallContactResult(l.contactResult)).length
 
     // Filtered-date stats
     const total = filteredLeads.length
-    const contacted = filteredLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length
+    const contacted = filteredLeads.filter((l) => isCallContactResult(l.contactResult)).length
 
     // Call stats
-    const totalCalls = filteredLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length
+    const totalCalls = filteredLeads.filter((l) => isCallContactResult(l.contactResult)).length
     const answeredCalls = filteredLeads.filter((l) => l.contactResult === 'replied').length
     const unansweredCalls = filteredLeads.filter((l) => l.contactResult === 'no-reply').length
 
@@ -293,7 +294,7 @@ export function EmployeeProfile() {
 
     // Client stats
     const totalClients = filteredLeads.length
-    const contactedClients = filteredLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length
+    const contactedClients = filteredLeads.filter((l) => isCallContactResult(l.contactResult)).length
     const noReplyClients = filteredLeads.filter((l) => l.contactResult === 'no-reply').length
     const notInterested = filteredLeads.filter((l) => l.status === 'not-interested').length
     const followup1 = filteredLeads.filter((l) => l.status === 'followup-1').length
@@ -326,7 +327,7 @@ export function EmployeeProfile() {
     const prevDayLeads = myLeads.filter((l) => {
       return isOnPrevDay(l.createdAt) || isOnPrevDay(l.contactResultAt) || l.meetingDate === prevDayStr || isOnPrevDay(l.assignedAt)
     })
-    const yCalls = prevDayLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length
+    const yCalls = prevDayLeads.filter((l) => isCallContactResult(l.contactResult)).length
     const yAnswered = prevDayLeads.filter((l) => l.contactResult === 'replied').length
     const yUnanswered = prevDayLeads.filter((l) => l.contactResult === 'no-reply').length
     const yMeetings = prevDayLeads.filter((l) => l.status === 'meeting' || l.meetingDate).length
@@ -335,7 +336,7 @@ export function EmployeeProfile() {
     const yNoShow = prevDayLeads.filter((l) => l.attended === 'no-show').length
     const yTransferred = prevDayLeads.filter((l) => l.sales && l.assignedAt).length
     const yTotalClients = prevDayLeads.length
-    const yContactedClients = prevDayLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length
+    const yContactedClients = prevDayLeads.filter((l) => isCallContactResult(l.contactResult)).length
     const yNotInterested = prevDayLeads.filter((l) => l.status === 'not-interested').length
     const yFollowup1 = prevDayLeads.filter((l) => l.status === 'followup-1').length
     const yFollowup2 = prevDayLeads.filter((l) => l.status === 'followup-2').length

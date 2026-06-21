@@ -10,6 +10,7 @@ import {
   apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk, apiUnarchiveLeads,
   apiAddTeamMember, apiRemoveTeamMember, apiRenameTeamMember, apiSaveAccessPermissions,
 } from '@/lib/supabase'
+import { isCallContactResult } from '@/lib/crm-utils'
 // Framer Motion removed for performance
 import {
   BarChart3, Phone, Users, Archive, Settings, UserCog, ChevronLeft,
@@ -79,7 +80,7 @@ function OverviewTab() {
       const tLeads = activeLeads.filter((l) => l.tele === name)
       stats[name] = {
         total: tLeads.length,
-        contacted: tLeads.filter((l) => l.contactResult && l.contactResult !== 'none' && l.contactResult !== '').length,
+        contacted: tLeads.filter((l) => isCallContactResult(l.contactResult)).length,
         meetings: tLeads.filter((l) => l.meetingDate).length,
         closed: tLeads.filter((l) => l.status === 'closed-won').length,
       }

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useCrmStore, STATUSES, SALES_STATUSES, CONTACT_RESULTS, formatDate, formatRelativeTime } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
+import { isCallContactResult } from '@/lib/crm-utils'
 import {
   Calendar,
   ChevronLeft,
@@ -245,7 +246,7 @@ export function DailyReport() {
     // Single pass over all leads
     for (const lead of allLeads) {
       const isNewToday = isSameDay(lead.createdAt, selectedDate)
-      const isCallToday = lead.contactResultAt && isSameDay(lead.contactResultAt, selectedDate) && lead.contactResult && lead.contactResult !== 'none' && lead.contactResult !== ''
+      const isCallToday = lead.contactResultAt && isSameDay(lead.contactResultAt, selectedDate) && isCallContactResult(lead.contactResult)
       const hasMeetingToday = isMeetingToday(lead, selectedDate)
       const isAttendedToday = hasMeetingToday && lead.attended === 'attended'
       const isNoShowToday = hasMeetingToday && lead.attended === 'no-show'

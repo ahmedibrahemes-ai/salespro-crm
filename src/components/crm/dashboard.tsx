@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { useCrmStore, getDateRange } from '@/lib/store'
+import { isCallContactResult, isWhatsappContactResult } from '@/lib/crm-utils'
 import {
   Flame, UserPlus, Phone, CalendarCheck, UserCheck, Percent,
   TrendingUp, TrendingDown, PhoneCall, MessageCircle, Trophy, ArrowRightLeft,
@@ -395,7 +396,7 @@ export function Dashboard() {
 
       // Calls this month: based on contactResultAt
       if (l.contactResultAt && l.contactResultAt >= from && l.contactResultAt < to) {
-        if (l.contactResult && l.contactResult !== 'none' && l.contactResult !== '') {
+        if (isCallContactResult(l.contactResult)) {
           callsMonth++
         }
       }
@@ -414,7 +415,7 @@ export function Dashboard() {
       if (l.status === 'closed-won') closedWon++
 
       // WhatsApp sent (contactResult includes whatsapp or call-whatsapp)
-      if (l.contactResult === 'whatsapp' || l.contactResult === 'call-whatsapp') {
+      if (isWhatsappContactResult(l.contactResult)) {
         whatsappSent++
       }
     }
@@ -512,7 +513,7 @@ export function Dashboard() {
 
     for (const l of myLeads) {
       if (l.contactResultAt && l.contactResultAt >= satStart && l.contactResultAt < friEnd) {
-        if (l.contactResult && l.contactResult !== 'none' && l.contactResult !== '') {
+        if (isCallContactResult(l.contactResult)) {
           const dayIdx = getArabicDayIndex(l.contactResultAt)
           dayCounts[dayIdx]++
         }
@@ -542,7 +543,7 @@ export function Dashboard() {
     let unanswered = 0
 
     for (const l of myLeads) {
-      if (l.contactResult && l.contactResult !== 'none' && l.contactResult !== '') {
+      if (isCallContactResult(l.contactResult)) {
         if (l.contactResultAt && l.contactResultAt >= from && l.contactResultAt < to) {
           totalCalls++
           if (l.contactResult === 'replied') {
@@ -617,7 +618,7 @@ export function Dashboard() {
       for (const l of allActiveLeads) {
         if (l.sales && team.sales.includes(l.sales)) {
           if (l.assignedAt) stats[l.sales].meetings++
-          if (l.contactResult && l.contactResult !== 'none' && l.contactResult !== '') stats[l.sales].calls++
+          if (isCallContactResult(l.contactResult)) stats[l.sales].calls++
           if (l.status === 'closed-won') stats[l.sales].closings++
         }
       }
@@ -738,7 +739,7 @@ export function Dashboard() {
     for (const l of myLeads) {
       if (l.createdAt >= from && l.createdAt < to) {
         totalLeads++
-        if (l.contactResult && l.contactResult !== 'none' && l.contactResult !== '') {
+        if (isCallContactResult(l.contactResult)) {
           contactedLeads++
         }
         if (l.contactResult === 'replied') {

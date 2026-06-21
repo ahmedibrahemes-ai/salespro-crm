@@ -104,6 +104,44 @@ export function safeTime(val: string | null | undefined): string | null {
   return null
 }
 
+// ===== Contact Result Helpers =====
+
+/**
+ * Does this contactResult represent an actual phone CALL?
+ *
+ * Business rule (agreed with user): a WhatsApp-ONLY contact is NOT a call.
+ *   - '' / 'none' / null  → false  (no contact made)
+ *   - 'whatsapp'          → false  (WhatsApp only — not a call)
+ *   - 'call'              → true   (call only)
+ *   - 'call-whatsapp'     → true   (call + WhatsApp — there WAS a call)
+ *   - 'replied' / 'no-reply' / 'busy' / 'wrong-number' / 'customer-service' → true
+ *
+ * Note: `call-whatsapp` ALSO counts toward the WhatsApp KPI (see `isWhatsappContactResult`),
+ * so a call+whatsapp lead is counted in BOTH the calls stat and the WhatsApp stat.
+ * This is intentional — both actions actually happened.
+ *
+ * Use this everywhere we count "مكالمات" / "تم التواصل" / "نسبة التواصل".
+ */
+export function isCallContactResult(value: string | null | undefined): boolean {
+  if (!value) return false
+  const v = String(value).trim()
+  if (v === '' || v === 'none') return false
+  if (v === 'whatsapp') return false
+  return true
+}
+
+/**
+ * Does this contactResult include a WhatsApp message?
+ *   - 'whatsapp'      → true  (WhatsApp only)
+ *   - 'call-whatsapp' → true  (call + WhatsApp)
+ *   - everything else → false
+ */
+export function isWhatsappContactResult(value: string | null | undefined): boolean {
+  if (!value) return false
+  const v = String(value).trim()
+  return v === 'whatsapp' || v === 'call-whatsapp'
+}
+
 // ===== Data Normalization =====
 
 /** Normalize attendance values to standard strings */

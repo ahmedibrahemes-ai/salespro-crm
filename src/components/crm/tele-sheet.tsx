@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { useCrmStore, CONTACT_RESULTS, STATUSES, formatDate, getDateRange } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
 import { apiCreateLead, apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk, apiBroadcastChange, apiBulkCreateLeads } from '@/lib/supabase'
-import { normalizePhone } from '@/lib/crm-utils'
+import { normalizePhone, isCallContactResult } from '@/lib/crm-utils'
 import {
   Search, Plus, Trash2, Archive, Phone, Filter, X, Check,
   UserPlus, Calendar, Loader2, ExternalLink,
@@ -1174,13 +1174,13 @@ export function TeleSheet() {
       if (l.isArchived) continue
       if (isLockedToSelf && l.tele !== currentUser) continue
       if (!isLockedToSelf && selectedTele !== 'all' && l.tele !== selectedTele) continue
-      if (currentFilter === 'uncontacted' && l.contactResult && l.contactResult !== 'none' && l.contactResult !== '') continue
+      if (currentFilter === 'uncontacted' && isCallContactResult(l.contactResult)) continue
       if (q && !(l.customerName?.toLowerCase().includes(q) || l.phone?.toLowerCase().includes(q) || l.storeUrl?.toLowerCase().includes(q) || l.brief?.toLowerCase().includes(q))) continue
       if (dateRange && (l.createdAt < dateRange.from || l.createdAt >= dateRange.to)) continue
 
       result.push(l)
       total++
-      if (l.contactResult && l.contactResult !== 'none' && l.contactResult !== '') contacted++
+      if (isCallContactResult(l.contactResult)) contacted++
       if (l.status === 'meeting' || l.meetingDate) meetings++
       if (l.sales) transferred++
     }

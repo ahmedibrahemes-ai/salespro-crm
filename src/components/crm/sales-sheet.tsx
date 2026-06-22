@@ -757,7 +757,10 @@ export function SalesSheet() {
       if (isLockedToSelf && l.sales !== currentUser) continue
       if (!isLockedToSelf && selectedSales !== 'all' && l.sales !== selectedSales) continue
       if (q && !(l.customerName?.toLowerCase().includes(q) || l.phone?.toLowerCase().includes(q) || l.storeUrl?.toLowerCase().includes(q))) continue
-      if (dateRange && (l.createdAt < dateRange.from || l.createdAt >= dateRange.to)) continue
+      // Date filter: skip leads OUTSIDE the range. Guard with l.createdAt so
+      // leads with a broken/missing created_at (0 or null) still show instead
+      // of being hidden by every date filter.
+      if (dateRange && l.createdAt && (l.createdAt < dateRange.from || l.createdAt >= dateRange.to)) continue
 
       // EXCLUDE tele-transferred leads — they belong to "اجتماعات التلي" and
       // "follow-up" pages, NOT the sales sheet. The sales sheet shows ONLY

@@ -171,8 +171,10 @@ function MeetingCard({
   return (
     <Card className="bg-[#111520] border border-white/[0.06] hover:border-[#6c63ff]/20 transition-all group">
       <CardContent className="p-4">
-        {/* Relative time for tele users */}
-        {isTele && lead.assignedAt && (
+        {/* Transfer date & time — shown to BOTH tele and sales (the transfer
+            timestamp is meaningful for both: tele sees when they transferred,
+            sales sees when the meeting was transferred to them). */}
+        {lead.assignedAt && (
           <div className="mb-2 flex items-center gap-2">
             <span className="text-[11px] font-bold text-[#a8a3ff]">
               {formatRelativeTime(lead.assignedAt)}
@@ -480,7 +482,10 @@ export function MyMeetings() {
       }
     }
 
-    // Sort: tele users by assignedAt descending, sales users by meetingDate then time
+    // Sort: NEWEST first (descending) for both tele and sales.
+    // Tele: by transfer timestamp (assignedAt) — newest transfer on top.
+    // Sales: by meeting date+time descending (newest meeting on top), with a
+    // fallback to assignedAt (transfer time) when meetingDate is missing.
     if (isTele) {
       result.sort((a, b) => {
         const aTime = a.assignedAt || a.createdAt || 0
@@ -489,9 +494,18 @@ export function MyMeetings() {
       })
     } else {
       result.sort((a, b) => {
-        const dateComp = a.meetingDate.localeCompare(b.meetingDate)
+        // Newest meeting first: compare meetingDate descending
+        const aDate = a.meetingDate || ''
+        const bDate = b.meetingDate || ''
+        const dateComp = bDate.localeCompare(aDate)
         if (dateComp !== 0) return dateComp
-        return (a.meetingTime || '').localeCompare(b.meetingTime || '')
+        // Same date → newer meeting time first
+        const timeComp = (b.meetingTime || '').localeCompare(a.meetingTime || '')
+        if (timeComp !== 0) return timeComp
+        // Same date+time → fall back to transfer time (newest transfer first)
+        const aTransfer = a.assignedAt || a.createdAt || 0
+        const bTransfer = b.assignedAt || b.createdAt || 0
+        return bTransfer - aTransfer
       })
     }
 

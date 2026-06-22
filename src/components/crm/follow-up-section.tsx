@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, useCallback } from 'react'
-import { useCrmStore, getDateRange } from '@/lib/store'
+import { useCrmStore, getDateRange, ATTENDANCE_STATUSES } from '@/lib/store'
 import { normalizePhone, isClosedWon, CLOSED_WON_KEY } from '@/lib/crm-utils'
 import type { Lead } from '@/lib/supabase'
 import { apiUpdateLead } from '@/lib/supabase'
@@ -345,13 +345,14 @@ export function FollowUpSection() {
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[180px] max-w-[180px]">البريف</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[110px]">تاريخ الاجتماع</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[110px]">حالة العميل</TableHead>
+                  <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[110px]">الحضور</TableHead>
                   <TableHead className="text-right text-[13px] font-bold text-[#4a5280] w-[180px]">ملاحظات Follow-Up</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedLeads.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12 text-[#4a5280]">
+                    <TableCell colSpan={9} className="text-center py-12 text-[#4a5280]">
                       <div className="text-[30px] mb-2"><CalendarCheck size={30} className="mx-auto text-[#4a5280]" /></div>
                       <div className="text-[14px] font-semibold">لا يوجد اجتماعات للمتابعة</div>
                     </TableCell>
@@ -417,6 +418,29 @@ export function FollowUpSection() {
                           placeholder="—"
                           allowClear
                         />
+                      </TableCell>
+                      {/* الحضور — attendance indicator.
+                          Per business rule: attendance tracking applies ONLY to
+                          tele-transferred meetings. Sales-originated meetings
+                          don't have the attendance system → show '—'. */}
+                      <TableCell>
+                        {isTeleTransfer ? (
+                          (() => {
+                            const attObj = ATTENDANCE_STATUSES.find((a) => a.key === lead.attended)
+                            const colorClass = lead.attended === 'attended'
+                              ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20'
+                              : lead.attended === 'no-show'
+                                ? 'bg-red-500/15 text-red-400 border-red-500/20'
+                                : 'bg-amber-500/15 text-amber-400 border-amber-500/20'
+                            return (
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${colorClass}`}>
+                                {attObj?.label || '⏳ انتظار'}
+                              </span>
+                            )
+                          })()
+                        ) : (
+                          <span className="text-[11px] text-[#4a5280]">—</span>
+                        )}
                       </TableCell>
                       {/* ملاحظات Follow-Up — مفتوحة للتعديل المباشر */}
                       <TableCell className="max-w-[180px]">

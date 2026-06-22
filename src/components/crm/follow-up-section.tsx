@@ -189,9 +189,14 @@ export function FollowUpSection() {
   const selectedSales = effectiveSelectedSales
   const setSelectedSales = (val: string) => { if (!isLockedToSelf) setStoreSelectedSales(val) }
 
-  /* Filter: leads in meeting/followup status, PLUS closed-won (تم التقفيل).
+  /* Filter: leads in meeting/followup status, PLUS closed-won (تم التقفيل),
+     PLUS old tele-transferred meetings (status=null legacy data).
      - Shows: meeting, followup-1/2/3, closed-won
-     - Hides: not-interested, null/empty, closed-lost
+     - ALSO shows: status=null leads that are tele-transferred meetings
+       (l.tele set + l.meetingDate set). These are OLD meetings created before
+       the status system was implemented — they need follow-up too.
+     - Hides: not-interested, closed-lost, and status=null leads that are NOT
+       tele-transferred meetings (sales-originated leads without status stay out).
      closed-won leads stay visible (with a dark highlight) so sales don't
      re-contact a customer whose deal is already closed. */
   const VALID_FOLLOWUP_STATUSES = new Set(['meeting', 'followup-1', 'followup-2', 'followup-3', CLOSED_WON_KEY])
@@ -205,8 +210,19 @@ export function FollowUpSection() {
 
     for (const l of leads) {
       if (l.isArchived) continue
-      // ONLY leads with valid follow-up statuses (meeting, followup-1/2/3, closed-won)
-      if (!l.status || !VALID_FOLLOWUP_STATUSES.has(l.status)) continue
+
+      // Determine if this lead should appear in follow-up
+      const hasValidStatus = l.status && VALID_FOLLOWUP_STATUSES.has(l.status)
+      // OLD tele-transferred meetings: status is null but it's a meeting
+      // transferred from tele (has tele set + has meetingDate). These are
+      // legacy leads created before the status system — include them so sales
+      // can follow up on old meetings.
+      const isOldTeleMeeting = !l.status
+        && !!l.tele && l.tele.trim() !== ''
+        && !!l.meetingDate && l.meetingDate.trim() !== ''
+
+      if (!hasValidStatus && !isOldTeleMeeting) continue
+
       if (isLockedToSelf && l.sales !== currentUser) continue
       if (!isLockedToSelf && selectedSales !== 'all' && l.sales !== selectedSales) continue
       if (q && !(l.customerName?.toLowerCase().includes(q) || l.phone?.toLowerCase().includes(q) || l.storeUrl?.toLowerCase().includes(q))) continue

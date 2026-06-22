@@ -367,7 +367,13 @@ export function EmployeeProfile() {
     const teleTransferred = myLeads.filter((l) => l.tele && l.tele.trim() !== '')
 
     // "اجتماعاتي" = meetings the sales rep booked themselves (sales-originated)
-    const myMeetings = salesOriginated.filter((l) => l.meetingDate || l.status === 'meeting' || l.assignedAt).length
+    // where status is CURRENTLY 'meeting'. When sales clears the status, the
+    // lead stops counting here (matches dashboard meetingsBooked KPI + the
+    // sales-sheet/follow-up handleUpdateField which clears assignedAt when
+    // status changes away from 'meeting'). Previously used OR conditions
+    // (meetingDate || status==='meeting' || assignedAt) which kept counting
+    // leads even after status was cleared.
+    const myMeetings = salesOriginated.filter((l) => l.status === 'meeting').length
     // "اجتماعات التلي" = meetings tele transferred to this sales rep
     const teleMeetings = teleTransferred.length
 

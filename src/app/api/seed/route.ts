@@ -11,9 +11,15 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const client = getSupabaseAdmin() || createAnonClient()
+    // Require service-role client — seeding writes to team_members + leads.
+    // anon client cannot write (RLS blocks it). Previously fell back to anon
+    // and silently did nothing (audit §3 row 6).
+    const client = getSupabaseAdmin()
     if (!client) {
-      return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+      return NextResponse.json(
+        { error: 'Service role key not configured — seeding requires admin privileges (server-side).' },
+        { status: 503 }
+      )
     }
 
     // Check if data already exists

@@ -27,9 +27,14 @@ export async function GET(request: NextRequest) {
   const user = searchParams.get('user')
 
   try {
-    const client = getSupabaseAdmin() || createAnonClient()
+    // Require service-role client — anon client would give misleading results
+    // (RLS may block rows). Previously fell back to anon silently (audit §3 row 6).
+    const client = getSupabaseAdmin()
     if (!client) {
-      return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+      return NextResponse.json(
+        { error: 'Service role key not configured — this operation requires admin privileges (server-side).' },
+        { status: 503 }
+      )
     }
 
     // Build query — filter by sales_name if user param is provided
@@ -85,9 +90,14 @@ export async function POST(request: NextRequest) {
   const user = searchParams.get('user')
 
   try {
-    const client = getSupabaseAdmin() || createAnonClient()
+    // Require service-role client — anon client would give misleading results
+    // (RLS may block rows). Previously fell back to anon silently (audit §3 row 6).
+    const client = getSupabaseAdmin()
     if (!client) {
-      return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+      return NextResponse.json(
+        { error: 'Service role key not configured — this operation requires admin privileges (server-side).' },
+        { status: 503 }
+      )
     }
 
     // Find leads with null created_at

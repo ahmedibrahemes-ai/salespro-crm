@@ -15,11 +15,19 @@ const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7 // 7 days
 const TOKEN_HEADER = 'authorization'
 
 function getSessionSecret(): string {
-  // Reuse the Supabase service role key as the signing secret — it's already
-  // a server-only secret and avoids requiring an additional env var.
-  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY
+  // Prefer a dedicated SESSION_HMAC_SECRET env var (audit §1 row 8 — decouples
+  // session signing from the Supabase service role key, so rotating the DB
+  // key doesn't invalidate all sessions, and losing one doesn't compromise both).
+  //
+  // Fallback to SUPABASE_SERVICE_ROLE_KEY for backward compatibility with
+  // existing deployments that haven't set SESSION_HMAC_SECRET yet. This means
+  // EXISTING sessions continue to work after this deploy — no forced logouts.
+  // Once SESSION_HMAC_SECRET is set in Vercel, new sessions use it; old
+  // sessions signed with the service-role key will fail verification and
+  // users will be asked to log in again (one-time, expected).
+  const secret = process.env.SESSION_HMAC_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!secret) {
-    throw new Error('SESSION_SECRET unavailable: SUPABASE_SERVICE_ROLE_KEY is not set')
+    throw new Error('SESSION_SECRET unavailable: set SESSION_HMAC_SECRET (preferred) or SUPABASE_SERVICE_ROLE_KEY')
   }
   return secret
 }

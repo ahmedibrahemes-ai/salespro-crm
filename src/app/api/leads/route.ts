@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, isAdminAvailable, createAuthenticatedClient, createAnonClient } from '@/lib/supabase-admin'
 import { DbLead, normalizePhone, safeTimestamp, safeDate, safeTime, normalizeAttended } from '@/lib/crm-utils'
 import { isLeadsCacheValid, getLeadsCache, setLeadsCache, invalidateAllCaches, recordLeadsHit, recordLeadsMiss, recordSupabaseQuery } from '@/lib/api-cache'
-import { requireAuth, unauthorizedResponse } from '@/lib/auth-guard'
+import { requireAuth, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
 
 // Operations that mutate data (must invalidate cache AFTER successful write)
 const WRITE_OPERATIONS = new Set([
@@ -692,6 +692,10 @@ export async function POST(request: NextRequest) {
       }
 
       case 'addTeamMember': {
+        // Admin-only: adding/reactivating team members is an admin operation.
+        // /api/team/route.ts already enforces requireAdmin for the same op —
+        // this brings /api/leads in line (security fix, audit §1 row 1).
+        if (session.role !== 'admin') return forbiddenResponse('هذه العملية تتطلب صلاحيات مدير')
         const { name, role } = data as { name: string; role: string }
         // Check if inactive member exists
         const { data: existing } = await client
@@ -735,6 +739,8 @@ export async function POST(request: NextRequest) {
       }
 
       case 'removeTeamMember': {
+        // Admin-only: removing team members + clearing their leads is admin-only.
+        if (session.role !== 'admin') return forbiddenResponse('هذه العملية تتطلب صلاحيات مدير')
         const name = data as string
         // Solution A: clear sales_name AND tele_name on the orphaned leads so a
         // future reactivated user (same name) does NOT inherit them. Without this,
@@ -769,6 +775,9 @@ export async function POST(request: NextRequest) {
       }
 
       case 'renameTeamMember': {
+        // Admin-only: renaming a team member rewrites leads.tele_name/sales_name
+        // across the whole table — admin operation.
+        if (session.role !== 'admin') return forbiddenResponse('هذه العملية تتطلب صلاحيات مدير')
         const { oldName, newName } = data as { oldName: string; newName: string }
         // Count affected leads before renaming
         const { count: teleCount } = await client.from('leads').select('*', { count: 'exact', head: true }).eq('tele_name', oldName)
@@ -871,6 +880,8 @@ export async function POST(request: NextRequest) {
       }
 
       case 'saveAccessPermissions': {
+        // Admin-only: rewriting the access_permissions table is admin-only.
+        if (session.role !== 'admin') return forbiddenResponse('هذه العملية تتطلب صلاحيات مدير')
         const { teleAccess, salesAccess } = data as { teleAccess: Record<string, string[]>; salesAccess: Record<string, string[]> }
 
         // Delete all existing permissions

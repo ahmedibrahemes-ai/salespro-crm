@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, createAnonClient } from '@/lib/supabase-admin'
-import { requireAuth, unauthorizedResponse } from '@/lib/auth-guard'
+import { requireAuth, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
 
 /**
  * /api/meetings
@@ -151,6 +151,28 @@ export async function PATCH(request: NextRequest) {
     }
     if (attended !== 'attended' && attended !== 'no-show') {
       return NextResponse.json({ error: 'attended must be "attended" or "no-show"' }, { status: 400 })
+    }
+
+    // Ownership check: only admin, or the tele/sales who owns this lead, may
+    // mark attendance. Prevents IDOR (audit §2 row 5).
+    if (session.role !== 'admin') {
+      const { data: leadRow, error: leadErr } = await client
+        .from('leads')
+        .select('tele_name, sales_name')
+        .eq('id', lead_id)
+        .maybeSingle()
+      if (leadErr) {
+        console.error('[api/meetings] PATCH ownership check error:', leadErr.message)
+        return NextResponse.json({ error: leadErr.message }, { status: 500 })
+      }
+      if (!leadRow) {
+        return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
+      }
+      const ownerTele = (leadRow.tele_name || '').trim()
+      const ownerSales = (leadRow.sales_name || '').trim()
+      if (session.uname !== ownerTele && session.uname !== ownerSales) {
+        return forbiddenResponse('لا تملك صلاحية تعديل هذا العميل')
+      }
     }
 
     const now = new Date().toISOString()

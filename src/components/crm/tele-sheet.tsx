@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { useCrmStore, CONTACT_RESULTS, STATUSES, formatDate, getDateRange } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
-import { apiCreateLead, apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk, apiBroadcastChange, apiBulkCreateLeads } from '@/lib/supabase'
+import { apiCreateLead, apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk, apiBulkCreateLeads } from '@/lib/supabase'
 import { normalizePhone, isCallContactResult } from '@/lib/crm-utils'
 import {
   Search, Plus, Trash2, Archive, Phone, Filter, X, Check,
@@ -1447,22 +1447,10 @@ export function TeleSheet() {
         // Non-fatal — the lead was already updated successfully
       }
 
-      // Broadcast the transfer to notify sales person instantly
-      apiBroadcastChange({
-        type: 'assignment',
-        leadId: transferLeadId,
-        data: {
-          sales: formData.sales,
-          meetingDate: formData.meetingDate || '',
-          meetingTime: formData.meetingTime || '',
-          customerName: formData.customerName,
-          salesStatus: 'new',
-          assignedAt: Date.now(),
-        },
-        by: currentUser || '',
-        byRole: currentRole || 'tele',
-        at: Date.now(),
-      })
+      // NOTE: apiBroadcastChange was a no-op (broadcast removed, postgres_changes
+      // handles all realtime updates). Removed to avoid dead-code confusion
+      // (audit §3 row 9). The UPDATE we just did to the leads table will fire
+      // a postgres_changes UPDATE event that syncs all clients automatically.
     } catch {
       addToast('error', 'فشل التحويل')
     }

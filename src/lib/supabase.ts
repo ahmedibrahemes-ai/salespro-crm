@@ -253,23 +253,6 @@ function partialLeadToDb(updates: Partial<Lead>): Record<string, unknown> {
 
 // ===== API Functions =====
 
-export async function apiLogin(email: string, password: string) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-  if (error) throw error
-  return data
-}
-
-export async function apiLogout() {
-  const { error } = await supabase.auth.signOut()
-  if (error) throw error
-}
-
-export async function apiGetSession() {
-  const { data, error } = await supabase.auth.getSession()
-  if (error) throw error
-  return data.session
-}
-
 export async function apiGetTeam() {
   const { data, error } = await supabase
     .from('team_members')
@@ -801,10 +784,10 @@ export function apiSubscribeToLeads(
   callback: (payload: Record<string, unknown>) => void,
   onStatusChange?: (status: 'SUBSCRIBED' | 'CLOSED' | 'CHANNEL_ERROR' | 'TIMED_OUT') => void
 ) {
-  // IMPORTANT: We subscribe to only UPDATE and INSERT events on leads.
-  // - Removed lead_notes subscription (not used in client, saves ~50% realtime messages)
-  // - Removed DELETE event (handled by UPDATE with is_archived, or just refetch)
-  // - This reduces realtime egress dramatically
+  // Subscribe to INSERT, UPDATE, and DELETE events on the leads table.
+  // - lead_notes subscription removed (not used in client, saves ~50% realtime messages)
+  // - DELETE event retained to sync client cache when leads are hard-deleted
+  //   via /api/leads delete operation (audit §3 row 8 — comment was misleading).
   let channel: ReturnType<typeof supabase.channel> | null = null
 
   // Retry logic: if the channel closes unexpectedly, attempt to reconnect

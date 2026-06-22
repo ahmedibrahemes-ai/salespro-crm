@@ -785,7 +785,6 @@ function QuickPasteDialog({ open, onClose, leads, teleName, onSaved, addToast }:
       <DialogContent
         className="bg-[#111520] border-white/[0.08] text-[#f0f2ff] sm:max-w-3xl max-h-[90vh] flex flex-col"
         showCloseButton
-        onPaste={handlePaste}
       >
         <DialogHeader>
           <DialogTitle className="text-[18px] font-extrabold text-[#f0f2ff] flex items-center gap-2" style={{ fontFamily: 'Cairo, sans-serif' }}>

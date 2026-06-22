@@ -825,6 +825,16 @@ export function SalesSheet() {
         if (lead && lead.salesStatus === CLOSED_WON_KEY) {
           updates.salesStatus = null
         }
+        // Clear assignedAt for SALES-ORIGINATED leads only (not tele-transferred).
+        // Sales-originated leads get assignedAt set when status='meeting' (line 808-810).
+        // When the meeting is cleared/changed, assignedAt must be cleared too —
+        // otherwise the lead keeps counting in "اجتماعاتي" KPI even though the
+        // status is no longer 'meeting' (audit follow-up: meetingsBooked counts
+        // assignedAt, not status). Tele-transferred leads keep their assignedAt
+        // (it's the transfer timestamp, meaningful for reports).
+        if (lead && (!lead.tele || lead.tele.trim() === '')) {
+          updates.assignedAt = null as unknown as number
+        }
       }
     }
     updateLeadInCache(id, updates)

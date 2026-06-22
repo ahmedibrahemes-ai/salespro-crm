@@ -409,8 +409,11 @@ export function Dashboard() {
       }
 
       // Sales-originated meetings this month (for "اجتماعاتي" KPI).
-      // These do NOT have attendance → excluded from conversion rate.
-      if (l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
+      // A "meeting" = status='meeting' AND assignedAt set within the month.
+      // If sales clears the status, assignedAt is cleared too (sales-sheet/follow-up
+      // handleUpdateField), so the lead stops counting here. The status check is a
+      // defensive guard for any legacy data where assignedAt wasn't cleared.
+      if (l.status === 'meeting' && l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
         meetingsBooked++
       }
 

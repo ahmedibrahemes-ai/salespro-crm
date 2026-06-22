@@ -283,6 +283,12 @@ export function FollowUpSection() {
         if (lead && lead.salesStatus === CLOSED_WON_KEY) {
           updates.salesStatus = null
         }
+        // Clear assignedAt for SALES-ORIGINATED leads only (not tele-transferred).
+        // Same logic as sales-sheet: when status changes away from 'meeting',
+        // the lead should stop counting in "اجتماعاتي" KPI.
+        if (lead && (!lead.tele || lead.tele.trim() === '')) {
+          updates.assignedAt = null as unknown as number
+        }
       }
     }
     updateLeadInCache(id, updates)

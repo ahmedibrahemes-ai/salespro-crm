@@ -36,8 +36,11 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search')?.trim() || ''
     const role = session.role
 
-    // Date filters
-    const now = new Date()
+    // Date filters — use Africa/Cairo timezone consistently to avoid
+    // off-by-one-day errors around midnight (audit §3 row 6).
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' }))
+    const toEgyptDateStr = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const todayEnd = new Date(todayStart)
     todayEnd.setDate(todayEnd.getDate() + 1)
@@ -56,16 +59,16 @@ export async function GET(request: NextRequest) {
 
     // Filter by date
     if (filter === 'today') {
-      const todayStr = todayStart.toISOString().split('T')[0]
+      const todayStr = toEgyptDateStr(todayStart)
       query = query.eq('meeting_date', todayStr)
     } else if (filter === 'week') {
-      const weekStartStr = weekStart.toISOString().split('T')[0]
+      const weekStartStr = toEgyptDateStr(weekStart)
       const weekEnd = new Date(weekStart)
       weekEnd.setDate(weekEnd.getDate() + 7)
-      const weekEndStr = weekEnd.toISOString().split('T')[0]
+      const weekEndStr = toEgyptDateStr(weekEnd)
       query = query.gte('meeting_date', weekStartStr).lt('meeting_date', weekEndStr)
     } else if (filter === 'upcoming') {
-      const todayStr = todayStart.toISOString().split('T')[0]
+      const todayStr = toEgyptDateStr(todayStart)
       query = query.gte('meeting_date', todayStr)
     }
 

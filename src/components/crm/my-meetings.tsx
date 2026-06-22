@@ -462,19 +462,24 @@ export function MyMeetings() {
           return ts >= from && ts < to
         })
       } else {
-        // Sales: filter by meetingDate string
+        // Sales: filter by meetingDate string.
+        // Use Africa/Cairo timezone consistently (matches getDateRange in store.ts)
+        // to avoid off-by-one-day errors around midnight/month boundaries.
+        const nowEgypt = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' }))
+        const toEgyptDateStr = (d: Date) =>
+          `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
         if (dateFilter.preset === 'today') {
           result = result.filter((l) => isTodayDateString(l.meetingDate))
         } else if (dateFilter.preset === 'yesterday') {
-          const yesterday = new Date()
+          const yesterday = new Date(nowEgypt)
           yesterday.setDate(yesterday.getDate() - 1)
-          const yStr = yesterday.toISOString().split('T')[0]
+          const yStr = toEgyptDateStr(yesterday)
           result = result.filter((l) => l.meetingDate === yStr)
         } else if (dateFilter.preset === 'week') {
           result = result.filter((l) => isThisWeek(l.meetingDate))
         } else if (dateFilter.preset === 'month') {
-          const now = new Date()
-          const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+          const monthStr = `${nowEgypt.getFullYear()}-${String(nowEgypt.getMonth() + 1).padStart(2, '0')}`
           result = result.filter((l) => l.meetingDate.startsWith(monthStr))
         } else if (dateFilter.preset === 'custom' && dateFilter.customFrom && dateFilter.customTo) {
           result = result.filter((l) => l.meetingDate >= dateFilter.customFrom! && l.meetingDate <= dateFilter.customTo!)

@@ -1176,7 +1176,7 @@ export function TeleSheet() {
       if (!isLockedToSelf && selectedTele !== 'all' && l.tele !== selectedTele) continue
       if (currentFilter === 'uncontacted' && isCallContactResult(l.contactResult)) continue
       if (q && !(l.customerName?.toLowerCase().includes(q) || l.phone?.toLowerCase().includes(q) || l.storeUrl?.toLowerCase().includes(q) || l.brief?.toLowerCase().includes(q))) continue
-      if (dateRange && (l.createdAt < dateRange.from || l.createdAt >= dateRange.to)) continue
+      if (dateRange && l.createdAt && (l.createdAt < dateRange.from || l.createdAt >= dateRange.to)) continue
 
       result.push(l)
       total++

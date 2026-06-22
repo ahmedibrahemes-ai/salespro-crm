@@ -424,11 +424,14 @@ export function Dashboard() {
         if (l.attended === 'attended') pipelineAttended++
       }
 
-      // Closed won (all-time)
-      if (isClosedWon(l)) closedWon++
+      // Closed won (current month — consistent with other KPIs).
+      // Filter by assignedAt within the month so the KPI reflects this month's
+      // closings, not all-time historical (audit §2 row 1).
+      if (isClosedWon(l) && l.assignedAt && l.assignedAt >= from && l.assignedAt < to) closedWon++
 
-      // WhatsApp sent (contactResult includes whatsapp or call-whatsapp)
-      if (isWhatsappContactResult(l.contactResult)) {
+      // WhatsApp sent (current month — consistent with callsMonth).
+      // Filter by contactResultAt within the month (audit §2 row 1).
+      if (isWhatsappContactResult(l.contactResult) && l.contactResultAt && l.contactResultAt >= from && l.contactResultAt < to) {
         whatsappSent++
       }
     }

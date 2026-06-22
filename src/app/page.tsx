@@ -390,6 +390,10 @@ export default function Home() {
           if (newRow?.id) {
             const leadId = String(newRow.id)
             const customerName = (newRow.customer_name as string) || ''
+            // Read fields from the payload instead of hardcoding nulls.
+            // If the server-side INSERT set these fields (e.g. bulk-create with
+            // assignedAt), the realtime INSERT event now preserves them.
+            // (audit §3 row 4 — previously hardcoded null, causing data loss.)
             addLeadToCache({
               id: leadId,
               storeUrl: (newRow.store_url as string) || '',
@@ -398,7 +402,9 @@ export default function Home() {
               customerType: (newRow.customer_type as string) || '',
               brief: (newRow.brief as string) || '',
               contactResult: (newRow.contact_result as string) || '',
-              contactResultAt: null,
+              contactResultAt: newRow.contact_result_at
+                ? new Date(newRow.contact_result_at as string).getTime()
+                : null,
               tele: ((newRow.tele_name as string) || '').trim(),
               sales: (newRow.sales_name as string) ? (newRow.sales_name as string).trim() : null,
               meetingDate: (newRow.meeting_date as string) || '',
@@ -407,16 +413,24 @@ export default function Home() {
               meetingLink: (newRow.meeting_link as string) || '',
               status: (newRow.status as string) || '',
               salesStatus: (newRow.sales_status as string) || null,
-              attended: null,
-              attendanceMarkedAt: null,
-              attendanceMarkedBy: null,
-              cancelledFrom: null,
-              cancelledAt: null,
+              attended: (newRow.attended as string) ?? null,
+              attendanceMarkedAt: newRow.attendance_marked_at
+                ? new Date(newRow.attendance_marked_at as string).getTime()
+                : null,
+              attendanceMarkedBy: (newRow.attendance_marked_by as string) ?? null,
+              cancelledFrom: (newRow.cancelled_from as string) ?? null,
+              cancelledAt: newRow.cancelled_at
+                ? new Date(newRow.cancelled_at as string).getTime()
+                : null,
               createdAt: newRow.created_at ? new Date(newRow.created_at as string).getTime() : 0,
-              assignedAt: null,
-              isArchived: false,
-              archivedAt: null,
-              archivedBy: null,
+              assignedAt: newRow.assigned_at
+                ? new Date(newRow.assigned_at as string).getTime()
+                : null,
+              isArchived: (newRow.is_archived as boolean) ?? false,
+              archivedAt: newRow.archived_at
+                ? new Date(newRow.archived_at as string).getTime()
+                : null,
+              archivedBy: (newRow.archived_by as string) ?? null,
               notes: [],
             })
             addNotification('new-lead', `عميل جديد: ${customerName || 'بدون اسم'}`, leadId)
@@ -515,6 +529,13 @@ export default function Home() {
     )
 
     return () => {
+      // Flush any pending realtime updates before unsubscribing.
+      // Without this, updates received during the 100ms debounce window
+      // would be lost on unmount (audit §3 row 7).
+      if (flushTimer) {
+        clearTimeout(flushTimer)
+        flushPending()
+      }
       if (channel) apiUnsubscribe(channel)
     }
   }, [isAuthenticated, dataLoaded])

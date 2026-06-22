@@ -52,12 +52,9 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('[api/team] GET error:', error.message)
-      // Return default team on error
-      return NextResponse.json({
-        tele: ['Amira', 'Neveen', 'Sara', 'Esraa', 'Rahma'],
-        sales: ['Rania', 'Alaa', 'Samar'],
-        admin: ['Admin'],
-      })
+      // Return empty team on error — UI shows a loading/empty state.
+      // Do NOT return hardcoded production names (audit §2 row 9).
+      return NextResponse.json({ tele: [], sales: [], admin: [] })
     }
 
     const team: { tele: string[]; sales: string[]; admin: string[] } = { tele: [], sales: [], admin: [] }
@@ -71,24 +68,18 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Fallback to defaults if no active members found
+    // If no active members found, return empty (not hardcoded names).
+    // This typically means the DB was just initialized and needs seeding
+    // via /api/seed (admin-only). UI handles empty team gracefully.
     if (team.tele.length === 0 && team.sales.length === 0 && team.admin.length === 0) {
-      return NextResponse.json({
-        tele: ['Amira', 'Neveen', 'Sara', 'Esraa', 'Rahma'],
-        sales: ['Rania', 'Alaa', 'Samar'],
-        admin: ['Admin'],
-      })
+      return NextResponse.json({ tele: [], sales: [], admin: [] })
     }
 
     return NextResponse.json(team)
   } catch (error) {
     console.error('[api/team] GET unexpected error:', error)
-    // Return default team on error
-    return NextResponse.json({
-      tele: ['Amira', 'Neveen', 'Sara', 'Esraa', 'Rahma'],
-      sales: ['Rania', 'Alaa', 'Samar'],
-      admin: ['Admin'],
-    })
+    // Return empty team on error — UI handles it (audit §2 row 9).
+    return NextResponse.json({ tele: [], sales: [], admin: [] })
   }
 }
 

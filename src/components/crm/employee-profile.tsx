@@ -378,7 +378,11 @@ export function EmployeeProfile() {
     const closedWon = myLeads.filter((l) => isClosedWon(l)).length
     const attendanceRate = (attended + noShow) > 0 ? Math.round((attended / (attended + noShow)) * 100) : 0
     const closingRate = (attended + noShow) > 0 ? Math.round((closedWon / (attended + noShow)) * 100) : 0
-    const inProgress = myLeads.filter((l) => l.salesStatus === 'followup' || l.salesStatus === 'negotiation').length
+    // "قيد المتابعة" = leads in followup-1/2/3 status.
+    // The UI dropdowns (sales-sheet, follow-up) write 'followup-1/2/3' to the
+    // `status` field, NOT `salesStatus`. The old code checked salesStatus which
+    // is only set to 'closed-won' or free-text notes → was always 0 (audit §2 row 2).
+    const inProgress = myLeads.filter((l) => l.status === 'followup-1' || l.status === 'followup-2' || l.status === 'followup-3').length
 
     // Today's stats — attendance from tele-transferred only
     const todayMeetings = myLeads.filter((l) => l.meetingDate === todayStr)

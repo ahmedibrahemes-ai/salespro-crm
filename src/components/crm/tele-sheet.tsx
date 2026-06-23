@@ -9,7 +9,7 @@ import {
   Search, Plus, Trash2, Archive, Phone, Filter, X, Check,
   UserPlus, Calendar, Loader2, ExternalLink,
   ChevronLeft, ChevronRight, ArrowLeftRight, Send, AlertCircle,
-  RotateCcw, UserRound, ClipboardPaste, ArrowRight,
+  RotateCcw, UserRound, ClipboardPaste, ArrowRight, Copy,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Calendar as CalendarPicker } from '@/components/ui/calendar'
@@ -1154,6 +1154,45 @@ export function TeleSheet() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
+  /* ─── Duplicate phone detection across ALL leads ───
+     Declared ABOVE the filteredLeads useMemo so the 'duplicates' filter can
+     reference it without hitting the temporal dead zone. */
+  const duplicatePhoneMap = useMemo(() => {
+    const map = new Map<string, {
+      count: number
+      firstTele: string
+      firstLeadId: string
+      firstCreatedAt: number
+      teles: Set<string>
+    }>()
+    for (const l of leads) {
+      if (!l.phone || !l.phone.trim()) continue
+      const norm = normalizePhone(l.phone)
+      if (!norm) continue
+      const tele = l.tele || '—'
+      const createdAt = l.createdAt || 0
+      const existing = map.get(norm)
+      if (existing) {
+        existing.count++
+        existing.teles.add(tele)
+        if (createdAt < existing.firstCreatedAt) {
+          existing.firstCreatedAt = createdAt
+          existing.firstLeadId = l.id
+          existing.firstTele = tele
+        }
+      } else {
+        map.set(norm, {
+          count: 1,
+          firstTele: tele,
+          firstLeadId: l.id,
+          firstCreatedAt: createdAt,
+          teles: new Set([tele]),
+        })
+      }
+    }
+    return map
+  }, [leads])
+
   /* ─── Filtered leads ─── */
   // Single-pass filter + stats computation to avoid chained .filter() overhead
   const { filteredLeads, stats } = useMemo(() => {
@@ -1174,6 +1213,14 @@ export function TeleSheet() {
       if (isLockedToSelf && l.tele !== currentUser) continue
       if (!isLockedToSelf && selectedTele !== 'all' && l.tele !== selectedTele) continue
       if (currentFilter === 'uncontacted' && isCallContactResult(l.contactResult)) continue
+      // Duplicates filter: only show leads whose phone appears 2+ times
+      // (based on the duplicatePhoneMap built from ALL leads).
+      if (currentFilter === 'duplicates') {
+        const norm = l.phone ? normalizePhone(l.phone) : null
+        if (!norm) continue
+        const dupInfo = duplicatePhoneMap.get(norm)
+        if (!dupInfo || dupInfo.count < 2) continue
+      }
       if (q && !(l.customerName?.toLowerCase().includes(q) || l.phone?.toLowerCase().includes(q) || l.storeUrl?.toLowerCase().includes(q) || l.brief?.toLowerCase().includes(q))) continue
       if (dateRange && l.createdAt && (l.createdAt < dateRange.from || l.createdAt >= dateRange.to)) continue
 
@@ -1190,7 +1237,7 @@ export function TeleSheet() {
     // New leads are prepended to the array (newest first).
 
     return { filteredLeads: result, stats: { total, contacted, meetings, transferred } }
-  }, [leads, selectedTele, searchQuery, dateFilter, isLockedToSelf, currentUser, currentFilter])
+  }, [leads, selectedTele, searchQuery, dateFilter, isLockedToSelf, currentUser, currentFilter, duplicatePhoneMap])
 
   /* ─── Paginated leads ─── */
   const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE))
@@ -1198,58 +1245,6 @@ export function TeleSheet() {
     const start = (currentPage - 1) * PAGE_SIZE
     return filteredLeads.slice(start, start + PAGE_SIZE)
   }, [filteredLeads, currentPage])
-
-  /* ─── Duplicate phone detection across ALL leads ───
-     Builds a map: normalizedPhone → { count, firstTele, firstLeadId, firstCreatedAt, teles }
-     - firstLeadId/firstTele: the EARLIEST created lead with this phone (by createdAt)
-     - teles: set of all teles who have this phone (for cross-sheet detection)
-
-     Highlighting logic:
-     - Same sheet duplicate (2+ leads with same phone, same tele) → ALL highlighted
-     - Cross-sheet duplicate (phone exists in another tele's sheet) → only the
-       LATER occurrences are highlighted; the earliest occurrence stays normal
-
-     BUG FIX: Previously, firstLeadId was set based on iteration order (which is
-     sorted by ID descending), not by creation time. This caused inconsistent
-     duplicate detection when leads were deleted and re-added (same numbers
-     gave different duplicate counts). Now we compare createdAt to find the
-     true earliest occurrence. */
-  const duplicatePhoneMap = useMemo(() => {
-    const map = new Map<string, {
-      count: number
-      firstTele: string
-      firstLeadId: string
-      firstCreatedAt: number
-      teles: Set<string>
-    }>()
-    for (const l of leads) {
-      if (!l.phone || !l.phone.trim()) continue
-      const norm = normalizePhone(l.phone)
-      if (!norm) continue
-      const tele = l.tele || '—'
-      const createdAt = l.createdAt || 0
-      const existing = map.get(norm)
-      if (existing) {
-        existing.count++
-        existing.teles.add(tele)
-        // Update first occurrence if this lead is older
-        if (createdAt < existing.firstCreatedAt) {
-          existing.firstCreatedAt = createdAt
-          existing.firstLeadId = l.id
-          existing.firstTele = tele
-        }
-      } else {
-        map.set(norm, {
-          count: 1,
-          firstTele: tele,
-          firstLeadId: l.id,
-          firstCreatedAt: createdAt,
-          teles: new Set([tele]),
-        })
-      }
-    }
-    return map
-  }, [leads])
 
   // Reset page when filters change
   const [prevFilterKey, setPrevFilterKey] = useState('')
@@ -1700,6 +1695,22 @@ export function TeleSheet() {
                 </Button>
               </div>
             )}
+
+            {/* Duplicates filter — toggles showing only leads with duplicate phones */}
+            <Button
+              variant={currentFilter === 'duplicates' ? 'default' : 'outline'}
+              size="sm"
+              className={`h-8 text-[13px] font-bold gap-1.5 cursor-pointer ${
+                currentFilter === 'duplicates'
+                  ? 'bg-amber-500 text-[#111520] hover:bg-amber-600 border-0'
+                  : 'bg-[#0a0d14] border-white/[0.08] text-amber-400 hover:bg-amber-500/10'
+              }`}
+              onClick={() => setActiveFilter(viewKey, currentFilter === 'duplicates' ? '' : 'duplicates')}
+            >
+              <Copy size={12} />
+              المكرر
+              {currentFilter === 'duplicates' && <X size={10} className="mr-0.5" />}
+            </Button>
 
             {/* Bulk actions */}
             {selected.length > 0 && (

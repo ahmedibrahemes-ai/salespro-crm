@@ -35,7 +35,7 @@ import { apiCreateLead, apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDelete
 import {
   Search, Plus, Trash2, Archive, Phone, Filter, X, Check,
   Calendar, Loader2, ClipboardPaste, AlertCircle, ExternalLink,
-  ChevronLeft, ChevronRight, UserPlus,
+  ChevronLeft, ChevronRight, UserPlus, Copy,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Calendar as CalendarPicker } from '@/components/ui/calendar'
@@ -666,6 +666,8 @@ export function SalesSheet() {
   const setSearchQuery = useCrmStore((s) => s.setSearchQuery)
   const dateRangeFilters = useCrmStore((s) => s.dateRangeFilters)
   const setDateRangeFilter = useCrmStore((s) => s.setDateRangeFilter)
+  const activeFilter = useCrmStore((s) => s.activeFilter)
+  const setActiveFilter = useCrmStore((s) => s.setActiveFilter)
   const updateLeadInCache = useCrmStore((s) => s.updateLeadInCache)
   const removeLeadFromCache = useCrmStore((s) => s.removeLeadFromCache)
   const batchRemoveLeadsFromCache = useCrmStore((s) => s.batchRemoveLeadsFromCache)
@@ -679,6 +681,7 @@ export function SalesSheet() {
   const selected = selectedLeadIds[viewKey] || []
   const searchQuery = searchQueries[viewKey] || ''
   const dateFilter = dateRangeFilters[viewKey] || { preset: 'all' }
+  const currentFilter = activeFilter[viewKey] || ''
 
   const isLockedToSelf = currentRole === 'sales'
 
@@ -766,6 +769,15 @@ export function SalesSheet() {
       // sales-originated leads (leads the sales rep created/manages themselves).
       if (l.tele && l.tele.trim() !== '') continue
 
+      // Duplicates filter: only show leads whose phone appears 2+ times
+      // (based on the duplicatePhoneMap built from ALL leads).
+      if (currentFilter === 'duplicates') {
+        const norm = l.phone ? normalizePhone(l.phone) : null
+        if (!norm) continue
+        const dupInfo = duplicatePhoneMap.get(norm)
+        if (!dupInfo || dupInfo.count < 2) continue
+      }
+
       result.push(l)
       total++
       if (l.meetingDate === todayStr) meetingsToday++
@@ -773,7 +785,7 @@ export function SalesSheet() {
     }
 
     return { filteredLeads: result, stats: { total, meetingsToday, closedWon } }
-  }, [leads, selectedSales, searchQuery, dateFilter, isLockedToSelf, currentUser])
+  }, [leads, selectedSales, searchQuery, dateFilter, isLockedToSelf, currentUser, currentFilter, duplicatePhoneMap])
 
   const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE))
   const paginatedLeads = useMemo(() => {
@@ -782,7 +794,7 @@ export function SalesSheet() {
   }, [filteredLeads, currentPage])
 
   const [prevFilterKey, setPrevFilterKey] = useState('')
-  const filterKey = `${selectedSales}|${searchQuery}|${dateFilter.preset}`
+  const filterKey = `${selectedSales}|${searchQuery}|${dateFilter.preset}|${currentFilter}`
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey)
     setCurrentPage(1)
@@ -1022,6 +1034,20 @@ export function SalesSheet() {
                 </Button>
               </div>
             )}
+
+            {/* Duplicates filter — toggles showing only leads with duplicate phones */}
+            <button
+              className={`h-8 px-3 rounded-lg text-[13px] font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                currentFilter === 'duplicates'
+                  ? 'bg-amber-500 text-[#111520] hover:bg-amber-600'
+                  : 'bg-amber-500/15 text-amber-400 hover:bg-amber-500/25'
+              }`}
+              onClick={() => setActiveFilter(viewKey, currentFilter === 'duplicates' ? '' : 'duplicates')}
+            >
+              <Copy size={14} />
+              المكرر
+              {currentFilter === 'duplicates' && <X size={10} className="mr-0.5" />}
+            </button>
 
             {/* Add + Paste buttons */}
             <button onClick={() => setShowAddRow(!showAddRow)} className="h-8 px-3 rounded-lg bg-[#6c63ff]/15 text-[#6c63ff] text-[13px] font-bold hover:bg-[#6c63ff]/25 transition-colors cursor-pointer flex items-center gap-1.5">

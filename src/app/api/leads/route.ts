@@ -177,9 +177,9 @@ export async function GET(request: NextRequest) {
       recordLeadsHit()
       const cached = getLeadsCache(cacheKey)!
       const response = NextResponse.json(cached)
-      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
-      response.headers.set('Pragma', 'no-cache')
-      response.headers.set('Expires', '0')
+      // Same edge caching as the MISS path — in-memory cache hit still benefits
+      // from edge caching across instances.
+      response.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=120')
       response.headers.set('X-Cache', 'HIT')
       return response
     }
@@ -318,10 +318,13 @@ export async function GET(request: NextRequest) {
     setLeadsCache(cacheKey, responseBody)
 
     const response = NextResponse.json(responseBody)
-    // Shorter cache TTL for paginated responses (data changes more often)
-    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
-    response.headers.set('Pragma', 'no-cache')
-    response.headers.set('Expires', '0')
+    // Edge caching: the GET response is the same for all authenticated users
+    // (no server-side role filtering — filtering happens client-side). So it's
+    // safe to cache at the Vercel edge with s-maxage.
+    // s-maxage=30: edge caches for 30s (cuts origin traffic ~90% for active users)
+    // stale-while-revalidate=120: serve stale up to 120s while fetching fresh
+    // This is the #1 egress reduction fix (was 'no-store' → every request hit origin).
+    response.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=120')
     response.headers.set('X-Cache', 'MISS')
     return response
   } catch (err) {

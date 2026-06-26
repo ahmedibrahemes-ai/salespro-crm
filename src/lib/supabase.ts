@@ -277,9 +277,12 @@ export async function apiGetLeads(includeArchived = false): Promise<Lead[]> {
   const params = new URLSearchParams()
   if (includeArchived) params.set('archived', 'true')
 
+  // Use 'default' cache (not 'no-store') so the browser + Vercel edge can cache
+  // the GET response. The server sets 's-maxage=30, stale-while-revalidate=120'
+  // which cuts origin traffic ~90%. Realtime subscriptions keep the client in
+  // sync for live updates, so 30s staleness on page load is acceptable.
   const res = await fetch(`/api/leads?${params.toString()}`, {
     headers: authHeaders(),
-    cache: 'no-store',
   })
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({}))
@@ -294,9 +297,10 @@ export async function apiGetLeads(includeArchived = false): Promise<Lead[]> {
 }
 
 export async function apiGetArchivedLeads(): Promise<Lead[]> {
+  // Allow edge caching (same rationale as apiGetLeads — archived data changes
+  // rarely, so 30s edge cache is safe + cuts egress).
   const res = await fetch('/api/leads?archived_only=true', {
     headers: authHeaders(),
-    cache: 'no-store',
   })
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({}))

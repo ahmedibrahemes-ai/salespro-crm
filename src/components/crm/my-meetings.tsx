@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback } from 'react'
 import { useCrmStore, ATTENDANCE_STATUSES, SALES_STATUSES, formatDate, formatRelativeTime, formatTime, getDateRange } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
-import { apiUpdateLead } from '@/lib/supabase'
+import { apiUpdateLead, handleServerError } from '@/lib/supabase'
 import { isTodayDateString, isTodayTimestamp, isThisWeek, isClosedWon } from '@/lib/crm-utils'
 import {
   Calendar, Clock, Phone, ExternalLink,
@@ -401,6 +401,7 @@ export function MyMeetings() {
   const currentRole = useCrmStore((s) => s.currentRole)
   const addToast = useCrmStore((s) => s.addToast)
   const updateLeadInCache = useCrmStore((s) => s.updateLeadInCache)
+  const revertLeadInCache = useCrmStore((s) => s.revertLeadInCache)
   const dateRangeFilters = useCrmStore((s) => s.dateRangeFilters)
   const setDateRangeFilter = useCrmStore((s) => s.setDateRangeFilter)
 
@@ -558,6 +559,10 @@ export function MyMeetings() {
 
   /* ─── Mark attendance ─── */
   const handleMarkAttendance = useCallback(async (id: string, value: string) => {
+    // Capture old state for rollback
+    const oldLead = leads.find(l => l.id === id)
+    if (!oldLead) return
+
     const updates: Partial<Lead> = {
       attended: value,
       attendanceMarkedAt: Date.now(),
@@ -567,17 +572,31 @@ export function MyMeetings() {
     try {
       await apiUpdateLead(id, updates)
       addToast('success', value === 'attended' ? 'تم تأكيد الحضور ✅' : 'تم تسجيل عدم الحضور ❌')
-    } catch {
-      addToast('error', 'فشل تسجيل الحضور')
+    } catch (err) {
+      if (!handleServerError(err, { id, oldLead })) {
+        revertLeadInCache(id, oldLead)
+        addToast('error', 'فشل تسجيل الحضور — حاول مرة أخرى')
+      }
     }
-  }, [updateLeadInCache, currentUser, addToast])
+  }, [updateLeadInCache, revertLeadInCache, currentUser, addToast, leads])
 
   /* ─── Update field (for notes) ─── */
   const handleUpdateField = useCallback(async (id: string, field: string, value: string) => {
+    // Capture old state for rollback
+    const oldLead = leads.find(l => l.id === id)
+    if (!oldLead) return
+
     const updates: Partial<Lead> = { [field]: value || null }
     updateLeadInCache(id, updates)
-    try { await apiUpdateLead(id, updates) } catch { addToast('error', 'فشل التحديث') }
-  }, [updateLeadInCache, addToast])
+    try {
+      await apiUpdateLead(id, updates)
+    } catch (err) {
+      if (!handleServerError(err, { id, oldLead })) {
+        revertLeadInCache(id, oldLead)
+        addToast('error', 'فشل التحديث — حاول مرة أخرى')
+      }
+    }
+  }, [updateLeadInCache, revertLeadInCache, addToast, leads])
 
   /* ─── Stat card config ─── */
   const statCards = useMemo(() => {

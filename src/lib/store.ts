@@ -181,6 +181,7 @@ interface CrmStore {
   login: (user: string, role: 'tele' | 'sales' | 'admin', userId?: string, username?: string, token?: string) => void
   logout: () => void
   updateLeadInCache: (id: string, updates: Partial<Lead>) => void
+  revertLeadInCache: (id: string, oldLead: Lead) => void
   addLeadToCache: (lead: Lead) => void
   batchAddLeadsToCache: (leads: Lead[]) => void
   removeLeadFromCache: (id: string) => void
@@ -429,6 +430,22 @@ export const useCrmStore = create<CrmStore>()(
         newArchivedLeads = state.archivedLeads.map((l) => (l.id === id ? { ...l, ...updates, notes: updates.notes !== undefined ? updates.notes : l.notes } : l))
       }
 
+      return { leads: newLeads, archivedLeads: newArchivedLeads, leadsById: newLeadsById }
+    })
+  },
+  revertLeadInCache: (id, oldLead) => {
+    // Rollback an optimistic update — restore the lead to its pre-edit state.
+    // Called when apiUpdateLead fails (e.g. 401 session expired) to prevent
+    // the user from seeing data that wasn't actually saved to the server.
+    set((state) => {
+      const newLeadsById = { ...state.leadsById, [id]: oldLead }
+      let newLeads = state.leads
+      let newArchivedLeads = state.archivedLeads
+      if (!oldLead.isArchived) {
+        newLeads = state.leads.map((l) => (l.id === id ? oldLead : l))
+      } else {
+        newArchivedLeads = state.archivedLeads.map((l) => (l.id === id ? oldLead : l))
+      }
       return { leads: newLeads, archivedLeads: newArchivedLeads, leadsById: newLeadsById }
     })
   },

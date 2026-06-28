@@ -31,7 +31,7 @@ const SALES_STATUSES = [
   { key: CLOSED_WON_KEY, label: '🏆 تم التقفيل', cls: 'status-done' },
 ]
 import type { Lead } from '@/lib/supabase'
-import { apiCreateLead, apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk, apiBulkCreateLeads } from '@/lib/supabase'
+import { apiCreateLead, apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk, apiBulkCreateLeads, handleServerError } from '@/lib/supabase'
 import {
   Search, Plus, Trash2, Archive, Phone, Filter, X, Check,
   Calendar, Loader2, ClipboardPaste, AlertCircle, ExternalLink,
@@ -669,6 +669,7 @@ export function SalesSheet() {
   const activeFilter = useCrmStore((s) => s.activeFilter)
   const setActiveFilter = useCrmStore((s) => s.setActiveFilter)
   const updateLeadInCache = useCrmStore((s) => s.updateLeadInCache)
+  const revertLeadInCache = useCrmStore((s) => s.revertLeadInCache)
   const removeLeadFromCache = useCrmStore((s) => s.removeLeadFromCache)
   const batchRemoveLeadsFromCache = useCrmStore((s) => s.batchRemoveLeadsFromCache)
   const archiveLeadsInCache = useCrmStore((s) => s.archiveLeadsInCache)
@@ -802,55 +803,49 @@ export function SalesSheet() {
 
   /* ─── Update lead field ─── */
   const handleUpdateField = useCallback(async (id: string, field: string, value: string) => {
+    // Capture the OLD lead state BEFORE the optimistic update — for rollback
+    const oldLead = leads.find(l => l.id === id)
+    if (!oldLead) return
+
     const updates: Partial<Lead> = { [field]: value || null }
     if (field === 'contactResult') {
       updates.contactResultAt = value ? Date.now() : null
     }
     if (field === 'status') {
       if (value === 'meeting') {
-        const lead = leads.find(l => l.id === id)
-        if (lead && !lead.meetingDate) {
+        if (!oldLead.meetingDate) {
           updates.meetingDate = new Date().toISOString().split('T')[0]
         }
-        // Mark when sales booked this meeting — only if not already set
-        // (tele-transferred leads already have assignedAt from the transfer).
-        // This makes sales-originated meetings count in the dashboard KPIs
-        // (meetingsBooked, attendedConfirmed, conversionRate).
-        if (lead && !lead.assignedAt) {
+        if (!oldLead.assignedAt) {
           updates.assignedAt = Date.now()
         }
       } else if (value === CLOSED_WON_KEY) {
-        // "تم التقفيل" — write to BOTH status and salesStatus so every stat agrees
-        // (dashboard checks status; sales-sheet/follow-up/my-meetings check salesStatus).
-        // Do NOT clear meeting fields — preserve meeting history for reports.
         updates.salesStatus = CLOSED_WON_KEY
       } else {
-        // Switching to any other status (followup-1/2/3, not-interested, or cleared):
-        // clear meeting fields (existing behavior) AND clear salesStatus if it was closed-won
-        // so the lead stops counting as تم التقفيل everywhere.
         updates.meetingDate = ''
         updates.meetingTime = ''
         updates.meetingType = ''
         updates.meetingLink = ''
-        const lead = leads.find(l => l.id === id)
-        if (lead && lead.salesStatus === CLOSED_WON_KEY) {
+        if (oldLead.salesStatus === CLOSED_WON_KEY) {
           updates.salesStatus = null
         }
-        // Clear assignedAt for SALES-ORIGINATED leads only (not tele-transferred).
-        // Sales-originated leads get assignedAt set when status='meeting' (line 808-810).
-        // When the meeting is cleared/changed, assignedAt must be cleared too —
-        // otherwise the lead keeps counting in "اجتماعاتي" KPI even though the
-        // status is no longer 'meeting' (audit follow-up: meetingsBooked counts
-        // assignedAt, not status). Tele-transferred leads keep their assignedAt
-        // (it's the transfer timestamp, meaningful for reports).
-        if (lead && (!lead.tele || lead.tele.trim() === '')) {
+        if (!oldLead.tele || oldLead.tele.trim() === '') {
           updates.assignedAt = null as unknown as number
         }
       }
     }
     updateLeadInCache(id, updates)
-    try { await apiUpdateLead(id, updates) } catch { addToast('error', 'فشل التحديث') }
-  }, [updateLeadInCache, addToast, leads])
+    try {
+      await apiUpdateLead(id, updates)
+    } catch (err) {
+      // If session expired, handleServerError will rollback + toast + logout.
+      // For other errors, rollback + show generic error.
+      if (!handleServerError(err, { id, oldLead })) {
+        revertLeadInCache(id, oldLead)
+        addToast('error', 'فشل التحديث — حاول مرة أخرى')
+      }
+    }
+  }, [updateLeadInCache, revertLeadInCache, addToast, leads])
 
   /* ─── Delete single lead ─── */
   const handleDeleteLead = useCallback(async (id: string) => {

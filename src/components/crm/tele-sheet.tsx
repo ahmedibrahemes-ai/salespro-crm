@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { useCrmStore, CONTACT_RESULTS, STATUSES, formatDate, getDateRange } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
-import { apiCreateLead, apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk, apiBulkCreateLeads } from '@/lib/supabase'
+import { apiCreateLead, apiUpdateLead, apiDeleteLead, apiArchiveLeads, apiDeleteLeadsBulk, apiBulkCreateLeads, handleServerError } from '@/lib/supabase'
 import { normalizePhone, isCallContactResult } from '@/lib/crm-utils'
 import {
   Search, Plus, Trash2, Archive, Phone, Filter, X, Check,
@@ -1066,6 +1066,7 @@ export function TeleSheet() {
   const dateRangeFilters = useCrmStore((s) => s.dateRangeFilters)
   const setDateRangeFilter = useCrmStore((s) => s.setDateRangeFilter)
   const updateLeadInCache = useCrmStore((s) => s.updateLeadInCache)
+  const revertLeadInCache = useCrmStore((s) => s.revertLeadInCache)
   const addLeadToCache = useCrmStore((s) => s.addLeadToCache)
   const removeLeadFromCache = useCrmStore((s) => s.removeLeadFromCache)
   const batchRemoveLeadsFromCache = useCrmStore((s) => s.batchRemoveLeadsFromCache)
@@ -1293,6 +1294,10 @@ export function TeleSheet() {
 
   /* ─── Update lead field ─── */
   const handleUpdateField = useCallback(async (id: string, field: string, value: string) => {
+    // Capture the OLD lead state BEFORE the optimistic update — for rollback
+    const oldLead = leads.find(l => l.id === id)
+    if (!oldLead) return
+
     // Empty string means "clear" — store as null in DB
     const updates: Partial<Lead> = { [field]: value || null }
 
@@ -1304,8 +1309,7 @@ export function TeleSheet() {
     if (field === 'status') {
       if (value === 'meeting') {
         // Setting to 'meeting': auto-set meetingDate if empty
-        const lead = leads.find(l => l.id === id)
-        if (lead && !lead.meetingDate) {
+        if (!oldLead.meetingDate) {
           updates.meetingDate = new Date().toISOString().split('T')[0]
         }
       } else {
@@ -1325,10 +1329,15 @@ export function TeleSheet() {
     updateLeadInCache(id, updates)
     try {
       await apiUpdateLead(id, updates)
-    } catch (err: unknown) {
-      addToast('error', 'فشل التحديث')
+    } catch (err) {
+      // If session expired, handleServerError will rollback + toast + logout.
+      // For other errors, rollback + show generic error.
+      if (!handleServerError(err, { id, oldLead })) {
+        revertLeadInCache(id, oldLead)
+        addToast('error', 'فشل التحديث — حاول مرة أخرى')
+      }
     }
-  }, [updateLeadInCache, addToast, leads])
+  }, [updateLeadInCache, revertLeadInCache, addToast, leads])
 
   /* ─── Delete single lead — opens confirmation dialog ─── */
   const requestDeleteLead = useCallback((id: string, name: string) => {

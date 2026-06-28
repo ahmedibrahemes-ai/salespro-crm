@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback } from 'react'
 import { useCrmStore, getDateRange, ATTENDANCE_STATUSES } from '@/lib/store'
 import { normalizePhone, isClosedWon, CLOSED_WON_KEY } from '@/lib/crm-utils'
 import type { Lead } from '@/lib/supabase'
-import { apiUpdateLead } from '@/lib/supabase'
+import { apiUpdateLead, handleServerError } from '@/lib/supabase'
 import {
   Search, Phone, Filter, X, Calendar,
   ChevronLeft, ChevronRight, ExternalLink, CalendarCheck,
@@ -170,6 +170,7 @@ export function FollowUpSection() {
   const dateRangeFilters = useCrmStore((s) => s.dateRangeFilters)
   const setDateRangeFilter = useCrmStore((s) => s.setDateRangeFilter)
   const updateLeadInCache = useCrmStore((s) => s.updateLeadInCache)
+  const revertLeadInCache = useCrmStore((s) => s.revertLeadInCache)
   const storeSelectedSales = useCrmStore((s) => s.selectedSalesMember)
   const setStoreSelectedSales = useCrmStore((s) => s.setSelectedSalesMember)
 
@@ -258,42 +259,42 @@ export function FollowUpSection() {
   if (filterKey !== prevFilterKey) { setPrevFilterKey(filterKey); setCurrentPage(1) }
 
   const handleUpdateField = useCallback(async (id: string, field: string, value: string) => {
+    // Capture the OLD lead state BEFORE the optimistic update — for rollback
+    const oldLead = leads.find(l => l.id === id)
+    if (!oldLead) return
+
     const updates: Partial<Lead> = { [field]: value || null }
     if (field === 'contactResult') {
       updates.contactResultAt = value ? Date.now() : null
     }
     if (field === 'status') {
       if (value === 'meeting') {
-        // Mark when sales booked/re-confirmed this meeting — only if not already set
-        // (tele-transferred leads already have assignedAt from the transfer).
-        // Ensures the meeting counts in dashboard KPIs.
-        const lead = leads.find(l => l.id === id)
-        if (lead && !lead.assignedAt) {
+        if (!oldLead.assignedAt) {
           updates.assignedAt = Date.now()
         }
       } else if (value === CLOSED_WON_KEY) {
-        // "تم التقفيل" — write to BOTH status and salesStatus so every stat agrees
-        // (dashboard checks status; sales-sheet/follow-up/my-meetings check salesStatus).
-        // Do NOT clear meeting fields — preserve meeting history for reports.
         updates.salesStatus = CLOSED_WON_KEY
       } else {
-        // Switching away from closed-won (or any other change): clear salesStatus if it was closed-won
-        // so the lead stops counting as تم التقفيل everywhere.
-        const lead = leads.find(l => l.id === id)
-        if (lead && lead.salesStatus === CLOSED_WON_KEY) {
+        if (oldLead.salesStatus === CLOSED_WON_KEY) {
           updates.salesStatus = null
         }
-        // Clear assignedAt for SALES-ORIGINATED leads only (not tele-transferred).
-        // Same logic as sales-sheet: when status changes away from 'meeting',
-        // the lead should stop counting in "اجتماعاتي" KPI.
-        if (lead && (!lead.tele || lead.tele.trim() === '')) {
+        if (!oldLead.tele || oldLead.tele.trim() === '') {
           updates.assignedAt = null as unknown as number
         }
       }
     }
     updateLeadInCache(id, updates)
-    try { await apiUpdateLead(id, updates) } catch { addToast('error', 'فشل التحديث') }
-  }, [updateLeadInCache, addToast, leads])
+    try {
+      await apiUpdateLead(id, updates)
+    } catch (err) {
+      // If session expired, handleServerError will rollback + toast + logout.
+      // For other errors, rollback + show generic error.
+      if (!handleServerError(err, { id, oldLead })) {
+        revertLeadInCache(id, oldLead)
+        addToast('error', 'فشل التحديث — حاول مرة أخرى')
+      }
+    }
+  }, [updateLeadInCache, revertLeadInCache, addToast, leads])
 
   return (
     <div className="space-y-4" dir="rtl" style={{ fontFamily: 'Cairo, sans-serif' }}>

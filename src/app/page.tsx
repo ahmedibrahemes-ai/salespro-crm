@@ -540,6 +540,24 @@ export default function Home() {
     }
   }, [isAuthenticated, dataLoaded])
 
+  // Periodic session validation — check every 5 minutes if the session is
+  // still valid. If invalid (expired/disabled), force logout so the user
+  // doesn't keep editing with a stale session (which causes "فشل التحديث"
+  // and data loss when optimistic updates get overwritten by realtime).
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const SESSION_CHECK_INTERVAL = 5 * 60 * 1000 // 5 minutes
+    const interval = setInterval(async () => {
+      const { validateSession, useCrmStore } = await import('@/lib/store')
+      const result = await validateSession()
+      if (result === 'invalid') {
+        useCrmStore.getState().addToast('warning', 'انتهت الجلسة — سجل دخول تاني')
+        setTimeout(() => useCrmStore.getState().logout(), 1500)
+      }
+    }, SESSION_CHECK_INTERVAL)
+    return () => clearInterval(interval)
+  }, [isAuthenticated])
+
   // Show loading screen while hydrating auth from localStorage
   if (hydrating) {
     return (

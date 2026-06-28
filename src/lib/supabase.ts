@@ -85,9 +85,49 @@ async function serverOp<T = unknown>(operation: string, data: unknown): Promise<
   })
   const json = await res.json()
   if (!res.ok || json.error) {
+    // 401 = session expired or invalid. Throw a special error so callers can
+    // rollback optimistic updates and force re-login (prevents data loss when
+    // the user edits data with an expired session).
+    if (res.status === 401) {
+      const err = new Error('SESSION_EXPIRED') as Error & { status: number }
+      err.status = 401
+      throw err
+    }
     throw new Error(json.error || `Server operation "${operation}" failed (${res.status})`)
   }
   return json.data ?? json
+}
+
+/**
+ * Handle a serverOp error: if 401 (session expired), rollback the optimistic
+ * update, show a clear toast, and force logout so the user re-logs in.
+ * Returns true if the error was a session expiry (caller should stop), false
+ * for other errors (caller can continue with its own error handling).
+ */
+export function handleServerError(
+  err: unknown,
+  rollback?: { id: string; oldLead: Lead }
+): boolean {
+  const isSessionExpired = err instanceof Error && err.message === 'SESSION_EXPIRED'
+
+  if (isSessionExpired) {
+    // Import store dynamically to avoid circular dependency
+    import('@/lib/store').then(({ useCrmStore }) => {
+      // Rollback the optimistic update so the user sees the REAL (old) data
+      if (rollback) {
+        useCrmStore.getState().revertLeadInCache(rollback.id, rollback.oldLead)
+      }
+      // Show clear toast
+      useCrmStore.getState().addToast('error', 'انتهت الجلسة — سجل دخول تاني')
+      // Force logout after a short delay (let the toast show)
+      setTimeout(() => {
+        useCrmStore.getState().logout()
+      }, 1500)
+    })
+    return true
+  }
+
+  return false
 }
 
 // ===== Types =====

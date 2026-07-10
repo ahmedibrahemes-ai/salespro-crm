@@ -340,6 +340,71 @@ export async function apiGetLeads(includeArchived = false): Promise<Lead[]> {
   return json.data as Lead[]
 }
 
+/**
+ * Fetch the FIRST page of leads (200) for fast initial render.
+ * Returns { leads, total, hasMore }.
+ * The rest of the leads are loaded in the background by apiGetRemainingLeads().
+ */
+export async function apiGetLeadsPage1(includeArchived = false): Promise<{ leads: Lead[]; total: number; hasMore: boolean }> {
+  const params = new URLSearchParams()
+  if (includeArchived) params.set('archived', 'true')
+  params.set('page', '1')
+  params.set('limit', '200')
+
+  const res = await fetch(`/api/leads?${params.toString()}`, {
+    headers: authHeaders(),
+  })
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    const msg = errBody?.error || `فشل تحميل البيانات (HTTP ${res.status})`
+    throw new Error(msg)
+  }
+  const json = await res.json()
+  if (!json.data || !Array.isArray(json.data)) {
+    throw new Error('استجابة غير صالحة من الخادم')
+  }
+  return {
+    leads: json.data as Lead[],
+    total: json.total ?? json.data.length,
+    hasMore: json.hasMore ?? false,
+  }
+}
+
+/**
+ * Fetch ALL remaining leads (page 2 onwards) in the background.
+ * Used after apiGetLeadsPage1 to load the full dataset for stats calculations.
+ * Returns the combined array of all remaining leads.
+ */
+export async function apiGetRemainingLeads(includeArchived = false, pageSize = 500): Promise<Lead[]> {
+  let allRemaining: Lead[] = []
+  let page = 2
+  let hasMore = true
+
+  while (hasMore) {
+    const params = new URLSearchParams()
+    if (includeArchived) params.set('archived', 'true')
+    params.set('page', String(page))
+    params.set('limit', String(pageSize))
+
+    const res = await fetch(`/api/leads?${params.toString()}`, {
+      headers: authHeaders(),
+    })
+    if (!res.ok) break // Silent fail — stats will use whatever was loaded
+
+    const json = await res.json()
+    if (!json.data || !Array.isArray(json.data) || json.data.length === 0) break
+
+    allRemaining = allRemaining.concat(json.data as Lead[])
+    hasMore = json.hasMore ?? false
+    page++
+
+    // Safety cap: 50 pages × 500 = 25,000 leads max
+    if (page > 50) break
+  }
+
+  return allRemaining
+}
+
 export async function apiGetArchivedLeads(): Promise<Lead[]> {
   // Allow edge caching (same rationale as apiGetLeads — archived data changes
   // rarely, so 30s edge cache is safe + cuts egress).

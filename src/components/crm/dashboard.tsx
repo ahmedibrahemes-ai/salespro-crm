@@ -408,13 +408,23 @@ export function Dashboard() {
         }
       }
 
-      // Sales-originated meetings this month (for "اجتماعاتي" KPI).
-      // A "meeting" = status='meeting' AND assignedAt set within the month.
-      // If sales clears the status, assignedAt is cleared too (sales-sheet/follow-up
-      // handleUpdateField), so the lead stops counting here. The status check is a
-      // defensive guard for any legacy data where assignedAt wasn't cleared.
-      if (l.status === 'meeting' && l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
-        meetingsBooked++
+      // "اجتماعاتي" KPI — different logic per role:
+      // - TELE: count ALL transfers this month (assignedAt in month, regardless of
+      //   current status). This matches "اجتماعات التلي" page which shows all
+      //   transfers. The tele user wants to see their total transfer count, not
+      //   just the ones where sales hasn't changed the status yet.
+      // - SALES / ADMIN: count only status='meeting' AND assignedAt in month.
+      //   Sales-originated meetings are counted only while the status is actively
+      //   'meeting' — if sales changes to followup/closed-won, it stops counting.
+      const isTelePerspective = currentRole === 'tele' || (currentRole === 'admin' && adminSelectedMember.type === 'tele')
+      if (isTelePerspective) {
+        if (l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
+          meetingsBooked++
+        }
+      } else {
+        if (l.status === 'meeting' && l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
+          meetingsBooked++
+        }
       }
 
       // Pipeline meetings from myLeads (for tele / admin-tele / admin-all views
@@ -456,7 +466,7 @@ export function Dashboard() {
     const conversionRate = pipelineMeetings > 0 ? Math.round((pipelineAttended / pipelineMeetings) * 1000) / 10 : 0
 
     return { leadsCreatedMonth, callsMonth, meetingsBooked, teleTransferMeetings, attendedConfirmed, closedWon, conversionRate, whatsappSent }
-  }, [myLeads, teleTransferredLeads, monthRange])
+  }, [myLeads, teleTransferredLeads, monthRange, currentRole, adminSelectedMember])
 
   /* ─── Uncontacted leads count (for urgent strip) ─── */
   const uncontactedCount = useMemo(() => {

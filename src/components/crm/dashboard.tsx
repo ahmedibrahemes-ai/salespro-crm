@@ -652,29 +652,71 @@ export function Dashboard() {
   }, [myLeads, teleTransferredLeads, meetingStatsPeriod])
 
   /* ─── RANK (مركزك) — CURRENT MONTH ONLY ───
-     Tele: ranked by transfers this month (assignedAt in month)
-     Sales: ranked by avg(meetings + calls + closings) this month
-     - meetings: assignedAt in month (includes tele-transferred + sales-originated)
-     - calls: contactResultAt in month + isCallContactResult
-     - closings: isClosedWon + assignedAt in month */
+     Tele: ranked by average of 3 separate ranks:
+       1. Answered calls rank (contactResult='replied' + contactResultAt in month)
+       2. Transfers rank (assignedAt in month)
+       3. Attendance rate rank (attended / total transfers)
+     The card displays the transfer count (meetingsCount).
+     Sales: ranked by avg(meetings + calls + closings) this month */
   const rankInfo = useMemo(() => {
     const { from, to } = monthRange
 
     if (currentRole === 'tele' && currentUser) {
-      const meetingCounts: Record<string, number> = {}
-      for (const member of team.tele) meetingCounts[member] = 0
+      // Build per-member stats for the current month
+      const memberStats: Record<string, { answeredCalls: number; transfers: number; attended: number }> = {}
+      for (const member of team.tele) {
+        memberStats[member] = { answeredCalls: 0, transfers: 0, attended: 0 }
+      }
       for (const l of allActiveLeads) {
-        // Only count transfers within the current month
-        if (l.assignedAt && l.assignedAt >= from && l.assignedAt < to && l.tele && team.tele.includes(l.tele)) {
-          meetingCounts[l.tele] = (meetingCounts[l.tele] || 0) + 1
+        if (!l.tele || !team.tele.includes(l.tele)) continue
+        // 1. Answered calls: contactResult='replied' + contactResultAt in month
+        if (l.contactResult === 'replied' && l.contactResultAt && l.contactResultAt >= from && l.contactResultAt < to) {
+          memberStats[l.tele].answeredCalls++
+        }
+        // 2. Transfers: assignedAt in month
+        if (l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
+          memberStats[l.tele].transfers++
+          // 3. Attended: attended='attended' (among transferred leads this month)
+          if (l.attended === 'attended') {
+            memberStats[l.tele].attended++
+          }
         }
       }
-      const sorted = Object.entries(meetingCounts).sort((a, b) => b[1] - a[1])
+
+      // Compute attendance rate per member: attended / total transfers
+      const memberRates: Record<string, { answeredCalls: number; transfers: number; attendanceRate: number }> = {}
+      for (const member of team.tele) {
+        const s = memberStats[member]
+        const attendanceRate = s.transfers > 0 ? Math.round((s.attended / s.transfers) * 100) : 0
+        memberRates[member] = { answeredCalls: s.answeredCalls, transfers: s.transfers, attendanceRate }
+      }
+
+      // Rank each member on each metric (1 = best)
+      const sortByCalls = [...team.tele].sort((a, b) => memberRates[b].answeredCalls - memberRates[a].answeredCalls)
+      const sortByTransfers = [...team.tele].sort((a, b) => memberRates[b].transfers - memberRates[a].transfers)
+      const sortByAttendance = [...team.tele].sort((a, b) => memberRates[b].attendanceRate - memberRates[a].attendanceRate)
+
+      const rankOf = (sortedArr: string[], name: string) => {
+        const idx = sortedArr.indexOf(name)
+        return idx >= 0 ? idx + 1 : sortedArr.length
+      }
+
+      // Average rank across the 3 metrics
+      const avgRanks: Record<string, number> = {}
+      for (const member of team.tele) {
+        const rankCalls = rankOf(sortByCalls, member)
+        const rankTransfers = rankOf(sortByTransfers, member)
+        const rankAttendance = rankOf(sortByAttendance, member)
+        avgRanks[member] = (rankCalls + rankTransfers + rankAttendance) / 3
+      }
+
+      // Final sort by average rank (lowest = best)
+      const sorted = Object.entries(avgRanks).sort((a, b) => a[1] - b[1])
       const idx = sorted.findIndex(([name]) => name === currentUser)
       const position = idx >= 0 ? idx + 1 : sorted.length
-      const meetingsCount = meetingCounts[currentUser] || 0
+      const meetingsCount = memberRates[currentUser]?.transfers || 0
       const totalMembers = sorted.length
-      const membersBelow = sorted.filter(([_, count]) => count < meetingsCount).length
+      const membersBelow = sorted.filter(([_, avg]) => avg > avgRanks[currentUser]).length
       const percentile = totalMembers > 1 ? Math.round((membersBelow / (totalMembers - 1)) * 100) : 0
       return { position, totalMembers, meetingsCount, percentile }
     }

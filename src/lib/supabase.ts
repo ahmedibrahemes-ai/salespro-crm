@@ -188,14 +188,16 @@ interface DbNote {
 // ===== Helpers =====
 
 function leadFromDb(row: DbLead): Lead {
+  // Cast to a loose record so we can safely access columns that may be missing
+  // (customer_type, cancelled_from, cancelled_at were removed from selectColumns
+  // to reduce egress — they're dead fields, default to empty/null).
+  const r = row as unknown as Record<string, unknown>
   return {
     id: String(row.id),
     storeUrl: row.store_url || '',
     phone: row.phone || '',
     customerName: row.customer_name || '',
-    // customer_type, cancelled_from, cancelled_at are no longer fetched from DB
-    // (removed from selectColumns to reduce egress). Default to empty/null.
-    customerType: (row as Record<string, unknown>).customer_type as string || '',
+    customerType: (r.customer_type as string) || '',
     brief: row.brief || '',
     contactResult: row.contact_result || '',
     contactResultAt: safeTimestamp(row.contact_result_at),
@@ -210,8 +212,8 @@ function leadFromDb(row: DbLead): Lead {
     attended: normalizeAttended(row.attended),
     attendanceMarkedAt: safeTimestamp(row.attendance_marked_at),
     attendanceMarkedBy: row.attendance_marked_by || null,
-    cancelledFrom: (row as Record<string, unknown>).cancelled_from as string || null,
-    cancelledAt: safeTimestamp((row as Record<string, unknown>).cancelled_at as string | null),
+    cancelledFrom: (r.cancelled_from as string) || null,
+    cancelledAt: safeTimestamp(r.cancelled_at as string | null),
     createdAt: safeTimestamp(row.created_at) ?? 0,
     assignedAt: safeTimestamp(row.assigned_at),
     isArchived: row.is_archived || false,

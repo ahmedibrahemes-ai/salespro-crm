@@ -651,13 +651,21 @@ export function Dashboard() {
     return { totalMeetings, attendedMeetings, pendingMeetings, noShowMeetings, attendanceRate }
   }, [myLeads, teleTransferredLeads, meetingStatsPeriod])
 
-  /* ─── RANK (مركزك) — Tele: meetings, Sales: avg(meetings+calls+closings) ─── */
+  /* ─── RANK (مركزك) — CURRENT MONTH ONLY ───
+     Tele: ranked by transfers this month (assignedAt in month)
+     Sales: ranked by avg(meetings + calls + closings) this month
+     - meetings: assignedAt in month (includes tele-transferred + sales-originated)
+     - calls: contactResultAt in month + isCallContactResult
+     - closings: isClosedWon + assignedAt in month */
   const rankInfo = useMemo(() => {
+    const { from, to } = monthRange
+
     if (currentRole === 'tele' && currentUser) {
       const meetingCounts: Record<string, number> = {}
       for (const member of team.tele) meetingCounts[member] = 0
       for (const l of allActiveLeads) {
-        if (l.assignedAt && l.tele && team.tele.includes(l.tele)) {
+        // Only count transfers within the current month
+        if (l.assignedAt && l.assignedAt >= from && l.assignedAt < to && l.tele && team.tele.includes(l.tele)) {
           meetingCounts[l.tele] = (meetingCounts[l.tele] || 0) + 1
         }
       }
@@ -672,19 +680,25 @@ export function Dashboard() {
     }
 
     if (currentRole === 'sales' && currentUser) {
-      // Sales rank: average of (meetings + calls + closings) per sales member
       const stats: Record<string, { meetings: number; calls: number; closings: number; avg: number }> = {}
       for (const member of team.sales) {
         stats[member] = { meetings: 0, calls: 0, closings: 0, avg: 0 }
       }
       for (const l of allActiveLeads) {
-        if (l.sales && team.sales.includes(l.sales)) {
-          if (l.assignedAt) stats[l.sales].meetings++
-          if (isCallContactResult(l.contactResult)) stats[l.sales].calls++
-          if (isClosedWon(l)) stats[l.sales].closings++
+        if (!l.sales || !team.sales.includes(l.sales)) continue
+        // meetings: assignedAt within this month (tele-transferred + sales-originated)
+        if (l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
+          stats[l.sales].meetings++
+        }
+        // calls: contactResultAt within this month + isCallContactResult
+        if (l.contactResultAt && l.contactResultAt >= from && l.contactResultAt < to && isCallContactResult(l.contactResult)) {
+          stats[l.sales].calls++
+        }
+        // closings: isClosedWon + assignedAt within this month
+        if (isClosedWon(l) && l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
+          stats[l.sales].closings++
         }
       }
-      // Calculate average score per member
       for (const member of team.sales) {
         const s = stats[member]
         s.avg = (s.meetings + s.calls + s.closings) / 3
@@ -700,7 +714,7 @@ export function Dashboard() {
     }
 
     return { position: 0, totalMembers: 0, meetingsCount: 0, percentile: 0 }
-  }, [currentRole, currentUser, team, allActiveLeads])
+  }, [currentRole, currentUser, team, allActiveLeads, monthRange])
 
   /* ─── Motivational message ─── */
   const motivation = useMemo(() => {

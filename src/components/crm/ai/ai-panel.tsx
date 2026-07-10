@@ -43,19 +43,20 @@ export function AIPanel() {
   const teamMetrics = useMemo(() => {
     const { from, to } = getDateRange('month')
 
-    const perTele: Record<string, { total: number; meetings: number; attended: number; closedWon: number; calls: number; transfers: number }> = {}
-    const perSales: Record<string, { total: number; meetings: number; attended: number; closedWon: number; calls: number; transfers: number }> = {}
+    const perTele: Record<string, { total: number; meetings: number; attended: number; noShow: number; closedWon: number; calls: number; transfers: number }> = {}
+    const perSales: Record<string, { total: number; meetings: number; attended: number; noShow: number; closedWon: number; calls: number; transfers: number }> = {}
 
     for (const lead of leads) {
       // Tele metrics
       if (lead.tele) {
-        if (!perTele[lead.tele]) perTele[lead.tele] = { total: 0, meetings: 0, attended: 0, closedWon: 0, calls: 0, transfers: 0 }
+        if (!perTele[lead.tele]) perTele[lead.tele] = { total: 0, meetings: 0, attended: 0, noShow: 0, closedWon: 0, calls: 0, transfers: 0 }
         perTele[lead.tele].total++
         // meetings (transfers): assignedAt within this month
         if (lead.assignedAt && lead.assignedAt >= from && lead.assignedAt < to) {
           perTele[lead.tele].meetings++
           perTele[lead.tele].transfers++
           if (lead.attended === 'attended') perTele[lead.tele].attended++
+          if (lead.attended === 'no-show') perTele[lead.tele].noShow++
         }
         // calls: isCallContactResult + contactResultAt within this month
         if (lead.contactResultAt && lead.contactResultAt >= from && lead.contactResultAt < to && isCallContactResult(lead.contactResult)) {
@@ -64,13 +65,14 @@ export function AIPanel() {
       }
       // Sales metrics
       if (lead.sales) {
-        if (!perSales[lead.sales]) perSales[lead.sales] = { total: 0, meetings: 0, attended: 0, closedWon: 0, calls: 0, transfers: 0 }
+        if (!perSales[lead.sales]) perSales[lead.sales] = { total: 0, meetings: 0, attended: 0, noShow: 0, closedWon: 0, calls: 0, transfers: 0 }
         perSales[lead.sales].total++
         // meetings: assignedAt within this month (tele-transferred + sales-originated)
         if (lead.assignedAt && lead.assignedAt >= from && lead.assignedAt < to) {
           perSales[lead.sales].meetings++
           perSales[lead.sales].transfers++
           if (lead.attended === 'attended') perSales[lead.sales].attended++
+          if (lead.attended === 'no-show') perSales[lead.sales].noShow++
         }
         // calls: isCallContactResult + contactResultAt within this month
         if (lead.contactResultAt && lead.contactResultAt >= from && lead.contactResultAt < to && isCallContactResult(lead.contactResult)) {
@@ -109,6 +111,7 @@ export function AIPanel() {
     salesCount: teamMetrics.perSales.length,
     totalMeetings: teamMetrics.perTele.reduce((sum, t) => sum + t.meetings, 0),
     totalAttended: teamMetrics.perTele.reduce((sum, t) => sum + t.attended, 0),
+    totalNoShow: teamMetrics.perTele.reduce((sum, t) => sum + t.noShow, 0),
     totalClosedWon: teamMetrics.perSales.reduce((sum, s) => sum + s.closedWon, 0),
     perTele: teamMetrics.perTele,
     perSales: teamMetrics.perSales,
@@ -131,7 +134,9 @@ export function AIPanel() {
         </div>
       </div>
 
-      {/* Quick stats */}
+      {/* Quick stats — 4th card differs by role:
+          Tele: 'لم يحضروا' (no-show) — tele is not responsible for closings
+          Sales/Admin: 'تقفيل' (closed-won) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard
           icon={<Phone className="w-4 h-4" />}
@@ -151,12 +156,21 @@ export function AIPanel() {
           value={String(performanceData.totalAttended)}
           color="text-emerald-400 bg-emerald-500/10"
         />
-        <StatCard
-          icon={<Award className="w-4 h-4" />}
-          label="تقفيل"
-          value={String(performanceData.totalClosedWon)}
-          color="text-amber-400 bg-amber-500/10"
-        />
+        {currentRole === 'tele' ? (
+          <StatCard
+            icon={<Activity className="w-4 h-4" />}
+            label="لم يحضروا"
+            value={String(performanceData.totalNoShow)}
+            color="text-red-400 bg-red-500/10"
+          />
+        ) : (
+          <StatCard
+            icon={<Award className="w-4 h-4" />}
+            label="تقفيل"
+            value={String(performanceData.totalClosedWon)}
+            color="text-amber-400 bg-amber-500/10"
+          />
+        )}
       </div>
 
       {/* AI Analysis buttons */}

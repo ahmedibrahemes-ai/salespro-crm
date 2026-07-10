@@ -175,7 +175,7 @@ export function AIPanel() {
 
       {/* AI Analysis buttons */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {/* Team Performance Analysis */}
+        {/* Team Performance Analysis — shows only the current user's role team */}
         <div className="rounded-xl border border-white/[0.06] bg-[#111520] p-4">
           <div className="flex items-start justify-between mb-3">
             <div>
@@ -183,7 +183,9 @@ export function AIPanel() {
                 تحليل أداء الفريق
               </h3>
               <p className="text-[11px] text-[#8892b0]" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                نظرة شاملة على أداء التيلي والسيلز
+                {currentRole === 'tele' ? 'نظرة شاملة على أداء فريق التيلي'
+                  : currentRole === 'sales' ? 'نظرة شاملة على أداء فريق السيلز'
+                  : 'نظرة شاملة على أداء التيلي والسيلز'}
               </p>
             </div>
             <AIInsightButton
@@ -194,13 +196,14 @@ export function AIPanel() {
             />
           </div>
           <div className="space-y-1.5">
-            {teamMetrics.perTele.slice(0, 3).map((t) => (
-              <div key={t.name} className="flex items-center justify-between text-[11px]">
+            {/* Show only the user's role team. Admin sees tele (first 3). */}
+            {(currentRole === 'sales' ? teamMetrics.perSales : teamMetrics.perTele).slice(0, 5).map((m) => (
+              <div key={m.name} className="flex items-center justify-between text-[11px]">
                 <span className="text-[#8892b0]" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                  {t.name} (تيلي)
+                  {m.name} ({m.role === 'tele' ? 'تيلي' : 'سيلز'})
                 </span>
                 <span className="text-[#4a5280]">
-                  {t.total} عميل · {t.convRate}% حضور
+                  {m.total} عميل · {m.convRate}% {m.role === 'tele' ? 'حضور' : 'تقفيل'}
                 </span>
               </div>
             ))}

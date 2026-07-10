@@ -344,13 +344,17 @@ export default function Home() {
         if (page1Data.hasMore) {
           apiGetRemainingLeads(false).then((remaining) => {
             if (remaining.length > 0) {
-              // Merge: page1 + remaining, dedup by id (in case realtime added
-              // a new lead during the background fetch)
+              // CRITICAL: Only add leads that are NOT already in the store.
+              // The user may have edited leads in Phase 1 (e.g. changed brief,
+              // status, contactResult). If we merge stale server data over
+              // those edits, the user's changes appear to "vanish".
+              // Solution: skip any lead whose ID already exists in the store.
+              // Only TRULY NEW leads (not in Phase 1) are added.
               const { leads: currentLeads, setLeads: updateLeads } = useCrmStore.getState()
               const existingIds = new Set(currentLeads.map((l) => l.id))
-              const newRemaining = remaining.filter((l) => !existingIds.has(l.id))
-              if (newRemaining.length > 0) {
-                updateLeads([...currentLeads, ...newRemaining])
+              const trulyNew = remaining.filter((l) => !existingIds.has(l.id))
+              if (trulyNew.length > 0) {
+                updateLeads([...currentLeads, ...trulyNew])
               }
             }
           }).catch((err) => {
@@ -492,29 +496,40 @@ export default function Home() {
             // realtime payload. Supabase UPDATE payloads contain ONLY the changed
             // columns, so we must NOT spread `undefined` values (which would
             // overwrite existing data with null/undefined and "wipe" fields).
+            //
+            // NULL GUARD: if the realtime payload sends a null/empty value for
+            // a field that currently has data in the client cache, SKIP that
+            // field. This prevents stale realtime events (from edge-cached reads
+            // or replication lag) from wiping user edits. Only apply null if the
+            // current value is ALSO null/empty (confirming the field was intentionally
+            // cleared by the user who made the change).
             const updates: Record<string, unknown> = {}
-            if ('phone' in newRow) updates.phone = (newRow.phone as string) ?? ''
-            if ('customer_name' in newRow) updates.customerName = (newRow.customer_name as string) ?? ''
-            if ('store_url' in newRow) updates.storeUrl = (newRow.store_url as string) ?? ''
-            if ('brief' in newRow) updates.brief = (newRow.brief as string) ?? ''
-            if ('contact_result' in newRow) updates.contactResult = (newRow.contact_result as string) ?? ''
-            if ('status' in newRow) updates.status = (newRow.status as string) ?? ''
-            if ('sales_status' in newRow) updates.salesStatus = (newRow.sales_status as string) ?? null
-            if ('attended' in newRow) updates.attended = (newRow.attended as string) ?? null
-            if ('sales_name' in newRow) updates.sales = newRow.sales_name ? String(newRow.sales_name).trim() : null
-            if ('meeting_date' in newRow) updates.meetingDate = (newRow.meeting_date as string) ?? ''
-            if ('meeting_time' in newRow) updates.meetingTime = (newRow.meeting_time as string) ?? ''
-            if ('meeting_type' in newRow) updates.meetingType = (newRow.meeting_type as string) ?? ''
-            if ('meeting_link' in newRow) updates.meetingLink = (newRow.meeting_link as string) ?? ''
-            if ('assigned_at' in newRow) updates.assignedAt = newRow.assigned_at ? new Date(newRow.assigned_at as string).getTime() : null
-            if ('is_archived' in newRow) updates.isArchived = (newRow.is_archived as boolean) ?? false
-            if ('archived_at' in newRow) updates.archivedAt = newRow.archived_at ? new Date(newRow.archived_at as string).getTime() : null
-            if ('archived_by' in newRow) updates.archivedBy = (newRow.archived_by as string) ?? null
-            if ('cancelled_from' in newRow) updates.cancelledFrom = (newRow.cancelled_from as string) ?? null
-            if ('cancelled_at' in newRow) updates.cancelledAt = newRow.cancelled_at ? new Date(newRow.cancelled_at as string).getTime() : null
-            if ('attendance_marked_at' in newRow) updates.attendanceMarkedAt = newRow.attendance_marked_at ? new Date(newRow.attendance_marked_at as string).getTime() : null
-            if ('attendance_marked_by' in newRow) updates.attendanceMarkedBy = (newRow.attendance_marked_by as string) ?? null
-            if ('contact_result_at' in newRow) updates.contactResultAt = newRow.contact_result_at ? new Date(newRow.contact_result_at as string).getTime() : null
+            const has = (k: string) => k in newRow
+            const val = (k: string) => newRow[k] as string | null | undefined
+            const existing = existingLead
+
+            if (has('phone')) { const v = val('phone') ?? ''; if (v || !existing?.phone) updates.phone = v }
+            if (has('customer_name')) { const v = val('customer_name') ?? ''; if (v || !existing?.customerName) updates.customerName = v }
+            if (has('store_url')) { const v = val('store_url') ?? ''; if (v || !existing?.storeUrl) updates.storeUrl = v }
+            if (has('brief')) { const v = val('brief') ?? ''; if (v || !existing?.brief) updates.brief = v }
+            if (has('contact_result')) { const v = val('contact_result') ?? ''; if (v || !existing?.contactResult) updates.contactResult = v }
+            if (has('status')) { const v = val('status') ?? ''; updates.status = v || null }
+            if (has('sales_status')) { const v = val('sales_status') ?? null; updates.salesStatus = v }
+            if (has('attended')) { const v = val('attended') ?? null; updates.attended = v }
+            if (has('sales_name')) { const v = val('sales_name'); updates.sales = v ? String(v).trim() : null }
+            if (has('meeting_date')) { const v = val('meeting_date') ?? ''; if (v || !existing?.meetingDate) updates.meetingDate = v }
+            if (has('meeting_time')) { const v = val('meeting_time') ?? ''; if (v || !existing?.meetingTime) updates.meetingTime = v }
+            if (has('meeting_type')) { const v = val('meeting_type') ?? ''; if (v || !existing?.meetingType) updates.meetingType = v }
+            if (has('meeting_link')) { const v = val('meeting_link') ?? ''; if (v || !existing?.meetingLink) updates.meetingLink = v }
+            if (has('assigned_at')) { const v = val('assigned_at'); updates.assignedAt = v ? new Date(v as string).getTime() : null }
+            if (has('is_archived')) { updates.isArchived = (newRow.is_archived as boolean) ?? false }
+            if (has('archived_at')) { const v = val('archived_at'); updates.archivedAt = v ? new Date(v as string).getTime() : null }
+            if (has('archived_by')) { const v = val('archived_by') ?? null; updates.archivedBy = v }
+            if (has('cancelled_from')) { const v = val('cancelled_from') ?? null; updates.cancelledFrom = v }
+            if (has('cancelled_at')) { const v = val('cancelled_at'); updates.cancelledAt = v ? new Date(v as string).getTime() : null }
+            if (has('attendance_marked_at')) { const v = val('attendance_marked_at'); updates.attendanceMarkedAt = v ? new Date(v as string).getTime() : null }
+            if (has('attendance_marked_by')) { const v = val('attendance_marked_by') ?? null; updates.attendanceMarkedBy = v }
+            if (has('contact_result_at')) { const v = val('contact_result_at'); updates.contactResultAt = v ? new Date(v as string).getTime() : null }
 
             if (Object.keys(updates).length > 0) {
               updateLeadInCache(leadId, updates)

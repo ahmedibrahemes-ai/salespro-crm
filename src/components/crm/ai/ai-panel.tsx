@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import { Sparkles, TrendingUp, Target, Award, Activity, DollarSign, Phone } from 'lucide-react'
-import { useCrmStore } from '@/lib/store'
-import { isClosedWon } from '@/lib/crm-utils'
+import { useCrmStore, getDateRange } from '@/lib/store'
+import { isClosedWon, isCallContactResult } from '@/lib/crm-utils'
 import { AIInsightButton } from './ai-insight-button'
 import { SmartReplyButton } from './smart-reply-button'
 
@@ -38,27 +38,48 @@ export function AIPanel() {
     return allLeads.filter((l) => !l.isArchived)
   }, [allLeads, currentRole, currentUser])
 
-  // Compute team performance metrics for AI analysis
+  // Compute team performance metrics for AI analysis — CURRENT MONTH ONLY.
+  // Uses the same logic as the dashboard KPIs to ensure consistency.
   const teamMetrics = useMemo(() => {
-    const perTele: Record<string, { total: number; meetings: number; attended: number; closedWon: number; calls: number }> = {}
-    const perSales: Record<string, { total: number; meetings: number; attended: number; closedWon: number; calls: number }> = {}
+    const { from, to } = getDateRange('month')
+
+    const perTele: Record<string, { total: number; meetings: number; attended: number; closedWon: number; calls: number; transfers: number }> = {}
+    const perSales: Record<string, { total: number; meetings: number; attended: number; closedWon: number; calls: number; transfers: number }> = {}
 
     for (const lead of leads) {
       // Tele metrics
       if (lead.tele) {
-        if (!perTele[lead.tele]) perTele[lead.tele] = { total: 0, meetings: 0, attended: 0, closedWon: 0, calls: 0 }
+        if (!perTele[lead.tele]) perTele[lead.tele] = { total: 0, meetings: 0, attended: 0, closedWon: 0, calls: 0, transfers: 0 }
         perTele[lead.tele].total++
-        if (lead.meetingDate) perTele[lead.tele].meetings++
-        if (lead.attended === 'attended') perTele[lead.tele].attended++
-        if (lead.contactResult && lead.contactResult !== 'none') perTele[lead.tele].calls++
+        // meetings (transfers): assignedAt within this month
+        if (lead.assignedAt && lead.assignedAt >= from && lead.assignedAt < to) {
+          perTele[lead.tele].meetings++
+          perTele[lead.tele].transfers++
+          if (lead.attended === 'attended') perTele[lead.tele].attended++
+        }
+        // calls: isCallContactResult + contactResultAt within this month
+        if (lead.contactResultAt && lead.contactResultAt >= from && lead.contactResultAt < to && isCallContactResult(lead.contactResult)) {
+          perTele[lead.tele].calls++
+        }
       }
       // Sales metrics
       if (lead.sales) {
-        if (!perSales[lead.sales]) perSales[lead.sales] = { total: 0, meetings: 0, attended: 0, closedWon: 0, calls: 0 }
+        if (!perSales[lead.sales]) perSales[lead.sales] = { total: 0, meetings: 0, attended: 0, closedWon: 0, calls: 0, transfers: 0 }
         perSales[lead.sales].total++
-        if (lead.meetingDate) perSales[lead.sales].meetings++
-        if (lead.attended === 'attended') perSales[lead.sales].attended++
-        if (isClosedWon(lead)) perSales[lead.sales].closedWon++
+        // meetings: assignedAt within this month (tele-transferred + sales-originated)
+        if (lead.assignedAt && lead.assignedAt >= from && lead.assignedAt < to) {
+          perSales[lead.sales].meetings++
+          perSales[lead.sales].transfers++
+          if (lead.attended === 'attended') perSales[lead.sales].attended++
+        }
+        // calls: isCallContactResult + contactResultAt within this month
+        if (lead.contactResultAt && lead.contactResultAt >= from && lead.contactResultAt < to && isCallContactResult(lead.contactResult)) {
+          perSales[lead.sales].calls++
+        }
+        // closedWon: isClosedWon + assignedAt within this month
+        if (isClosedWon(lead) && lead.assignedAt && lead.assignedAt >= from && lead.assignedAt < to) {
+          perSales[lead.sales].closedWon++
+        }
       }
     }
 
@@ -68,13 +89,15 @@ export function AIPanel() {
         name,
         role: 'tele' as const,
         ...m,
-        convRate: m.total > 0 ? Math.round((m.attended / m.total) * 100) : 0,
+        // convRate = attended / total transfers (NOT total leads)
+        convRate: m.transfers > 0 ? Math.round((m.attended / m.transfers) * 100) : 0,
       })),
       perSales: Object.entries(perSales).map(([name, m]) => ({
         name,
         role: 'sales' as const,
         ...m,
-        convRate: m.total > 0 ? Math.round((m.closedWon / m.total) * 100) : 0,
+        // convRate = closedWon / total meetings this month
+        convRate: m.meetings > 0 ? Math.round((m.closedWon / m.meetings) * 100) : 0,
       })),
     }
   }, [leads])

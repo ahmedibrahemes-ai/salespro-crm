@@ -206,32 +206,14 @@ export async function GET(request: NextRequest) {
     // archived_at + archived_by are kept (admin-panel displays archivedBy).
     const selectColumns = 'id,store_url,phone,customer_name,brief,contact_result,contact_result_at,tele_name,sales_name,meeting_date,meeting_time,meeting_type,meeting_link,status,sales_status,attended,attendance_marked_at,attendance_marked_by,created_at,assigned_at,is_archived,archived_at,archived_by'
 
-    // Get total count (zero-egress — head:true) for paginated responses
+    // Get total count — SKIP for paginated requests to save 200-400ms.
+    // The countQuery (HEAD request) adds latency. For paginated requests,
+    // we infer hasMore from the result size (if we got 'limit' rows, there
+    // are probably more). The exact total is not needed for Phase 1 rendering.
     let total: number | undefined
     if (isPaginated) {
-      let countQuery = client
-        .from('leads')
-        .select('*', { count: 'exact', head: true })
-
-      if (archivedOnly) {
-        countQuery = countQuery.eq('is_archived', true)
-      } else if (!includeArchived) {
-        countQuery = countQuery.eq('is_archived', false)
-      }
-
-      // Apply search filter to count
-      if (search) {
-        countQuery = countQuery.or(`phone.ilike.%${search}%,customer_name.ilike.%${search}%,store_url.ilike.%${search}%`)
-      }
-
-      const { count: cnt, error: cntErr } = await countQuery
-      if (cntErr) {
-        console.error('[api/leads] count error:', cntErr.message)
-        total = 0
-      } else {
-        total = cnt ?? 0
-      }
-      recordSupabaseQuery(1)
+      // Skip count query — infer hasMore from result size below.
+      total = undefined
     }
 
     // Fetch data (single page if paginated, else all pages)
@@ -266,8 +248,10 @@ export async function GET(request: NextRequest) {
       }
 
       allData = (data as DbLead[]) || []
-      hasMore = from + allData.length < (total ?? 0)
-      console.log(`[api/leads] GET page ${page}/${Math.ceil((total ?? 0) / limit!)}: got ${allData.length} rows (total: ${total})`)
+      // Infer hasMore from result size (no count query needed).
+      // If we got exactly 'limit' rows, there are probably more.
+      hasMore = allData.length === limit
+      console.log(`[api/leads] GET page ${page}: got ${allData.length} rows (hasMore: ${hasMore})`)
       recordSupabaseQuery(1)
     } else {
       // Backward-compatible: load ALL leads (for dashboard stats, etc.)

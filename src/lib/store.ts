@@ -894,8 +894,10 @@ export function hydrateAuth() {
       username: auth.username || null,
       hydrating: false,
     })
-    // Validate session in background — only logout if server explicitly says invalid
-    // Network errors are ignored to prevent forced logout on connectivity issues
+    // Validate session in background — NON-BLOCKING.
+    // Don't wait for this before loading data. If the session is invalid,
+    // the loadLeads will fail with 401 and handleServerError will logout.
+    // This saves 300-500ms on initial page load.
     validateSession().then((result) => {
       if (result === 'invalid') {
         useCrmStore.getState().logout()

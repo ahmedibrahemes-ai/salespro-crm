@@ -732,8 +732,8 @@ export function Dashboard() {
         if (l.assignedAt && l.assignedAt >= from && l.assignedAt < to) {
           stats[l.sales].meetings++
         }
-        // calls: contactResultAt within this month + isCallContactResult
-        if (l.contactResultAt && l.contactResultAt >= from && l.contactResultAt < to && isCallContactResult(l.contactResult)) {
+        // calls: ANSWERED calls only (contactResult='replied') within this month
+        if (l.contactResult === 'replied' && l.contactResultAt && l.contactResultAt >= from && l.contactResultAt < to) {
           stats[l.sales].calls++
         }
         // closings: isClosedWon + assignedAt within this month

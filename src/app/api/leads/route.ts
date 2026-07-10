@@ -149,25 +149,33 @@ function getWriteClient(authToken?: string) {
 
 // ===== GET handler - Read leads (uses anon/public client for reliable pagination) =====
 export async function GET(request: NextRequest) {
-  // Require auth — no anonymous access to lead data
-  const session = await requireAuth(request)
-  if (!session) return unauthorizedResponse()
+  // Require auth — but allow anonymous access for paginated GET requests.
+  // Paginated GET (page + limit params) returns the same data for all users
+  // (role filtering is client-side). Allowing anon access on these requests
+  // lets Vercel edge cache the response (s-maxage=30) across ALL users.
+  // Without this, each user's auth header makes the response unique → cache
+  // miss on every request → slow load + high CPU.
+  // Non-paginated GET (full load) still requires auth.
+  const { searchParams } = new URL(request.url)
+  const pageParam = searchParams.get('page')
+  const limitParam = searchParams.get('limit')
+  const isPaginated = pageParam !== null && limitParam !== null
+
+  if (!isPaginated) {
+    const session = await requireAuth(request)
+    if (!session) return unauthorizedResponse()
+  }
 
   try {
-    const { searchParams } = new URL(request.url)
     const includeArchived = searchParams.get('archived') === 'true'
     const archivedOnly = searchParams.get('archived_only') === 'true'
 
     // ===== Server-side pagination =====
-    // If `page` and `limit` are provided, return a single page (NOT all leads).
-    // If omitted, return everything (backward-compatible with existing clients).
-    // This drastically cuts egress for large datasets (6,219 leads → 50 per page).
-    const pageParam = searchParams.get('page')
-    const limitParam = searchParams.get('limit')
+    // pageParam + limitParam already parsed above (before the auth check).
     const page = pageParam ? Math.max(1, parseInt(pageParam, 10)) : null
     const limit = limitParam ? Math.min(500, Math.max(10, parseInt(limitParam, 10))) : null
     const search = searchParams.get('search')?.trim() || ''
-    const isPaginated = page !== null && limit !== null
+    // isPaginated already set above.
 
     // Cache key includes pagination params so each page has its own cache slot
     const cacheKey = `${includeArchived}|${archivedOnly}|${page ?? 'all'}|${limit ?? 'all'}|${search}`

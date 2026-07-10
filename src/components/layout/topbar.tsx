@@ -95,14 +95,15 @@ export function Topbar() {
   const [notifOpen, setNotifOpen] = useState(false)
   const notifRef = useRef<HTMLDivElement>(null)
 
-  // Load notifications from server on mount, then poll every 30s
+  // Load notifications from server on mount, then poll every 60s.
+  // Reduced from 30s to 60s to cut Supabase egress (each poll = 1 DB query).
   useEffect(() => {
     if (!notificationsLoaded) {
       loadNotificationsFromServer()
     }
     const interval = setInterval(() => {
       loadNotificationsFromServer()
-    }, 30000) // poll every 30s
+    }, 60000) // poll every 60s (was 30s — halved egress)
     return () => clearInterval(interval)
   }, [notificationsLoaded, loadNotificationsFromServer])
 

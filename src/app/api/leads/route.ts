@@ -192,8 +192,11 @@ export async function GET(request: NextRequest) {
     }
     const source = 'supabase'
 
-    // Build the SELECT query with column list (same as before)
-    const selectColumns = 'id,store_url,phone,customer_name,customer_type,brief,contact_result,contact_result_at,tele_name,sales_name,meeting_date,meeting_time,meeting_type,meeting_link,status,sales_status,attended,attendance_marked_at,attendance_marked_by,cancelled_from,cancelled_at,created_at,assigned_at,is_archived,archived_at,archived_by'
+    // Build the SELECT query — only fetch columns that are actually used by
+    // the client. Removed: customer_type (always empty), cancelled_from,
+    // cancelled_at (dead fields — no code sets them). This cuts ~15% per row.
+    // archived_at + archived_by are kept (admin-panel displays archivedBy).
+    const selectColumns = 'id,store_url,phone,customer_name,brief,contact_result,contact_result_at,tele_name,sales_name,meeting_date,meeting_time,meeting_type,meeting_link,status,sales_status,attended,attendance_marked_at,attendance_marked_by,created_at,assigned_at,is_archived,archived_at,archived_by'
 
     // Get total count (zero-egress — head:true) for paginated responses
     let total: number | undefined

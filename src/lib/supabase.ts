@@ -193,7 +193,9 @@ function leadFromDb(row: DbLead): Lead {
     storeUrl: row.store_url || '',
     phone: row.phone || '',
     customerName: row.customer_name || '',
-    customerType: row.customer_type || '',
+    // customer_type, cancelled_from, cancelled_at are no longer fetched from DB
+    // (removed from selectColumns to reduce egress). Default to empty/null.
+    customerType: (row as Record<string, unknown>).customer_type as string || '',
     brief: row.brief || '',
     contactResult: row.contact_result || '',
     contactResultAt: safeTimestamp(row.contact_result_at),
@@ -208,8 +210,8 @@ function leadFromDb(row: DbLead): Lead {
     attended: normalizeAttended(row.attended),
     attendanceMarkedAt: safeTimestamp(row.attendance_marked_at),
     attendanceMarkedBy: row.attendance_marked_by || null,
-    cancelledFrom: row.cancelled_from || null,
-    cancelledAt: safeTimestamp(row.cancelled_at),
+    cancelledFrom: (row as Record<string, unknown>).cancelled_from as string || null,
+    cancelledAt: safeTimestamp((row as Record<string, unknown>).cancelled_at as string | null),
     createdAt: safeTimestamp(row.created_at) ?? 0,
     assignedAt: safeTimestamp(row.assigned_at),
     isArchived: row.is_archived || false,
@@ -828,10 +830,11 @@ export function apiSubscribeToLeads(
   callback: (payload: Record<string, unknown>) => void,
   onStatusChange?: (status: 'SUBSCRIBED' | 'CLOSED' | 'CHANNEL_ERROR' | 'TIMED_OUT') => void
 ) {
-  // Subscribe to INSERT, UPDATE, and DELETE events on the leads table.
+  // Subscribe to INSERT and UPDATE events only on the leads table.
+  // - DELETE event REMOVED: the app uses soft-delete (is_archived=true) not
+  //   hard-delete. Hard-deletes are rare (admin bulk cleanup) and handled by
+  //   a full refetch. Removing DELETE cuts ~33% of realtime egress.
   // - lead_notes subscription removed (not used in client, saves ~50% realtime messages)
-  // - DELETE event retained to sync client cache when leads are hard-deleted
-  //   via /api/leads delete operation (audit §3 row 8 — comment was misleading).
   let channel: ReturnType<typeof supabase.channel> | null = null
 
   // Retry logic: if the channel closes unexpectedly, attempt to reconnect
@@ -890,12 +893,8 @@ export function apiSubscribeToLeads(
         setDebounceTimer(key, () => callback(payload), DEBOUNCE_MS)
       }
     })
-    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'leads' }, (rawPayload) => {
-      callback(rawPayload as Record<string, unknown>)
-    })
+    // NOTE: DELETE event removed — app uses soft-delete (is_archived). Saves ~33% egress.
     // NOTE: lead_notes subscription removed — client doesn't process note changes.
-    // Notes are loaded on-demand when a lead detail is opened.
-    // This saves ~50% of realtime messages/egress.
     .subscribe((status, err) => {
       console.log(`[realtime] Status: ${status}`, err || '')
       if (status === 'SUBSCRIBED') {

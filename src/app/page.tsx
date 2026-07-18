@@ -340,22 +340,21 @@ export default function Home() {
         // PHASE 2: Load remaining leads in the background (non-blocking).
         // The user can already interact with the first 200 leads while the
         // rest load. Stats will recalculate automatically when the full
-        // dataset arrives (Zustand re-renders on setLeads).
+        // dataset arrives.
         if (page1Data.hasMore) {
           apiGetRemainingLeads(false).then((remaining) => {
             if (remaining.length > 0) {
-              // CRITICAL: Only add leads that are NOT already in the store.
-              // The user may have edited leads in Phase 1 (e.g. changed brief,
-              // status, contactResult). If we merge stale server data over
-              // those edits, the user's changes appear to "vanish".
-              // Solution: skip any lead whose ID already exists in the store.
-              // Only TRULY NEW leads (not in Phase 1) are added.
-              const { leads: currentLeads, setLeads: updateLeads } = useCrmStore.getState()
-              const existingIds = new Set(currentLeads.map((l) => l.id))
-              const trulyNew = remaining.filter((l) => !existingIds.has(l.id))
-              if (trulyNew.length > 0) {
-                updateLeads([...currentLeads, ...trulyNew])
-              }
+              // CRITICAL: Use batchAddLeadsToCache instead of setLeads.
+              // setLeads REPLACES the entire store — if the user has deleted
+              // leads, edited them, or added new ones, setLeads would WIPE
+              // those changes and re-inject stale server data (including
+              // previously-deleted leads).
+              //
+              // batchAddLeadsToCache only APPENDS truly new leads (checks
+              // lead.id against existing leadsById). It never touches
+              // existing leads — no overwrite, no re-injection of deleted.
+              const { batchAddLeadsToCache } = useCrmStore.getState()
+              batchAddLeadsToCache(remaining)
             }
           }).catch((err) => {
             console.error('Background leads load failed:', err)

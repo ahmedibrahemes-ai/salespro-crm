@@ -366,25 +366,50 @@ interface QuickPasteDialogProps {
 let pasteRowCounter = 0
 
 function looksLikePhone(s: string): boolean {
-  return /[\d\s+()-]{6,}/.test(s)
+  // Must START with a phone-like pattern: +966, 966, 05, or 5, OR be 8+ pure digits.
+  // This prevents URLs containing digits (e.g. 'salla.sa/store/12345') from
+  // being misclassified as phone numbers.
+  return /^(\+966|966|05|5)\d/.test(s) || /^\d{8,}$/.test(s)
 }
 function looksLikeUrl(s: string): boolean {
-  return /https?:\/\/|www\.|\.com|\.sa|salla/i.test(s)
+  // Match URLs with http(s):// OR known domain extensions (including salla).
+  return /^https?:\/\//i.test(s) || /\.(com|sa|net|org|io|store|shop)/i.test(s)
 }
 function parsePastedLine(line: string): { phone: string; storeUrl: string } {
   const trimmed = line.trim()
   if (!trimmed) return { phone: '', storeUrl: '' }
+
+  // Try splitting by common separators (tab, comma, multiple spaces)
   const parts = trimmed.split(/[\t,]+/).map((p) => p.trim()).filter(Boolean)
+
   if (parts.length >= 2) {
     const phonePart = parts.find((p) => looksLikePhone(p))
     const urlPart = parts.find((p) => looksLikeUrl(p))
-    if (phonePart && urlPart) return { phone: phonePart, storeUrl: urlPart }
-    if (phonePart) return { phone: phonePart, storeUrl: '' }
-    if (urlPart) return { phone: '', storeUrl: urlPart }
+    if (phonePart && urlPart) {
+      return { phone: phonePart, storeUrl: urlPart }
+    }
+    if (phonePart) {
+      const nonPhoneParts = parts.filter((p) => p !== phonePart)
+      const maybeUrl = nonPhoneParts.find((p) => looksLikeUrl(p))
+      return { phone: phonePart, storeUrl: maybeUrl || '' }
+    }
+    if (urlPart) {
+      const nonUrlParts = parts.filter((p) => p !== urlPart)
+      const maybePhone = nonUrlParts.find((p) => looksLikePhone(p))
+      return { phone: maybePhone || '', storeUrl: urlPart }
+    }
     return { phone: parts[0], storeUrl: parts.length > 1 ? parts[1] : '' }
   }
-  if (looksLikePhone(trimmed)) return { phone: trimmed, storeUrl: '' }
-  if (looksLikeUrl(trimmed)) return { phone: '', storeUrl: trimmed }
+
+  // Single value
+  if (looksLikePhone(trimmed)) {
+    return { phone: trimmed, storeUrl: '' }
+  }
+  if (looksLikeUrl(trimmed)) {
+    return { phone: '', storeUrl: trimmed }
+  }
+
+  // Default: treat as phone
   return { phone: trimmed, storeUrl: '' }
 }
 

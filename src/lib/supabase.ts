@@ -351,14 +351,11 @@ export async function apiGetLeadsPage1(includeArchived = false): Promise<{ leads
   params.set('page', '1')
   params.set('limit', '200')
 
-  // IMPORTANT: Do NOT send Authorization header on the GET request.
-  // The /api/leads GET endpoint uses createAnonClient (anon key, not user-scoped),
-  // and the response is the same for all users (role filtering is client-side).
-  // Sending Authorization would make Vercel edge treat each user's response as
-  // unique (no shared cache) → cache miss on every request → slow load.
-  // The edge cache (s-maxage=30) works best when the request has NO auth header.
+  // Bug fix: send Authorization header. After security fix #2, ALL GET /api/leads
+  // requests require auth (was anon-accessible before for edge caching). Without
+  // the token, the server returns 401 → "فشل تحميل البيانات".
   const res = await fetch(`/api/leads?${params.toString()}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
   })
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({}))
@@ -393,7 +390,7 @@ export async function apiGetRemainingLeads(includeArchived = false, pageSize = 5
     params.set('limit', String(pageSize))
 
     const res = await fetch(`/api/leads?${params.toString()}`, {
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
     })
     if (!res.ok) break // Silent fail — stats will use whatever was loaded
 

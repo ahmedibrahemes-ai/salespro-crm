@@ -11,7 +11,12 @@
  * IMPORTANT: Server-side only. Never import this in client components.
  */
 
-const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7 // 7 days
+// Session TTL (audit M8): reduced from 7 days to 3 days.
+// 7 days was too long for a CRM with sensitive customer data — a stolen token
+// remains valid for a full week. 3 days balances security with user convenience
+// (users don't have to log in every day). The "remember me" feature can extend
+// this when implemented.
+const SESSION_TTL_SECONDS = 60 * 60 * 24 * 3 // 3 days
 const TOKEN_HEADER = 'authorization'
 
 function getSessionSecret(): string {

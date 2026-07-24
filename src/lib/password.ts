@@ -73,3 +73,25 @@ export function isLegacyHash(storedHash: string): boolean {
   if (!storedHash) return false
   return !storedHash.startsWith('$2a$') && !storedHash.startsWith('$2b$') && !storedHash.startsWith('$2y$')
 }
+
+/**
+ * Validate password strength (audit L5).
+ * Requires: 8+ chars, at least one letter, at least one number.
+ * Returns { valid, message } — message is Arabic for user-facing display.
+ *
+ * This is intentionally NOT as strict as "uppercase + lowercase + special char"
+ * — the team uses Arabic keyboards and complex rules cause friction. The goal
+ * is to prevent trivially weak passwords like "123456" or "aaaaaa".
+ */
+export function validatePasswordStrength(password: string): { valid: boolean; message?: string } {
+  if (!password || password.length < 8) {
+    return { valid: false, message: 'كلمة المرور يجب ألا تقل عن 8 أحرف' }
+  }
+  if (!/[a-zA-Z]/.test(password)) {
+    return { valid: false, message: 'كلمة المرور يجب أن تحتوي على حرف واحد على الأقل' }
+  }
+  if (!/[0-9]/.test(password)) {
+    return { valid: false, message: 'كلمة المرور يجب أن تحتوي على رقم واحد على الأقل' }
+  }
+  return { valid: true }
+}

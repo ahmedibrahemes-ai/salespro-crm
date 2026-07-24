@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, createAnonClient } from '@/lib/supabase-admin'
-import { hashPassword, verifyPassword, isLegacyHash } from '@/lib/password'
+import { hashPassword, verifyPassword, isLegacyHash, validatePasswordStrength } from '@/lib/password'
 import { createSessionToken, verifySessionToken, extractTokenFromRequest } from '@/lib/session'
 import { requireAdmin, unauthorizedResponse, forbiddenResponse, clearActiveUserCache } from '@/lib/auth-guard'
 import { logAuditEvent } from '@/app/api/audit-log/helpers'
+import { getRateLimitKey, getClientIp, checkRateLimit, recordFailedAttempt, recordSuccessfulLogin } from '@/lib/rate-limiter'
 
 // ===== POST: Auth operations =====
 export async function POST(request: NextRequest) {
@@ -22,6 +23,19 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'اسم المستخدم وكلمة المرور مطلوبان' }, { status: 400 })
       }
 
+      // Rate limiting (audit C3): block brute-force attacks.
+      // After 5 failed attempts, lock out for 15 minutes.
+      const ip = getClientIp(request)
+      const rateLimitKey = getRateLimitKey(username, ip)
+      const { allowed, retryAfterMs } = checkRateLimit(rateLimitKey)
+      if (!allowed) {
+        const retryMin = Math.ceil(retryAfterMs / 60000)
+        return NextResponse.json(
+          { error: `تم قفل الحساب مؤقتاً بسبب محاولات فاشلة كثيرة. حاول مرة أخرى بعد ${retryMin} دقيقة.` },
+          { status: 429 }
+        )
+      }
+
       const { data: users, error: findError } = await client
         .from('app_users')
         .select('*')
@@ -35,14 +49,19 @@ export async function POST(request: NextRequest) {
       }
 
       if (!users || users.length === 0) {
+        recordFailedAttempt(rateLimitKey)
         return NextResponse.json({ error: 'اسم المستخدم أو كلمة المرور غير صحيحة' }, { status: 401 })
       }
 
       const user = users[0]
       const { valid, needsUpgrade } = await verifyPassword(password, user.password_hash, user.password_salt)
       if (!valid) {
+        recordFailedAttempt(rateLimitKey)
         return NextResponse.json({ error: 'اسم المستخدم أو كلمة المرور غير صحيحة' }, { status: 401 })
       }
+
+      // Successful login — clear rate limit counter
+      recordSuccessfulLogin(rateLimitKey)
 
       // Auto-upgrade legacy SHA-256 hash to bcrypt
       if (needsUpgrade) {
@@ -136,8 +155,10 @@ export async function POST(request: NextRequest) {
       if (!currentPassword || !newPassword) {
         return NextResponse.json({ error: 'جميع الحقول مطلوبة' }, { status: 400 })
       }
-      if (newPassword.length < 6) {
-        return NextResponse.json({ error: 'كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف' }, { status: 400 })
+      // Password strength validation (audit L5)
+      const strength = validatePasswordStrength(newPassword)
+      if (!strength.valid) {
+        return NextResponse.json({ error: strength.message }, { status: 400 })
       }
 
       const { data: users } = await client
@@ -182,8 +203,10 @@ export async function POST(request: NextRequest) {
       if (!['tele', 'sales', 'admin'].includes(role)) {
         return NextResponse.json({ error: 'صلاحية غير صالحة' }, { status: 400 })
       }
-      if (password.length < 6) {
-        return NextResponse.json({ error: 'كلمة المرور يجب ألا تقل عن 6 أحرف' }, { status: 400 })
+      // Password strength validation (audit L5)
+      const strength = validatePasswordStrength(password)
+      if (!strength.valid) {
+        return NextResponse.json({ error: strength.message }, { status: 400 })
       }
 
       const { data: existing } = await client
@@ -266,8 +289,10 @@ export async function POST(request: NextRequest) {
       if (!userId || !newPassword) {
         return NextResponse.json({ error: 'جميع الحقول مطلوبة' }, { status: 400 })
       }
-      if (newPassword.length < 6) {
-        return NextResponse.json({ error: 'كلمة المرور يجب ألا تقل عن 6 أحرف' }, { status: 400 })
+      // Password strength validation (audit L5)
+      const strength = validatePasswordStrength(newPassword)
+      if (!strength.valid) {
+        return NextResponse.json({ error: strength.message }, { status: 400 })
       }
 
       const hash = await hashPassword(newPassword)
@@ -314,8 +339,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })
   } catch (err) {
-    console.error('[auth] Unexpected error:', err)
-    const message = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: message }, { status: 500 })
+    // Audit H5: don't leak internal error details in production
+    const { safeErrorMessage } = await import('@/lib/server-error')
+    return NextResponse.json({ error: safeErrorMessage(err, 'حدث خطأ في المصادقة. يرجى المحاولة مرة أخرى.') }, { status: 500 })
   }
 }

@@ -3,6 +3,7 @@ import { getSupabaseAdmin, isAdminAvailable, createAuthenticatedClient, createAn
 import { DbLead, normalizePhone, generatePhoneVariants, safeTimestamp, safeDate, safeTime, normalizeAttended } from '@/lib/crm-utils'
 import { isLeadsCacheValid, getLeadsCache, setLeadsCache, invalidateAllCaches, recordLeadsHit, recordLeadsMiss, recordSupabaseQuery } from '@/lib/api-cache'
 import { requireAuth, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
+import { safeErrorMessage } from '@/lib/server-error'
 
 // Operations that mutate data (must invalidate cache AFTER successful write)
 const WRITE_OPERATIONS = new Set([
@@ -355,9 +356,8 @@ export async function GET(request: NextRequest) {
     response.headers.set('X-Cache', 'MISS')
     return response
   } catch (err) {
-    console.error('[api/leads] GET unexpected error:', err)
-    const message = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: message }, { status: 500 })
+    // Audit H5: don't leak internal error details in production
+    return NextResponse.json({ error: safeErrorMessage(err, 'فشل تحميل البيانات. يرجى المحاولة مرة أخرى.') }, { status: 500 })
   }
 }
 
@@ -806,13 +806,13 @@ export async function POST(request: NextRequest) {
           .maybeSingle()
 
         if (existing) {
-          // Reactivation: clear sales_name AND tele_name on the old leads so the
-          // new user (same displayName) starts FRESH. Without this, the reactivated
-          // user inherits the previous holder's leads — they'd appear as fake/default
-          // customers in the sales sheet and اجتماعات التلي. (Attendance/meeting
-          // fields are preserved on the leads for historical reports.)
-          await client.from('leads').update({ tele_name: null }).eq('tele_name', name)
-          await client.from('leads').update({ sales_name: null }).eq('sales_name', name)
+          // Reactivation: clear sales_name AND tele_name on NON-ARCHIVED leads only.
+          // Bug fix (audit H2): previously cleared ALL leads including archived ones,
+          // destroying historical ownership data. Archived leads keep their ownership
+          // for historical reports — only active leads are cleared so the reactivated
+          // user starts fresh.
+          await client.from('leads').update({ tele_name: null }).eq('tele_name', name).eq('is_archived', false)
+          await client.from('leads').update({ sales_name: null }).eq('sales_name', name).eq('is_archived', false)
           const { data: member, error } = await client
             .from('team_members')
             .update({ is_active: true, role })
@@ -886,6 +886,16 @@ export async function POST(request: NextRequest) {
         // across the whole table — admin operation.
         if (session.role !== 'admin') return forbiddenResponse('هذه العملية تتطلب صلاحيات مدير')
         const { oldName, newName } = data as { oldName: string; newName: string }
+        // Input validation (audit M4): prevent empty/whitespace names
+        if (!oldName || !oldName.trim() || !newName || !newName.trim()) {
+          return NextResponse.json({ error: 'الاسم القديم والجديد مطلوبان' }, { status: 400 })
+        }
+        if (newName.trim().length > 100) {
+          return NextResponse.json({ error: 'الاسم الجديد طويل جداً (الحد الأقصى 100 حرف)' }, { status: 400 })
+        }
+        if (oldName.trim() === newName.trim()) {
+          return NextResponse.json({ error: 'الاسم الجديد مطابق للاسم القديم' }, { status: 400 })
+        }
         // Count affected leads before renaming
         const { count: teleCount } = await client.from('leads').select('*', { count: 'exact', head: true }).eq('tele_name', oldName)
         const { count: salesCount } = await client.from('leads').select('*', { count: 'exact', head: true }).eq('sales_name', oldName)
@@ -1022,9 +1032,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `Unknown operation: ${operation}` }, { status: 400 })
     }
   } catch (err) {
-    console.error('[api/leads] Unexpected error:', err)
-    const message = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: message }, { status: 500 })
+    // Audit H5: don't leak internal error details in production
+    return NextResponse.json({ error: safeErrorMessage(err, 'حدث خطأ في العملية. يرجى المحاولة مرة أخرى.') }, { status: 500 })
   }
 }
 
@@ -1074,9 +1083,8 @@ export async function PATCH(request: NextRequest) {
     invalidateAllCaches()
     return NextResponse.json({ data: leadFromDb(data as DbLead) })
   } catch (err) {
-    console.error('[api/leads] Update unexpected error:', err)
-    const message = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: message }, { status: 500 })
+    // Audit H5: don't leak internal error details in production
+    return NextResponse.json({ error: safeErrorMessage(err, 'فشل تحديث البيانات. يرجى المحاولة مرة أخرى.') }, { status: 500 })
   }
 }
 
@@ -1119,8 +1127,7 @@ export async function DELETE(request: NextRequest) {
     invalidateAllCaches()
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('[api/leads] Delete unexpected error:', err)
-    const message = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: message }, { status: 500 })
+    // Audit H5: don't leak internal error details in production
+    return NextResponse.json({ error: safeErrorMessage(err, 'فشل حذف العميل. يرجى المحاولة مرة أخرى.') }, { status: 500 })
   }
 }

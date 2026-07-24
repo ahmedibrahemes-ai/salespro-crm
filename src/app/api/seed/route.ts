@@ -4,7 +4,16 @@ import { requireAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/aut
 
 // Demo data seeder — idempotent, uses Supabase
 // Admin-only: prevents unauthorized users from seeding the database.
+// Production guard (audit C2): seeding is dev-only — block in production to
+// prevent accidental data pollution even by admins.
 export async function POST(request: NextRequest) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json(
+      { error: 'Seeding is disabled in production. Run in development mode.' },
+      { status: 403 }
+    )
+  }
+
   const session = await requireAdmin(request)
   if (!session) {
     return session === null ? forbiddenResponse('هذه العملية تتطلب صلاحيات مدير') : unauthorizedResponse()

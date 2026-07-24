@@ -270,17 +270,25 @@ SELECT name, role, is_active FROM (VALUES
 WHERE NOT EXISTS (SELECT 1 FROM team_members LIMIT 1);
 
 -- ════════════════════════════════════════════════════════════════
--- 8. SEED ADMIN USER (only if app_users table is empty)
+-- 8. SEED ADMIN USER (DISABLED in schema — audit C5)
 -- ════════════════════════════════════════════════════════════════
--- Default admin: username=admin, password=admin123
--- IMPORTANT: Change the password after first login!
--- Password hash for "admin123" with salt "venom2024crm":
--- SHA-256("admin123venom2024crm") = a1b2c3d4e5f6... (computed below)
-INSERT INTO app_users (username, password_hash, password_salt, display_name, role, is_active)
-SELECT username, password_hash, password_salt, display_name, role, is_active FROM (VALUES
-  ('admin', 'b6fdefd3654f4ff6e4ce86433e3d38aa3c47696a8716834fb936ed20b6502342', 'venom2024crm', 'Admin', 'admin', true)
-) AS v(username, password_hash, password_salt, display_name, role, is_active)
-WHERE NOT EXISTS (SELECT 1 FROM app_users LIMIT 1);
+-- SECURITY: The default admin seed (admin/admin123) has been REMOVED from the
+-- schema to prevent compromised deployments. Create the admin user manually
+-- via the app's user management UI or via a secure one-time script:
+--
+--   INSERT INTO app_users (username, password_hash, password_salt, display_name, role, is_active)
+--   VALUES ('admin', '<bcrypt-hash>', '', 'Admin', 'admin', true);
+--
+-- Generate a bcrypt hash in Node:  require('bcryptjs').hashSync('YourStrongPassword', 10)
+--
+-- The old default (admin/admin123 with SHA-256 + salt "venom2024crm") is below
+-- for reference ONLY — DO NOT uncomment in production:
+--
+-- INSERT INTO app_users (username, password_hash, password_salt, display_name, role, is_active)
+-- SELECT username, password_hash, password_salt, display_name, role, is_active FROM (VALUES
+--   ('admin', 'b6fdefd3654f4ff6e4ce86433e3d38aa3c47696a8716834fb936ed20b6502342', 'venom2024crm', 'Admin', 'admin', true)
+-- ) AS v(username, password_hash, password_salt, display_name, role, is_active)
+-- WHERE NOT EXISTS (SELECT 1 FROM app_users LIMIT 1);
 
 -- ════════════════════════════════════════════════════════════════
 -- Access Permissions Table (who can view whose sheets)

@@ -40,6 +40,10 @@ function leadFromDb(row: DbLead) {
     isArchived: row.is_archived || false,
     archivedAt: safeTimestamp(row.archived_at),
     archivedBy: row.archived_by || null,
+    // Notes are NOT loaded here — they live in a separate lead_notes table.
+    // This empty array is a placeholder. Notes are fetched on-demand via
+    // apiGetLeadNotes(leadId) and are NEVER wiped by lead updates (partialLeadToDb
+    // does not include a notes field). See Bug 3 audit verification.
     notes: [],
   }
 }
@@ -211,9 +215,12 @@ export async function GET(request: NextRequest) {
       recordLeadsHit()
       const cached = getLeadsCache(cacheKey)!
       const response = NextResponse.json(cached)
-      // Same edge caching as the MISS path — in-memory cache hit still benefits
-      // from edge caching across instances.
-      response.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=120')
+      // Bug fix: no edge caching (was s-maxage=30). Since auth is now required
+      // for ALL GET requests (security fix #2), the Authorization header makes
+      // each response user-specific — Vercel edge won't cache it anyway. But if
+      // it somehow did serve a stale cached response, the client could overwrite
+      // freshly-added leads with stale data. 'private, no-cache' is safer.
+      response.headers.set('Cache-Control', 'private, no-cache')
       response.headers.set('X-Cache', 'HIT')
       return response
     }
@@ -339,13 +346,12 @@ export async function GET(request: NextRequest) {
     setLeadsCache(cacheKey, responseBody)
 
     const response = NextResponse.json(responseBody)
-    // Edge caching: the GET response is the same for all authenticated users
-    // (no server-side role filtering — filtering happens client-side). So it's
-    // safe to cache at the Vercel edge with s-maxage.
-    // s-maxage=30: edge caches for 30s (cuts origin traffic ~90% for active users)
-    // stale-while-revalidate=120: serve stale up to 120s while fetching fresh
-    // This is the #1 egress reduction fix (was 'no-store' → every request hit origin).
-    response.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=120')
+    // Bug fix: no edge caching (was s-maxage=30). With auth now required,
+    // edge caching is ineffective (auth header = user-specific response) and
+    // risky (stale cached response could overwrite freshly-added leads in the
+    // client store). The in-memory Map cache (30s TTL) still provides fast
+    // responses within the same instance.
+    response.headers.set('Cache-Control', 'private, no-cache')
     response.headers.set('X-Cache', 'MISS')
     return response
   } catch (err) {
@@ -833,30 +839,37 @@ export async function POST(request: NextRequest) {
       }
 
       case 'removeTeamMember': {
-        // Admin-only: removing team members + clearing their leads is admin-only.
+        // Admin-only: removing team members + archiving their leads is admin-only.
         if (session.role !== 'admin') return forbiddenResponse('هذه العملية تتطلب صلاحيات مدير')
         const name = data as string
-        // Solution A: clear sales_name AND tele_name on the orphaned leads so a
-        // future reactivated user (same name) does NOT inherit them. Without this,
-        // removeTeamMember only soft-deletes the team_member (is_active=false),
-        // leaving leads with sales_name/tele_name = <removed user> — when an admin
-        // re-adds a user with the same displayName, those orphaned leads reappear.
-        // We null out BOTH tele_name and sales_name since the removed member could
-        // be in either role. (Attendance/meeting fields are preserved for reports.)
-        const { error: clearTeleErr } = await client
+        // Bug fix: ARCHIVE leads instead of nullifying tele_name/sales_name.
+        // Previously, removing a team member wiped ownership (tele_name=NULL,
+        // sales_name=NULL), causing leads to suddenly disappear from all sheets
+        // and become "unassigned" — data loss from the user's perspective.
+        // Now: archive the leads (is_archived=true) so they're preserved in the
+        // admin archive panel with their ownership intact for historical reference.
+        // Archived leads don't appear in any active employee sheet, and won't be
+        // inherited by a future user with the same name (because is_archived=true).
+        // Admins can unarchive + reassign manually.
+        const archivedAt = new Date().toISOString()
+        const archivedBy = `removed:${name}`
+        const { error: archiveTeleErr } = await client
           .from('leads')
-          .update({ tele_name: null })
+          .update({ is_archived: true, archived_at: archivedAt, archived_by: archivedBy })
           .eq('tele_name', name)
-        if (clearTeleErr) {
-          console.error('[api/leads] Remove team member — clear tele_name error:', clearTeleErr, '(mode:', mode, ')')
+          .eq('is_archived', false)
+        if (archiveTeleErr) {
+          console.error('[api/leads] Remove team member — archive tele leads error:', archiveTeleErr, '(mode:', mode, ')')
         }
-        const { error: clearSalesErr } = await client
+        const { error: archiveSalesErr } = await client
           .from('leads')
-          .update({ sales_name: null })
+          .update({ is_archived: true, archived_at: archivedAt, archived_by: archivedBy })
           .eq('sales_name', name)
-        if (clearSalesErr) {
-          console.error('[api/leads] Remove team member — clear sales_name error:', clearSalesErr, '(mode:', mode, ')')
+          .eq('is_archived', false)
+        if (archiveSalesErr) {
+          console.error('[api/leads] Remove team member — archive sales leads error:', archiveSalesErr, '(mode:', mode, ')')
         }
+        // Soft-delete the team_member (is_active=false)
         const { error } = await client
           .from('team_members')
           .update({ is_active: false })

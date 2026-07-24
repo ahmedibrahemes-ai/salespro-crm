@@ -744,24 +744,26 @@ export function SalesSheet() {
 
   /* ─── Duplicate phone detection ─── */
   const duplicatePhoneMap = useMemo(() => {
-    const map = new Map<string, { count: number; firstTele: string; firstLeadId: string; firstCreatedAt: number; teles: Set<string> }>()
+    const map = new Map<string, { count: number; firstTele: string; firstLeadId: string; firstCreatedAt: number; teles: Set<string>; salesNames: Set<string> }>()
     for (const l of leads) {
       if (!l.phone || !l.phone.trim()) continue
       const norm = normalizePhone(l.phone)
       if (!norm) continue
       const tele = l.tele || '—'
+      const sales = l.sales || ''
       const createdAt = l.createdAt || 0
       const existing = map.get(norm)
       if (existing) {
         existing.count++
         existing.teles.add(tele)
+        if (sales) existing.salesNames.add(sales)
         if (createdAt < existing.firstCreatedAt) {
           existing.firstCreatedAt = createdAt
           existing.firstLeadId = l.id
           existing.firstTele = tele
         }
       } else {
-        map.set(norm, { count: 1, firstTele: tele, firstLeadId: l.id, firstCreatedAt: createdAt, teles: new Set([tele]) })
+        map.set(norm, { count: 1, firstTele: tele, firstLeadId: l.id, firstCreatedAt: createdAt, teles: new Set([tele]), salesNames: new Set(sales ? [sales] : []) })
       }
     }
     return map
@@ -847,10 +849,10 @@ export function SalesSheet() {
       } else if (value === CLOSED_WON_KEY) {
         updates.salesStatus = CLOSED_WON_KEY
       } else {
-        updates.meetingDate = ''
-        updates.meetingTime = ''
-        updates.meetingType = ''
-        updates.meetingLink = ''
+        // Bug fix: REMOVED the cascade that wiped meetingDate/Time/Type/Link when
+        // changing away from 'meeting'. This was destructive — if a user accidentally
+        // changed the status, the meeting data was gone forever. Now meeting fields
+        // are preserved regardless of status. The UI hides them when status != 'meeting'.
         if (oldLead.salesStatus === CLOSED_WON_KEY) {
           updates.salesStatus = null
         }
@@ -1172,9 +1174,14 @@ export function SalesSheet() {
                             const norm = lead.phone ? normalizePhone(lead.phone) : ''
                             const dupInfo = norm ? duplicatePhoneMap.get(norm) : undefined
                             const shouldHighlight = !!(dupInfo && dupInfo.count > 1)
-                            const highlightTele = shouldHighlight ? dupInfo!.firstTele : ''
+                            // Build subtitle: all unique owner names (tele + sales) except current lead's owner
+                            const currentOwner = lead.sales || lead.tele || ''
+                            const allOwners = shouldHighlight
+                              ? Array.from(new Set([...dupInfo!.teles, ...dupInfo!.salesNames])).filter(n => n && n !== '—' && n !== currentOwner)
+                              : []
+                            const subtitleText = allOwners.length > 0 ? allOwners.join(' | ') : (shouldHighlight ? dupInfo!.firstTele : '')
                             return (
-                              <div className={`flex items-center gap-1.5 max-w-[170px] rounded px-1 ${shouldHighlight ? 'bg-red-500/10' : ''}`} title={shouldHighlight ? `مكرر (${dupInfo!.count} مرات) — أول تسجيل: ${highlightTele}` : ''}>
+                              <div className={`flex items-center gap-1.5 max-w-[170px] rounded px-1 ${shouldHighlight ? 'bg-red-500/10' : ''}`} title={shouldHighlight ? `مكرر (${dupInfo!.count} مرات) — موجود في: ${allOwners.join(' | ') || dupInfo!.firstTele}` : ''}>
                                 <a href={`tel:${lead.phone}`} className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all shrink-0 ${shouldHighlight ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25' : 'bg-[#ff6b6b]/10 text-[#ff6b6b] hover:bg-[#ff6b6b]/20'}`} onClick={(e) => e.stopPropagation()}>
                                   <Phone size={14} />
                                 </a>
@@ -1183,8 +1190,8 @@ export function SalesSheet() {
                                     <EditableCell value={lead.phone} onSave={(v) => handleUpdateField(lead.id, 'phone', v)} placeholder="الرقم" />
                                   </span>
                                   {shouldHighlight && (
-                                    <span className="text-[10px] text-red-400/80 leading-tight truncate font-medium" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                                      ↻ {highlightTele}
+                                    <span className="text-[10px] text-red-400/80 leading-tight truncate font-medium" style={{ fontFamily: 'Cairo, sans-serif' }} title={`مكرر في: ${subtitleText}`}>
+                                      ⚠ {subtitleText}
                                     </span>
                                   )}
                                 </div>

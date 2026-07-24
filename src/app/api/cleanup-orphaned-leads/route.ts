@@ -3,15 +3,13 @@ import { getSupabaseAdmin, createAnonClient } from '@/lib/supabase-admin'
 import { requireAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
 
 /**
- * One-time cleanup endpoint: null out sales_name/tele_name on leads whose
- * assigned member no longer exists OR is inactive in team_members.
+ * One-time cleanup endpoint: archive leads whose assigned member (tele_name
+ * or sales_name) no longer exists OR is inactive in team_members.
  *
- * This fixes the "Mahitab problem": a new sales user reactivated an old
- * (inactive) team_member row with the same displayName, and inherited
- * orphaned leads from the previous holder of that name.
- *
- * After running this once, the new Solution A (in removeTeamMember) will
- * keep things clean going forward — every removal clears sales_name/tele_name.
+ * Bug fix: previously this endpoint NULLIFIED tele_name/sales_name on orphaned
+ * leads, causing them to disappear from all sheets and become "unassigned".
+ * Now: it ARCHIVES them (is_archived=true) so they're preserved in the admin
+ * archive panel with ownership intact for reassignment.
  *
  * Admin-only. Idempotent. Safe to re-run.
  */
@@ -43,52 +41,58 @@ export async function POST(request: NextRequest) {
     const activeNames = (activeMembers || []).map((m: { name: string }) => m.name.trim())
 
     // Find leads with sales_name pointing to a non-active (or non-existent) member
-    let clearedSales = 0
-    let clearedTele = 0
+    let archivedSales = 0
+    let archivedTele = 0
+    const archivedAt = new Date().toISOString()
+    const archivedBy = 'cleanup:orphaned'
 
     if (activeNames.length > 0) {
-      // sales_name is set but NOT in the active members list
+      // sales_name is set but NOT in the active members list → archive
       const { count: orphanedSalesCount } = await client
         .from('leads')
         .select('*', { count: 'exact', head: true })
         .not('sales_name', 'is', null)
         .not('sales_name', 'in', `(${activeNames.map((n: string) => `'${n.replace(/'/g, "''")}'`).join(',')})`)
+        .eq('is_archived', false)
       if (orphanedSalesCount && orphanedSalesCount > 0) {
         const { error: salesErr } = await client
           .from('leads')
-          .update({ sales_name: null })
+          .update({ is_archived: true, archived_at: archivedAt, archived_by: archivedBy })
           .not('sales_name', 'is', null)
           .not('sales_name', 'in', `(${activeNames.map((n: string) => `'${n.replace(/'/g, "''")}'`).join(',')})`)
+          .eq('is_archived', false)
         if (salesErr) {
-          return NextResponse.json({ error: `Failed to clear sales_name: ${salesErr.message}` }, { status: 500 })
+          return NextResponse.json({ error: `Failed to archive sales_name leads: ${salesErr.message}` }, { status: 500 })
         }
-        clearedSales = orphanedSalesCount
+        archivedSales = orphanedSalesCount
       }
 
-      // tele_name is set but NOT in the active members list
+      // tele_name is set but NOT in the active members list → archive
       const { count: orphanedTeleCount } = await client
         .from('leads')
         .select('*', { count: 'exact', head: true })
         .not('tele_name', 'is', null)
         .not('tele_name', 'in', `(${activeNames.map((n: string) => `'${n.replace(/'/g, "''")}'`).join(',')})`)
+        .eq('is_archived', false)
       if (orphanedTeleCount && orphanedTeleCount > 0) {
         const { error: teleErr } = await client
           .from('leads')
-          .update({ tele_name: null })
+          .update({ is_archived: true, archived_at: archivedAt, archived_by: archivedBy })
           .not('tele_name', 'is', null)
           .not('tele_name', 'in', `(${activeNames.map((n: string) => `'${n.replace(/'/g, "''")}'`).join(',')})`)
+          .eq('is_archived', false)
         if (teleErr) {
-          return NextResponse.json({ error: `Failed to clear tele_name: ${teleErr.message}` }, { status: 500 })
+          return NextResponse.json({ error: `Failed to archive tele_name leads: ${teleErr.message}` }, { status: 500 })
         }
-        clearedTele = orphanedTeleCount
+        archivedTele = orphanedTeleCount
       }
     }
 
     return NextResponse.json({
       success: true,
-      message: `Cleanup complete. Cleared ${clearedSales} orphaned sales_name assignments and ${clearedTele} orphaned tele_name assignments.`,
-      clearedSales,
-      clearedTele,
+      message: `Cleanup complete. Archived ${archivedSales} orphaned sales_name leads and ${archivedTele} orphaned tele_name leads.`,
+      archivedSales,
+      archivedTele,
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'

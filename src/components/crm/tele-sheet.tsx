@@ -1165,17 +1165,20 @@ export function TeleSheet() {
       firstLeadId: string
       firstCreatedAt: number
       teles: Set<string>
+      salesNames: Set<string>  // all sales reps who have this phone (cross-sheet subtitle)
     }>()
     for (const l of leads) {
       if (!l.phone || !l.phone.trim()) continue
       const norm = normalizePhone(l.phone)
       if (!norm) continue
       const tele = l.tele || '—'
+      const sales = l.sales || ''
       const createdAt = l.createdAt || 0
       const existing = map.get(norm)
       if (existing) {
         existing.count++
         existing.teles.add(tele)
+        if (sales) existing.salesNames.add(sales)
         if (createdAt < existing.firstCreatedAt) {
           existing.firstCreatedAt = createdAt
           existing.firstLeadId = l.id
@@ -1188,6 +1191,7 @@ export function TeleSheet() {
           firstLeadId: l.id,
           firstCreatedAt: createdAt,
           teles: new Set([tele]),
+          salesNames: new Set(sales ? [sales] : []),
         })
       }
     }
@@ -1312,14 +1316,11 @@ export function TeleSheet() {
         if (!oldLead.meetingDate) {
           updates.meetingDate = new Date().toISOString().split('T')[0]
         }
-      } else {
-        // Changing away from 'meeting' (or clearing): remove all meeting-related fields
-        // These only make sense if status === 'meeting'
-        updates.meetingDate = ''
-        updates.meetingTime = ''
-        updates.meetingType = ''
-        updates.meetingLink = ''
       }
+      // Bug fix: REMOVED the cascade that wiped meetingDate/Time/Type/Link when
+      // changing away from 'meeting'. This was destructive — if a user accidentally
+      // changed the status, the meeting data was gone forever. Now meeting fields
+      // are preserved regardless of status. The UI hides them when status != 'meeting'.
     }
 
     // ─── Cascade logic for attendance (if status is cleared, reset attendance too) ───
@@ -1918,23 +1919,24 @@ export function TeleSheet() {
                           {(() => {
                             const norm = lead.phone ? normalizePhone(lead.phone) : ''
                             const dupInfo = norm ? duplicatePhoneMap.get(norm) : undefined
-                            const leadTele = lead.tele || '—'
 
                             // UNIFIED LOGIC (matches Quick Paste):
                             // ANY duplicate (count > 1) is highlighted — whether same sheet
                             // or cross-sheet. This ensures the sheet count matches the
                             // Quick Paste count when you add numbers without excluding
                             // duplicates first.
-                            //
-                            // The tele name shown is the one who FIRST recorded the number
-                            // (earliest createdAt), so the user knows where the original is.
                             const shouldHighlight = !!(dupInfo && dupInfo.count > 1)
-                            const highlightTele = shouldHighlight ? dupInfo!.firstTele : ''
+
+                            // Build subtitle: all unique owner names (tele + sales) except current lead's owner
+                            const allOwners = shouldHighlight
+                              ? Array.from(new Set([...dupInfo!.teles, ...dupInfo!.salesNames])).filter(n => n && n !== '—' && n !== (lead.tele || ''))
+                              : []
+                            const subtitleText = allOwners.length > 0 ? allOwners.join(' | ') : (shouldHighlight ? dupInfo!.firstTele : '')
 
                             return (
                               <div
                                 className={`flex items-center gap-1.5 max-w-[130px] rounded px-1 ${shouldHighlight ? 'bg-red-500/10' : ''}`}
-                                title={shouldHighlight ? `مكرر (${dupInfo!.count} مرات) — أول تسجيل: ${highlightTele}` : ''}
+                                title={shouldHighlight ? `مكرر (${dupInfo!.count} مرات) — موجود في: ${allOwners.join(' | ') || dupInfo!.firstTele}` : ''}
                               >
                                 <a
                                   href={`tel:${lead.phone}`}
@@ -1950,8 +1952,8 @@ export function TeleSheet() {
                                     placeholder="الرقم"
                                   />
                                   {shouldHighlight && (
-                                    <span className="text-[10px] text-red-400/80 leading-tight truncate font-medium" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                                      ↻ {highlightTele}
+                                    <span className="text-[10px] text-red-400/80 leading-tight truncate font-medium" style={{ fontFamily: 'Cairo, sans-serif' }} title={`مكرر في: ${subtitleText}`}>
+                                      ⚠ {subtitleText}
                                     </span>
                                   )}
                                 </div>

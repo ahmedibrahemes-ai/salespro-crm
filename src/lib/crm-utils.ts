@@ -26,6 +26,55 @@ export function normalizePhone(input: string): string {
   return p
 }
 
+// ===== Phone Variants (shared — eliminates duplication between leads & sheets-sync) =====
+
+/**
+ * Generate all possible phone format variants for a given phone number.
+ * Used for duplicate detection across different input formats.
+ *
+ * Extracted from leads/route.ts and sheets-sync/route.ts (audit issue #12).
+ */
+export function generatePhoneVariants(phone: string): string[] {
+  const variants = new Set<string>()
+  if (!phone || !phone.trim()) return []
+  const raw = phone.trim()
+  variants.add(raw)
+
+  const norm = normalizePhone(raw)
+  if (norm) {
+    variants.add(norm)
+    if (norm.startsWith('+966')) {
+      const digits = norm.substring(4)
+      variants.add(digits)
+      variants.add('0' + digits)
+      variants.add('966' + digits)
+      variants.add('00966' + digits)
+    }
+    if (norm.startsWith('00966')) {
+      variants.add('+' + norm.substring(2))
+    }
+  }
+
+  variants.delete('')
+  return Array.from(variants)
+}
+
+// ===== Filter Sanitization =====
+
+/**
+ * Sanitize a string for safe use in PostgREST .or() / .ilike() filters.
+ * Removes characters that could break or manipulate filter strings:
+ *   - commas (PostgREST .or() separator)
+ *   - parens (PostgREST grouping)
+ *   - backslashes (escape sequences)
+ *
+ * Used in leads/route.ts (search) and notifications/route.ts (session.uname/role).
+ * Prevents PostgREST filter injection (audit issue #5).
+ */
+export function sanitizeForFilter(value: string): string {
+  return value.replace(/[,()\\]/g, '').trim()
+}
+
 // ===== Date/Time Helpers =====
 
 /** Check if a timestamp (ms) falls on today's date (Egypt timezone UTC+2) */

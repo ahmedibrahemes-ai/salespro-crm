@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, createAnonClient } from '@/lib/supabase-admin'
 import { requireAuth, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
+import { sanitizeForFilter } from '@/lib/crm-utils'
 
 /**
  * /api/meetings
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const filter = searchParams.get('filter') || 'all'
-    const member = searchParams.get('member') || ''
+    const member = sanitizeForFilter(searchParams.get('member') || '')  // audit issue #5 — prevent .or() injection
     const search = searchParams.get('search')?.trim() || ''
     const role = session.role
 

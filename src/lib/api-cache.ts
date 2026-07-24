@@ -78,27 +78,35 @@ export function setStatsCache(data: Record<string, unknown>): void {
   statsCache = { data, timestamp: Date.now() }
 }
 
-// ===== Leads cache =====
+// ===== Leads cache (Map-based — supports multiple cache keys, audit issue #9) =====
 
-let leadsCache: { data: unknown; timestamp: number; key: string } | null = null
-const LEADS_CACHE_TTL = 30_000 // 30 seconds — matches the edge cache (s-maxage=30).
-// On Vercel serverless, each instance has its own in-memory cache. The edge
-// cache (s-maxage) is the primary egress reducer across instances. This
-// in-memory cache helps within the same instance (e.g. rapid page refreshes).
-// Realtime subscriptions keep the client in sync for live updates, so 30s
-// staleness on page reload is acceptable.
+const leadsCacheMap = new Map<string, { data: unknown; timestamp: number }>()
+const LEADS_CACHE_TTL = 30_000 // 30 seconds
+const LEADS_CACHE_MAX = 10 // Max entries — prevents unbounded memory growth
+// Previously this was a single-slot cache (one key at a time). When the user
+// navigated between pages, each new page key overwrote the previous entry,
+// so going back to a prior page always missed the cache. A Map lets us cache
+// up to LEADS_CACHE_MAX page/slot combinations simultaneously, improving hit
+// rate without leaking memory (oldest entries are evicted at capacity).
 
 export function isLeadsCacheValid(key: string): boolean {
-  return leadsCache !== null && leadsCache.key === key && Date.now() - leadsCache.timestamp < LEADS_CACHE_TTL
+  const entry = leadsCacheMap.get(key)
+  return entry !== undefined && Date.now() - entry.timestamp < LEADS_CACHE_TTL
 }
 
 export function getLeadsCache(key: string): unknown | null {
-  if (!leadsCache || leadsCache.key !== key) return null
-  return leadsCache.data
+  const entry = leadsCacheMap.get(key)
+  if (!entry) return null
+  return entry.data
 }
 
 export function setLeadsCache(key: string, data: unknown): void {
-  leadsCache = { data, timestamp: Date.now(), key }
+  // Evict oldest entry (Map preserves insertion order) if at capacity
+  if (leadsCacheMap.size >= LEADS_CACHE_MAX) {
+    const oldestKey = leadsCacheMap.keys().next().value
+    if (oldestKey !== undefined) leadsCacheMap.delete(oldestKey)
+  }
+  leadsCacheMap.set(key, { data, timestamp: Date.now() })
 }
 
 // ===== Cache invalidation =====
@@ -109,6 +117,6 @@ export function setLeadsCache(key: string, data: unknown): void {
  */
 export function invalidateAllCaches(): void {
   statsCache = null
-  leadsCache = null
+  leadsCacheMap.clear()
   recordCacheInvalidation()
 }

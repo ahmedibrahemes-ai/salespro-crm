@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, createAnonClient } from '@/lib/supabase-admin'
 import { requireAuth, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
+import { sanitizeForFilter } from '@/lib/crm-utils'
 
 /**
  * /api/notifications
@@ -55,11 +56,15 @@ export async function GET(request: NextRequest) {
     const unreadOnly = searchParams.get('unread_only') === 'true'
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
 
+    // Sanitize for safe use in .or() filters (audit issue #5)
+    const safeUname = sanitizeForFilter(session.uname)
+    const safeRole = sanitizeForFilter(session.role)
+
     // Build query: notifications targeted to this user OR their role OR broadcasts (NULL user)
     let query = client
       .from('notifications')
       .select('*')
-      .or(`target_user.eq.${session.uname},target_user.is.null,target_role.eq.${session.role}`)
+      .or(`target_user.eq.${safeUname},target_user.is.null,target_role.eq.${safeRole}`)
       .order('created_at', { ascending: false })
       .limit(limit)
 
@@ -77,7 +82,7 @@ export async function GET(request: NextRequest) {
     const { count: unreadCount, error: countErr } = await client
       .from('notifications')
       .select('*', { count: 'exact', head: true })
-      .or(`target_user.eq.${session.uname},target_user.is.null,target_role.eq.${session.role}`)
+      .or(`target_user.eq.${safeUname},target_user.is.null,target_role.eq.${safeRole}`)
       .is('read_at', null)
 
     return NextResponse.json({
@@ -171,12 +176,16 @@ export async function PATCH(request: NextRequest) {
     const { id, all } = body as { id?: string; all?: boolean }
     const now = new Date().toISOString()
 
+    // Sanitize for safe use in .or() filters (audit issue #5)
+    const safeUname = sanitizeForFilter(session.uname)
+    const safeRole = sanitizeForFilter(session.role)
+
     if (all) {
       // Mark all unread notifications for this user as read
       const { error } = await client
         .from('notifications')
         .update({ read_at: now })
-        .or(`target_user.eq.${session.uname},target_user.is.null,target_role.eq.${session.role}`)
+        .or(`target_user.eq.${safeUname},target_user.is.null,target_role.eq.${safeRole}`)
         .is('read_at', null)
 
       if (error) {

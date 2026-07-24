@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, createAnonClient } from '@/lib/supabase-admin'
-import { normalizePhone } from '@/lib/crm-utils'
+import { normalizePhone, generatePhoneVariants } from '@/lib/crm-utils'
 import { requireAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
 
 /* ═══════════════════════════════════════════════════════
@@ -23,31 +23,23 @@ const MAX_HISTORY = 20
 /** Shared secret — if set in env, requests must include it */
 const SHEETS_SECRET = process.env.SHEETS_SYNC_SECRET || ''
 
-/** Generate phone variants for duplicate detection */
-function generatePhoneVariants(phone: string): string[] {
-  const variants = new Set<string>()
-  if (!phone || !phone.trim()) return []
-  const raw = phone.trim()
-  variants.add(raw)
-
-  const norm = normalizePhone(raw)
-  if (norm) {
-    variants.add(norm)
-    if (norm.startsWith('+966')) {
-      const digits = norm.substring(4)
-      variants.add(digits)
-      variants.add('0' + digits)
-      variants.add('966' + digits)
-      variants.add('00966' + digits)
-    }
-    if (norm.startsWith('00966')) {
-      variants.add('+' + norm.substring(2))
-    }
+/**
+ * Constant-time string comparison to prevent timing attacks (audit issue #13).
+ * XORs all character codes so the comparison takes the same time regardless
+ * of how many characters match — an attacker can't guess the secret byte-by-byte.
+ */
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let result = 0
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i)
   }
-
-  variants.delete('')
-  return Array.from(variants)
+  return result === 0
 }
+
+// generatePhoneVariants is now imported from @/lib/crm-utils (audit issue #12 — dedup)
+
+// generatePhoneVariants removed — imported from @/lib/crm-utils (audit issue #12)
 
 // ===== POST handler — Accept incoming data from Google Sheets =====
 export async function POST(request: NextRequest) {
@@ -75,7 +67,7 @@ export async function POST(request: NextRequest) {
     // (Google Sheets calls this with the secret in the body). Otherwise, require
     // an authenticated admin session (UI-triggered sync).
     if (SHEETS_SECRET) {
-      if (secret !== SHEETS_SECRET) {
+      if (!secret || !constantTimeEqual(secret, SHEETS_SECRET)) {
         return NextResponse.json(
           { error: 'Invalid or missing secret key' },
           { status: 401 }

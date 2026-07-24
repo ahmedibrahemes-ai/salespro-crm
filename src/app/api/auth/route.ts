@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, createAnonClient } from '@/lib/supabase-admin'
 import { hashPassword, verifyPassword, isLegacyHash } from '@/lib/password'
 import { createSessionToken, verifySessionToken, extractTokenFromRequest } from '@/lib/session'
-import { requireAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
+import { requireAdmin, unauthorizedResponse, forbiddenResponse, clearActiveUserCache } from '@/lib/auth-guard'
 import { logAuditEvent } from '@/app/api/audit-log/helpers'
 
 // ===== POST: Auth operations =====
@@ -251,6 +251,10 @@ export async function POST(request: NextRequest) {
         .update({ is_active: isActive })
         .eq('id', userId)
 
+      // Invalidate the user's active-status cache so their session is
+      // revoked immediately (audit issue #3 — no 30s window).
+      clearActiveUserCache(userId)
+
       // Audit log
       await logAuditEvent(adminSession, 'toggle-user', 'app_user', String(userId), { isActive })
       return NextResponse.json({ success: true })
@@ -298,6 +302,10 @@ export async function POST(request: NextRequest) {
         console.error('[auth] Delete user error:', deleteError.message)
         return NextResponse.json({ error: 'فشل في حذف المستخدم' }, { status: 500 })
       }
+
+      // Invalidate the user's active-status cache so their session is
+      // revoked immediately (audit issue #3).
+      clearActiveUserCache(userId)
 
       // Audit log
       await logAuditEvent(adminSession, 'delete-user', 'app_user', String(userId))

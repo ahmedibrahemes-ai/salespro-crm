@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, isAdminAvailable, createAuthenticatedClient, createAnonClient } from '@/lib/supabase-admin'
-import { DbLead, normalizePhone, safeTimestamp, safeDate, safeTime, normalizeAttended } from '@/lib/crm-utils'
+import { DbLead, normalizePhone, generatePhoneVariants, safeTimestamp, safeDate, safeTime, normalizeAttended } from '@/lib/crm-utils'
 import { isLeadsCacheValid, getLeadsCache, setLeadsCache, invalidateAllCaches, recordLeadsHit, recordLeadsMiss, recordSupabaseQuery } from '@/lib/api-cache'
 import { requireAuth, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
 
@@ -106,31 +106,7 @@ function partialLeadToDb(updates: Record<string, unknown>): Record<string, unkno
   return dbData
 }
 
-/** Generate all possible phone format variants for a given phone number. */
-function generatePhoneVariants(phone: string): string[] {
-  const variants = new Set<string>()
-  if (!phone || !phone.trim()) return []
-  const raw = phone.trim()
-  variants.add(raw)
-
-  const norm = normalizePhone(raw)
-  if (norm) {
-    variants.add(norm)
-    if (norm.startsWith('+966')) {
-      const digits = norm.substring(4)
-      variants.add(digits)
-      variants.add('0' + digits)
-      variants.add('966' + digits)
-      variants.add('00966' + digits)
-    }
-    if (norm.startsWith('00966')) {
-      variants.add('+' + norm.substring(2))
-    }
-  }
-
-  variants.delete('')
-  return Array.from(variants)
-}
+// generatePhoneVariants is now imported from @/lib/crm-utils (audit issue #12 — dedup)
 
 /**
  * Get the Supabase client for write operations.
@@ -203,22 +179,18 @@ function sanitizeSearch(search: string): string {
 
 // ===== GET handler - Read leads (uses anon/public client for reliable pagination) =====
 export async function GET(request: NextRequest) {
-  // Require auth — but allow anonymous access for paginated GET requests.
-  // Paginated GET (page + limit params) returns the same data for all users
-  // (role filtering is client-side). Allowing anon access on these requests
-  // lets Vercel edge cache the response (s-maxage=30) across ALL users.
-  // Without this, each user's auth header makes the response unique → cache
-  // miss on every request → slow load + high CPU.
-  // Non-paginated GET (full load) still requires auth.
+  // Security fix (audit issue #2): require auth for ALL GET requests.
+  // Previously, paginated GET allowed anon access for edge caching — but
+  // this leaked all leads data (10,736+ records) to anyone without auth.
+  // The in-memory leads cache (Map-based, issue #9) still provides fast
+  // responses without exposing data publicly.
+  const session = await requireAuth(request)
+  if (!session) return unauthorizedResponse()
+
   const { searchParams } = new URL(request.url)
   const pageParam = searchParams.get('page')
   const limitParam = searchParams.get('limit')
   const isPaginated = pageParam !== null && limitParam !== null
-
-  if (!isPaginated) {
-    const session = await requireAuth(request)
-    if (!session) return unauthorizedResponse()
-  }
 
   try {
     const includeArchived = searchParams.get('archived') === 'true'
@@ -710,6 +682,10 @@ export async function POST(request: NextRequest) {
 
       case 'addNote': {
         const { leadId, by, cat, text } = data as { leadId: string; by: string; cat: string; text: string }
+        // Ownership check — prevent IDOR (audit issue #1)
+        if (!await checkLeadOwnership(client, leadId, session)) {
+          return forbiddenResponse('لا تملك صلاحية إضافة ملاحظة لهذا العميل')
+        }
         const { data: note, error } = await client
           .from('lead_notes')
           .insert({ lead_id: leadId, by_name: by, category: cat, text })
@@ -724,6 +700,18 @@ export async function POST(request: NextRequest) {
 
       case 'deleteNote': {
         const noteId = data as string
+        // Ownership check — fetch note's lead_id, then verify ownership (audit issue #1)
+        const { data: delNoteRow } = await client
+          .from('lead_notes')
+          .select('lead_id')
+          .eq('id', noteId)
+          .maybeSingle()
+        if (!delNoteRow) {
+          return NextResponse.json({ error: 'الملاحظة غير موجودة' }, { status: 404 })
+        }
+        if (!await checkLeadOwnership(client, String(delNoteRow.lead_id), session)) {
+          return forbiddenResponse('لا تملك صلاحية حذف هذه الملاحظة')
+        }
         const { error } = await client.from('lead_notes').delete().eq('id', noteId)
         if (error) {
           console.error('[api/leads] Delete note error:', error, '(mode:', mode, ')')
@@ -734,6 +722,18 @@ export async function POST(request: NextRequest) {
 
       case 'updateNote': {
         const { noteId, updates: noteUpdates } = data as { noteId: string; updates: { text?: string; category?: string } }
+        // Ownership check — fetch note's lead_id, then verify ownership (audit issue #1)
+        const { data: updNoteRow } = await client
+          .from('lead_notes')
+          .select('lead_id')
+          .eq('id', noteId)
+          .maybeSingle()
+        if (!updNoteRow) {
+          return NextResponse.json({ error: 'الملاحظة غير موجودة' }, { status: 404 })
+        }
+        if (!await checkLeadOwnership(client, String(updNoteRow.lead_id), session)) {
+          return forbiddenResponse('لا تملك صلاحية تعديل هذه الملاحظة')
+        }
         const dbNoteData: Record<string, unknown> = {}
         if ('text' in noteUpdates) dbNoteData.text = noteUpdates.text
         if ('category' in noteUpdates) dbNoteData.category = noteUpdates.category
@@ -751,6 +751,8 @@ export async function POST(request: NextRequest) {
       }
 
       case 'saveSetting': {
+        // Admin-only — settings are global (e.g. team targets), not per-user (audit issue #1)
+        if (session.role !== 'admin') return forbiddenResponse('هذه العملية تتطلب صلاحيات مدير')
         const { key, value } = data as { key: string; value: unknown }
         const { error } = await client
           .from('settings')
@@ -1037,6 +1039,11 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Lead ID is required' }, { status: 400 })
     }
 
+    // Ownership check — prevent IDOR (audit issue #1)
+    if (!await checkLeadOwnership(client, id, session)) {
+      return forbiddenResponse('لا تملك صلاحية تعديل هذا العميل')
+    }
+
     const dbData = partialLeadToDb(updates)
     const { data, error } = await client
       .from('leads')
@@ -1082,6 +1089,11 @@ export async function DELETE(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: 'Lead ID is required' }, { status: 400 })
+    }
+
+    // Ownership check — prevent IDOR (audit issue #1)
+    if (!await checkLeadOwnership(client, id, session)) {
+      return forbiddenResponse('لا تملك صلاحية حذف هذا العميل')
     }
 
     const { error } = await client.from('leads').delete().eq('id', id)

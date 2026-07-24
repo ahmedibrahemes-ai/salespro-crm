@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, createAnonClient } from '@/lib/supabase-admin'
 import { hashPassword, verifyPassword, isLegacyHash } from '@/lib/password'
-import { createSessionToken } from '@/lib/session'
+import { createSessionToken, verifySessionToken, extractTokenFromRequest } from '@/lib/session'
 import { requireAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
 import { logAuditEvent } from '@/app/api/audit-log/helpers'
 
@@ -86,15 +86,25 @@ export async function POST(request: NextRequest) {
 
     // ── Validate Session ──
     if (action === 'validate-session') {
-      const { userId } = body
-      if (!userId) {
+      // Security fix: verify the token signature, not just check userId in DB.
+      // Before: anyone could send any userId and get { valid: true } if the
+      // user was active — no proof they held a valid session token.
+      // After: extract + verify the token from the Authorization header.
+      // If the token is invalid/expired, return { valid: false }.
+      const token = extractTokenFromRequest(request)
+      if (!token) {
+        return NextResponse.json({ valid: false }, { status: 200 })
+      }
+      const sessionPayload = await verifySessionToken(token)
+      if (!sessionPayload) {
         return NextResponse.json({ valid: false }, { status: 200 })
       }
 
+      // Now check that the user is still active in the DB
       const { data: users } = await client
         .from('app_users')
         .select('id, is_active')
-        .eq('id', userId)
+        .eq('id', sessionPayload.uid)
         .limit(1)
 
       if (!users || users.length === 0 || !users[0].is_active) {

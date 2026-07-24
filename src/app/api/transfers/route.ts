@@ -194,9 +194,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { lead_id, from_name, to_name, from_role, to_role, reason } = body as {
+    const { lead_id, to_name, from_role, to_role, reason } = body as {
       lead_id: string | number
-      from_name: string
+      from_name?: string
       to_name: string
       from_role?: string
       to_role?: string
@@ -207,9 +207,13 @@ export async function POST(request: NextRequest) {
     if (!lead_id) {
       return NextResponse.json({ error: 'lead_id is required' }, { status: 400 })
     }
-    if (!from_name || !to_name) {
-      return NextResponse.json({ error: 'from_name and to_name are required' }, { status: 400 })
+    if (!to_name) {
+      return NextResponse.json({ error: 'to_name is required' }, { status: 400 })
     }
+
+    // Security: force from_name to session.uname (don't trust client).
+    // Prevents forgery — user can't claim a transfer came from someone else.
+    const from_name = session.uname
 
     const { data, error } = await client
       .from('transfers')
@@ -217,7 +221,7 @@ export async function POST(request: NextRequest) {
         lead_id: Number(lead_id),
         from_name,
         to_name,
-        from_role: from_role || 'tele',
+        from_role: from_role || session.role,
         to_role: to_role || 'sales',
         reason: reason || null,
         transferred_by: session.uname,

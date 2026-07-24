@@ -866,10 +866,17 @@ export async function validateSession(): Promise<'valid' | 'invalid' | 'error'> 
     if (!auth.userId) return 'invalid'
     // Demo mode: if userId starts with "demo-", skip server validation
     if (auth.userId.startsWith('demo-')) return 'valid'
+    // Send the session token in the Authorization header so the server can
+    // verify the token signature (not just check if userId exists in DB).
+    const token = localStorage.getItem('venom-session')
+    if (!token) return 'invalid'
     const res = await fetch('/api/auth', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'validate-session', userId: auth.userId }),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ action: 'validate-session' }),
     })
     if (!res.ok) return 'error' // Server error — don't logout
     const data = await res.json()

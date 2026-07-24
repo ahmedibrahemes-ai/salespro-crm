@@ -147,6 +147,60 @@ function getWriteClient(authToken?: string) {
   return null
 }
 
+/**
+ * Check if the current session user owns a lead (as tele or sales) or is admin.
+ * Prevents IDOR — users can only modify leads they own.
+ */
+async function checkLeadOwnership(
+  client: ReturnType<typeof getSupabaseAdmin>,
+  leadId: string,
+  session: { uid: string | number; uname: string; role: string }
+): Promise<boolean> {
+  if (session.role === 'admin') return true
+  if (!client) return false
+  const { data } = await client
+    .from('leads')
+    .select('tele_name, sales_name')
+    .eq('id', leadId)
+    .maybeSingle()
+  if (!data) return false
+  const ownerTele = (data.tele_name || '').trim()
+  const ownerSales = (data.sales_name || '').trim()
+  return session.uname === ownerTele || session.uname === ownerSales
+}
+
+/**
+ * Check ownership for a batch of leads. All must be owned by the user (or admin).
+ */
+async function checkBulkOwnership(
+  client: ReturnType<typeof getSupabaseAdmin>,
+  ids: string[],
+  session: { uid: string | number; uname: string; role: string }
+): Promise<boolean> {
+  if (session.role === 'admin') return true
+  if (ids.length === 0) return true
+  if (!client) return false
+  const { data } = await client
+    .from('leads')
+    .select('id, tele_name, sales_name')
+    .in('id', ids)
+  if (!data || data.length !== ids.length) return false
+  for (const lead of data) {
+    const ownerTele = (lead.tele_name || '').trim()
+    const ownerSales = (lead.sales_name || '').trim()
+    if (session.uname !== ownerTele && session.uname !== ownerSales) return false
+  }
+  return true
+}
+
+/**
+ * Sanitize search input to prevent PostgREST filter injection.
+ * Removes characters that could break or manipulate .or() filter strings.
+ */
+function sanitizeSearch(search: string): string {
+  return search.replace(/[,()\\]/g, '').trim()
+}
+
 // ===== GET handler - Read leads (uses anon/public client for reliable pagination) =====
 export async function GET(request: NextRequest) {
   // Require auth — but allow anonymous access for paginated GET requests.
@@ -174,7 +228,7 @@ export async function GET(request: NextRequest) {
     // pageParam + limitParam already parsed above (before the auth check).
     const page = pageParam ? Math.max(1, parseInt(pageParam, 10)) : null
     const limit = limitParam ? Math.min(500, Math.max(10, parseInt(limitParam, 10))) : null
-    const search = searchParams.get('search')?.trim() || ''
+    const search = sanitizeSearch(searchParams.get('search') || '')
     // isPaginated already set above.
 
     // Cache key includes pagination params so each page has its own cache slot
@@ -361,6 +415,11 @@ export async function POST(request: NextRequest) {
 
     switch (operation) {
       case 'create': {
+        // Force tele_name/sales_name to match session user (prevents impersonation)
+        if (session.role !== 'admin') {
+          if (session.role === 'tele') data.tele = session.uname
+          if (session.role === 'sales') data.sales = session.uname
+        }
         const dbData = leadToDb(data)
 
         // Server-side duplicate phone check (WARNING only — don't block creation)
@@ -418,6 +477,17 @@ export async function POST(request: NextRequest) {
         const leads = data as Record<string, unknown>[]
         if (!Array.isArray(leads) || leads.length === 0) {
           return success({ data: [] })
+        }
+        // Limit batch size to prevent DoS
+        if (leads.length > 500) {
+          return NextResponse.json({ error: 'الحد الأقصى 500 عميل في المرة الواحدة' }, { status: 400 })
+        }
+        // Force tele_name/sales_name to match session user (prevents impersonation)
+        if (session.role !== 'admin') {
+          for (const lead of leads) {
+            if (session.role === 'tele') lead.tele = session.uname
+            if (session.role === 'sales') lead.sales = session.uname
+          }
         }
 
         // Check for intra-batch duplicates (INFO only — don't filter/remove any leads)
@@ -496,6 +566,10 @@ export async function POST(request: NextRequest) {
         if (!id) {
           return NextResponse.json({ error: 'Lead ID is required' }, { status: 400 })
         }
+        // Ownership check — prevent IDOR
+        if (!await checkLeadOwnership(client, id, session)) {
+          return forbiddenResponse('لا تملك صلاحية تعديل هذا العميل')
+        }
         const dbData = partialLeadToDb(updates)
         const { data: lead, error } = await client
           .from('leads')
@@ -525,6 +599,10 @@ export async function POST(request: NextRequest) {
         if (!id) {
           return NextResponse.json({ error: 'Lead ID is required' }, { status: 400 })
         }
+        // Ownership check — prevent IDOR
+        if (!await checkLeadOwnership(client, id, session)) {
+          return forbiddenResponse('لا تملك صلاحية حذف هذا العميل')
+        }
         const { error } = await client.from('leads').delete().eq('id', id)
         if (error) {
           console.error('[api/leads] Delete error:', error, '(mode:', mode, ')')
@@ -537,6 +615,10 @@ export async function POST(request: NextRequest) {
         const ids = data as string[]
         if (!Array.isArray(ids) || ids.length === 0) {
           return success({ success: true })
+        }
+        // Ownership check — prevent IDOR on bulk operations
+        if (!await checkBulkOwnership(client, ids, session)) {
+          return forbiddenResponse('لا تملك صلاحية حذف بعض العملاء المحددين')
         }
         const BATCH_SIZE = 100
         for (let i = 0; i < ids.length; i += BATCH_SIZE) {
@@ -554,6 +636,10 @@ export async function POST(request: NextRequest) {
         const { ids, updates } = data as { ids: number[]; updates: Record<string, unknown> }
         if (!Array.isArray(ids) || ids.length === 0) {
           return success({ success: true })
+        }
+        // Ownership check — prevent IDOR on bulk operations
+        if (!await checkBulkOwnership(client, ids.map(String), session)) {
+          return forbiddenResponse('لا تملك صلاحية تعديل بعض العملاء المحددين')
         }
         const BATCH_SIZE = 500
         const dbData = partialLeadToDb(updates)
@@ -578,6 +664,10 @@ export async function POST(request: NextRequest) {
         if (!Array.isArray(ids) || ids.length === 0) {
           return success({ success: true })
         }
+        // Ownership check — prevent IDOR
+        if (!await checkBulkOwnership(client, ids, session)) {
+          return forbiddenResponse('لا تملك صلاحية أرشفة بعض العملاء المحددين')
+        }
         const BATCH_SIZE = 100
         const archivedAt = new Date().toISOString()
         for (let i = 0; i < ids.length; i += BATCH_SIZE) {
@@ -598,6 +688,10 @@ export async function POST(request: NextRequest) {
         const ids = data as string[]
         if (!Array.isArray(ids) || ids.length === 0) {
           return success({ success: true })
+        }
+        // Ownership check — prevent IDOR
+        if (!await checkBulkOwnership(client, ids, session)) {
+          return forbiddenResponse('لا تملك صلاحية استرجاع بعض العملاء المحددين')
         }
         const BATCH_SIZE = 100
         for (let i = 0; i < ids.length; i += BATCH_SIZE) {

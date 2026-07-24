@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, createAnonClient } from '@/lib/supabase-admin'
-import { requireAuth, unauthorizedResponse } from '@/lib/auth-guard'
+import { requireAuth, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
 
 /**
  * /api/notifications
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { target_user, target_role, type, message, lead_id } = body as {
+    let { target_user, target_role, type, message, lead_id } = body as {
       target_user?: string
       target_role?: string
       type: string
@@ -121,6 +121,14 @@ export async function POST(request: NextRequest) {
     const allowedTypes = ['attendance', 'transfer', 'new-lead', 'note', 'system']
     if (!allowedTypes.includes(type)) {
       return NextResponse.json({ error: 'invalid type' }, { status: 400 })
+    }
+
+    // Security: non-admin users can only send notifications to THEMSELVES.
+    // Prevents spam/impersonation — only admin can broadcast (target_user=null)
+    // or send to other users.
+    if (session.role !== 'admin') {
+      target_user = session.uname
+      target_role = undefined // don't allow role-based broadcasts
     }
 
     const { data, error } = await client
@@ -180,6 +188,28 @@ export async function PATCH(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: 'id is required (or set all: true)' }, { status: 400 })
+    }
+
+    // Ownership check — verify the notification belongs to this user before
+    // marking it as read. Prevents IDOR (marking other users' notifications).
+    if (session.role !== 'admin') {
+      const { data: notif } = await client
+        .from('notifications')
+        .select('target_user, target_role')
+        .eq('id', id)
+        .maybeSingle()
+      if (!notif) {
+        return NextResponse.json({ error: 'Notification not found' }, { status: 404 })
+      }
+      const targetUser = notif.target_user as string | null
+      const targetRole = notif.target_role as string | null
+      // User can only mark notifications targeted to them (or broadcasts to their role)
+      const isTargetedToUser = targetUser === session.uname
+      const isBroadcastToRole = !targetUser && targetRole === session.role
+      const isGlobalBroadcast = !targetUser && !targetRole
+      if (!isTargetedToUser && !isBroadcastToRole && !isGlobalBroadcast) {
+        return forbiddenResponse('لا تملك صلاحية تعديل هذا الإشعار')
+      }
     }
 
     const { error } = await client

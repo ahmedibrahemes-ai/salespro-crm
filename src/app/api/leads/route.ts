@@ -548,6 +548,40 @@ export async function POST(request: NextRequest) {
         if (!await checkLeadOwnership(client, id, session)) {
           return forbiddenResponse('لا تملك صلاحية تعديل هذا العميل')
         }
+
+        // ── Attendance notification (server-side) ──
+        // When attendance is marked (attended/no-show), notify the tele rep who
+        // transferred this lead. They need to know the meeting outcome.
+        // Bug fix: previously this was client-side (realtime handler) which sent
+        // the notification to ALL connected users instead of just the tele rep.
+        if ('attended' in updates && updates.attended) {
+          try {
+            // Fetch the lead to get tele_name + customer_name for the notification
+            const { data: leadForNotif } = await client
+              .from('leads')
+              .select('tele_name, customer_name')
+              .eq('id', id)
+              .maybeSingle()
+            if (leadForNotif?.tele_name) {
+              const attendedValue = String(updates.attended)
+              const customerName = leadForNotif.customer_name || `#${id}`
+              const message = attendedValue === 'attended'
+                ? `حضر العميل: ${customerName}`
+                : `لم يحضر العميل: ${customerName}`
+              await client.from('notifications').insert({
+                target_user: leadForNotif.tele_name,
+                target_role: 'tele',
+                type: 'attendance',
+                message,
+                lead_id: Number(id),
+              })
+            }
+          } catch (notifErr) {
+            console.error('[api/leads] Attendance notification failed:', notifErr)
+            // Non-fatal — the update itself succeeded
+          }
+        }
+
         const dbData = partialLeadToDb(updates)
         const { data: lead, error } = await client
           .from('leads')

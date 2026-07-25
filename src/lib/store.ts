@@ -715,6 +715,19 @@ export const useCrmStore = create<CrmStore>()(
   notificationsLoaded: false,
   addNotification: (type, message, leadId) => {
     set((s) => {
+      // Dedup: skip if an identical notification (same type + message + leadId)
+      // already exists in the last 5 seconds. Prevents duplicate notifications
+      // when the same realtime event fires multiple times (e.g. after reconnect).
+      const fiveSecondsAgo = Date.now() - 5000
+      const isDuplicate = s.notifications.some(
+        (n) =>
+          n.type === type &&
+          n.message === message &&
+          n.leadId === leadId &&
+          n.createdAt > fiveSecondsAgo
+      )
+      if (isDuplicate) return s
+
       const id = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
       const notif: Notification = { id, type, message, leadId, read: false, createdAt: Date.now() }
       const updated = [notif, ...s.notifications].slice(0, 50) // max 50

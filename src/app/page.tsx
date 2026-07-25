@@ -471,25 +471,16 @@ export default function Home() {
             const state = useCrmStore.getState()
             const existingLead = state.leadsById[leadId]
 
-            // Check attendance change
-            const newAttended = newRow.attended as string | undefined
-            const oldAttended = oldRow?.attended as string | undefined
-            if (newAttended !== undefined && newAttended !== oldAttended && existingLead) {
-              const customerName = existingLead.customerName || (newRow.customer_name as string) || ''
-              if (newAttended === 'attended') {
-                addNotification('attendance', `حضر العميل: ${customerName}`, leadId)
-              } else if (newAttended === 'no-show') {
-                addNotification('attendance', `لم يحضر العميل: ${customerName}`, leadId)
-              }
-            }
-
-            // Check transfer (sales_name changed from null/empty to a value)
-            const newSalesName = newRow.sales_name as string | undefined
-            const oldSalesName = oldRow?.sales_name as string | undefined
-            if (newSalesName && newSalesName.trim() && (!oldSalesName || !oldSalesName.trim())) {
-              const customerName = existingLead?.customerName || (newRow.customer_name as string) || ''
-              addNotification('transfer', `تحويل جديد لـ ${newSalesName.trim()}: ${customerName}`, leadId)
-            }
+            // NOTE: attendance + transfer notifications are now SERVER-SIDE.
+            // The leads API (update operation) creates the notification in the DB
+            // when attendance changes, and the transfers API creates it when a
+            // lead is transferred. This avoids duplicate notifications (client +
+            // server) and ensures the notification reaches the right user
+            // (tele_name) instead of everyone connected.
+            // The server polls notifications every 60s, so the bell icon updates
+            // automatically. Removed the client-side addNotification calls here
+            // to prevent: (1) duplicate notifications, (2) notifications sent to
+            // all connected users instead of the relevant user only.
 
             // Build updates object — only include fields that are present in the
             // realtime payload. Supabase UPDATE payloads contain ONLY the changed

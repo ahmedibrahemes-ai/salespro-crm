@@ -512,23 +512,30 @@ export default function Home() {
             if (has('store_url')) { const v = val('store_url') ?? ''; if (v || !existing?.storeUrl) updates.storeUrl = v }
             if (has('brief')) { const v = val('brief') ?? ''; if (v || !existing?.brief) updates.brief = v }
             if (has('contact_result')) { const v = val('contact_result') ?? ''; if (v || !existing?.contactResult) updates.contactResult = v }
-            if (has('status')) { const v = val('status') ?? ''; updates.status = v || null }
-            if (has('sales_status')) { const v = val('sales_status') ?? null; updates.salesStatus = v }
-            if (has('attended')) { const v = val('attended') ?? null; updates.attended = v }
+            // NULL GUARD (Bug fix — data loss): status/salesStatus/attended were
+            // accepting null from realtime events and wiping existing values in the
+            // client cache. Now we only apply null if the existing value is also
+            // null/empty (confirming the field was intentionally cleared, not just
+            // missing from the payload). This was the #1 cause of "data disappearing"
+            // reported by sales users — another user's edit would trigger a realtime
+            // UPDATE that wiped this user's status/notes/attendance.
+            if (has('status')) { const v = val('status') ?? ''; if (v || !existing?.status) updates.status = v || null }
+            if (has('sales_status')) { const v = val('sales_status'); if (v || !existing?.salesStatus) updates.salesStatus = v ?? null }
+            if (has('attended')) { const v = val('attended'); if (v || !existing?.attended) updates.attended = v ?? null }
             if (has('sales_name')) { const v = val('sales_name'); updates.sales = v ? String(v).trim() : null }
             if (has('meeting_date')) { const v = val('meeting_date') ?? ''; if (v || !existing?.meetingDate) updates.meetingDate = v }
             if (has('meeting_time')) { const v = val('meeting_time') ?? ''; if (v || !existing?.meetingTime) updates.meetingTime = v }
             if (has('meeting_type')) { const v = val('meeting_type') ?? ''; if (v || !existing?.meetingType) updates.meetingType = v }
             if (has('meeting_link')) { const v = val('meeting_link') ?? ''; if (v || !existing?.meetingLink) updates.meetingLink = v }
-            if (has('assigned_at')) { const v = val('assigned_at'); updates.assignedAt = v ? new Date(v as string).getTime() : null }
+            if (has('assigned_at')) { const v = val('assigned_at'); if (v || !existing?.assignedAt) updates.assignedAt = v ? new Date(v as string).getTime() : null }
             if (has('is_archived')) { updates.isArchived = (newRow.is_archived as boolean) ?? false }
-            if (has('archived_at')) { const v = val('archived_at'); updates.archivedAt = v ? new Date(v as string).getTime() : null }
-            if (has('archived_by')) { const v = val('archived_by') ?? null; updates.archivedBy = v }
-            if (has('cancelled_from')) { const v = val('cancelled_from') ?? null; updates.cancelledFrom = v }
-            if (has('cancelled_at')) { const v = val('cancelled_at'); updates.cancelledAt = v ? new Date(v as string).getTime() : null }
-            if (has('attendance_marked_at')) { const v = val('attendance_marked_at'); updates.attendanceMarkedAt = v ? new Date(v as string).getTime() : null }
-            if (has('attendance_marked_by')) { const v = val('attendance_marked_by') ?? null; updates.attendanceMarkedBy = v }
-            if (has('contact_result_at')) { const v = val('contact_result_at'); updates.contactResultAt = v ? new Date(v as string).getTime() : null }
+            if (has('archived_at')) { const v = val('archived_at'); if (v || !existing?.archivedAt) updates.archivedAt = v ? new Date(v as string).getTime() : null }
+            if (has('archived_by')) { const v = val('archived_by') ?? null; if (v || !existing?.archivedBy) updates.archivedBy = v }
+            if (has('cancelled_from')) { const v = val('cancelled_from'); if (v || !existing?.cancelledFrom) updates.cancelledFrom = v ?? null }
+            if (has('cancelled_at')) { const v = val('cancelled_at'); if (v || !existing?.cancelledAt) updates.cancelledAt = v ? new Date(v as string).getTime() : null }
+            if (has('attendance_marked_at')) { const v = val('attendance_marked_at'); if (v || !existing?.attendanceMarkedAt) updates.attendanceMarkedAt = v ? new Date(v as string).getTime() : null }
+            if (has('attendance_marked_by')) { const v = val('attendance_marked_by'); if (v || !existing?.attendanceMarkedBy) updates.attendanceMarkedBy = v ?? null }
+            if (has('contact_result_at')) { const v = val('contact_result_at'); if (v || !existing?.contactResultAt) updates.contactResultAt = v ? new Date(v as string).getTime() : null }
 
             if (Object.keys(updates).length > 0) {
               updateLeadInCache(leadId, updates)

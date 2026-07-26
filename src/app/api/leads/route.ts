@@ -442,10 +442,31 @@ export async function POST(request: NextRequest) {
               console.error('[api/leads] Create error (retry):', retry.error, '(mode:', mode, ')')
               return NextResponse.json({ error: retry.error.message }, { status: 400 })
             }
-            return success({ data: leadFromDb(retry.data as DbLead) })
+            // Bug fix: guard against null data (RLS read-back issue)
+            if (retry.data) {
+              return success({ data: leadFromDb(retry.data as DbLead), duplicateWarning })
+            }
           }
           console.error('[api/leads] Create error:', error, '(mode:', mode, ')')
           return NextResponse.json({ error: error.message }, { status: 400 })
+        }
+
+        // Bug fix: .single() can return null data even without error (RLS read-back)
+        // Fallback: fetch the just-inserted row by created_at
+        if (!lead) {
+          console.warn('[api/leads] Create: .single() returned null, fetching via created_at fallback...')
+          const { data: fetched } = await client
+            .from('leads')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          if (fetched) {
+            return success({ data: leadFromDb(fetched as DbLead), duplicateWarning })
+          }
+          // Last resort: return success without lead data — client will refresh
+          console.error('[api/leads] Create: fallback fetch also returned null')
+          return success({ data: null, duplicateWarning })
         }
 
         return success({ data: leadFromDb(lead as DbLead), duplicateWarning })
@@ -522,10 +543,30 @@ export async function POST(request: NextRequest) {
             console.error('[api/leads] Bulk create error:', error, '(mode:', mode, ')')
             return NextResponse.json({ error: error.message }, { status: 400 })
           }
-          if (created) {
+          if (created && created.length > 0) {
             allCreated = allCreated.concat(created as DbLead[])
           } else {
-            console.warn(`[api/leads] Bulk create: insert().select() returned null data for batch starting at index ${i}`)
+            // Bug fix: .select() returned null/empty — the rows WERE inserted
+            // (no error), but we can't read them back. This happens when RLS
+            // blocks the read-back or Supabase returns null for large batches.
+            // FALLBACK: fetch the just-inserted rows by their created_at timestamps
+            // so the client can add them to the cache and they appear in the sheet.
+            console.warn(`[api/leads] Bulk create: .select() returned null for batch ${i}, fetching via created_at fallback...`)
+            const batchStart = new Date(baseTime - (i + batch.length - 1)).toISOString()
+            const batchEnd = new Date(baseTime - i + 1).toISOString()
+            const { data: fetched, error: fetchErr } = await client
+              .from('leads')
+              .select('*')
+              .gte('created_at', batchStart)
+              .lte('created_at', batchEnd)
+              .order('created_at', { ascending: false })
+              .limit(batch.length)
+            if (fetchErr) {
+              console.error('[api/leads] Bulk create fallback fetch error:', fetchErr.message)
+            } else if (fetched && fetched.length > 0) {
+              console.log(`[api/leads] Bulk create fallback: fetched ${fetched.length} rows`)
+              allCreated = allCreated.concat(fetched as DbLead[])
+            }
           }
         }
         // Supabase returns rows in insertion order (first inserted = first in array).

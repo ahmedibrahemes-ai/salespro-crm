@@ -1285,7 +1285,20 @@ export function TeleSheet() {
         status: null,
         contactResult: '',
       })
-      addLeadToCache(created)
+      // Bug fix: if created is null (RLS read-back issue), the lead WAS inserted
+      // but we didn't get it back. Refresh page 1 to fetch it.
+      if (created) {
+        addLeadToCache(created)
+      } else {
+        console.warn('[tele-sheet] Create returned null — refreshing from server...')
+        try {
+          const { apiGetLeadsPage1 } = await import('@/lib/supabase')
+          const { leads: freshLeads } = await apiGetLeadsPage1()
+          batchAddLeadsToCache(freshLeads)
+        } catch (refreshErr) {
+          console.error('[tele-sheet] Refresh fallback failed:', refreshErr)
+        }
+      }
       addToast('success', `تم إضافة ${newLead.customerName} بنجاح`)
       setNewLead({ customerName: '', phone: '', storeUrl: '', brief: '' })
       setShowAddRow(false)

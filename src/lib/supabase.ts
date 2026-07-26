@@ -95,7 +95,11 @@ async function serverOp<T = unknown>(operation: string, data: unknown): Promise<
     }
     throw new Error(json.error || `Server operation "${operation}" failed (${res.status})`)
   }
-  return json.data ?? json
+  // Bug fix: use 'in' check instead of ?? — null ?? json returns json (wrong),
+  // but we want to return null when the API explicitly sends data: null.
+  // This was causing create() to return { data: null, duplicateWarning } instead
+  // of null, which addLeadToCache() couldn't handle (lead.id was undefined).
+  return 'data' in json ? json.data : json
 }
 
 /**
@@ -426,11 +430,12 @@ export async function apiGetArchivedLeads(): Promise<Lead[]> {
   return json.data as Lead[]
 }
 
-export async function apiCreateLead(lead: Partial<Lead>): Promise<Lead> {
+export async function apiCreateLead(lead: Partial<Lead>): Promise<Lead | null> {
   // No direct-Supabase fallback — the server API uses the service role key
   // (bypasses RLS) and our in-memory cache. Falling back to the client-side
   // anon client would bypass the cache AND fail under RLS. Surface the error.
-  return serverOp<Lead>('create', lead)
+  // Returns null if the lead was inserted but .select() returned null (RLS).
+  return serverOp<Lead | null>('create', lead)
 }
 
 export async function apiBulkCreateLeads(leadsArr: Partial<Lead>[]): Promise<Lead[]> {

@@ -750,6 +750,19 @@ export function BulkAdd() {
       const created = await apiBulkCreateLeads(leadsToCreate)
       if (Array.isArray(created) && created.length > 0) {
         batchAddLeadsToCache(created)
+      } else {
+        // Bug fix: .select() returned empty (RLS read-back issue) — the leads
+        // WERE inserted to the DB, but we didn't get them back. Force a refresh
+        // of page 1 so they appear in the sheet immediately.
+        console.warn('[bulk-add] Created array is empty — refreshing leads from server...')
+        try {
+          const { apiGetLeadsPage1 } = await import('@/lib/supabase')
+          const { leads: freshLeads } = await apiGetLeadsPage1()
+          // batchAddLeadsToCache skips existing leads, so new ones get added
+          batchAddLeadsToCache(freshLeads)
+        } catch (refreshErr) {
+          console.error('[bulk-add] Refresh fallback failed:', refreshErr)
+        }
       }
 
       setSubmittedCount(validatedRows.length)

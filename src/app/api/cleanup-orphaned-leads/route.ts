@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, createAnonClient } from '@/lib/supabase-admin'
 import { requireAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
+import { invalidateAllCaches } from '@/lib/api-cache'
 
 /**
  * One-time cleanup endpoint: archive leads whose assigned member (tele_name
@@ -87,6 +88,10 @@ export async function POST(request: NextRequest) {
         archivedTele = orphanedTeleCount
       }
     }
+
+    // Bug fix: this route archives leads directly but never invalidated the
+    // in-memory GET /api/leads / GET /api/stats cache (api-cache.ts).
+    if (archivedSales > 0 || archivedTele > 0) invalidateAllCaches()
 
     return NextResponse.json({
       success: true,

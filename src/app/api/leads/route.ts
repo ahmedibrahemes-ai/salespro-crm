@@ -6,11 +6,15 @@ import { requireAuth, unauthorizedResponse, forbiddenResponse } from '@/lib/auth
 import { safeErrorMessage } from '@/lib/server-error'
 
 // Operations that mutate data (must invalidate cache AFTER successful write)
+// Bug fix: 'setSetting' here never matched any real operation — the actual
+// switch case below is named 'saveSetting', so that write never invalidated
+// the cache. 'bulkUpdate' and 'updateNote' were also missing entirely (see
+// their case blocks below for the updateNote fix specifically).
 const WRITE_OPERATIONS = new Set([
-  'create', 'bulkCreate', 'update', 'delete', 'bulkDelete',
-  'archive', 'unarchive', 'addNote', 'deleteNote',
+  'create', 'bulkCreate', 'update', 'delete', 'bulkDelete', 'bulkUpdate',
+  'archive', 'unarchive', 'addNote', 'deleteNote', 'updateNote',
   'addTeamMember', 'removeTeamMember', 'renameTeamMember',
-  'saveAccessPermissions', 'setSetting',
+  'saveAccessPermissions', 'saveSetting',
 ])
 
 function leadFromDb(row: DbLead) {
@@ -490,7 +494,13 @@ export async function POST(request: NextRequest) {
         }
 
         // Check for intra-batch duplicates (INFO only — don't filter/remove any leads)
-        const duplicateWarnings: Array<{ index: number; phone: string; reason: string }> = []
+        const duplicateWarnings: Array<{
+          index: number
+          phone: string
+          reason: string
+          existingId?: number
+          existingOwner?: string
+        }> = []
         const seenPhones = new Map<string, number>()
 
         leads.forEach((lead, idx) => {
@@ -512,6 +522,70 @@ export async function POST(request: NextRequest) {
 
         if (duplicateWarnings.length > 0) {
           console.log(`[api/leads] Bulk create: ${duplicateWarnings.length} intra-batch duplicate phones detected (not filtered)`)
+        }
+
+        // Check for pre-existing duplicates in the DB (cross-batch, INFO only —
+        // mirrors the single-create duplicate check above, so bulkCreate gives
+        // the same feedback as create instead of silently saying nothing).
+        // Skip rows already flagged as intra-batch duplicates (only the first
+        // occurrence in a batch needs the "already exists" warning).
+        const phoneVariantsSet = new Set<string>()
+        const normToIndices = new Map<string, number[]>()
+        leads.forEach((lead, idx) => {
+          if (duplicateWarnings.some((w) => w.index === idx)) return
+          const phone = lead.phone as string | undefined
+          if (!phone || !phone.trim()) return
+          const norm = normalizePhone(phone)
+          if (!norm) return
+          for (const variant of generatePhoneVariants(phone)) phoneVariantsSet.add(variant)
+          const arr = normToIndices.get(norm) || []
+          arr.push(idx)
+          normToIndices.set(norm, arr)
+        })
+
+        if (phoneVariantsSet.size > 0) {
+          const variantsArray = Array.from(phoneVariantsSet)
+          const DUP_CHECK_BATCH = 500
+          let existingLeads: Array<{ id: number; phone: string | null; tele_name: string | null; sales_name: string | null }> = []
+          for (let i = 0; i < variantsArray.length; i += DUP_CHECK_BATCH) {
+            const batch = variantsArray.slice(i, i + DUP_CHECK_BATCH)
+            const { data: found, error: dupCheckErr } = await client
+              .from('leads')
+              .select('id, phone, tele_name, sales_name')
+              .eq('is_archived', false)
+              .in('phone', batch)
+            if (dupCheckErr) {
+              console.error('[api/leads] Bulk create — DB duplicate check error:', dupCheckErr.message)
+              continue
+            }
+            if (found) existingLeads = existingLeads.concat(found as typeof existingLeads)
+          }
+
+          const normToExisting = new Map<string, { existingId: number; existingOwner: string }>()
+          for (const row of existingLeads) {
+            if (!row.phone) continue
+            const norm = normalizePhone(row.phone)
+            if (!norm || !normToIndices.has(norm)) continue
+            const owner = (row.tele_name || '').trim() || (row.sales_name || '').trim() || '—'
+            const current = normToExisting.get(norm)
+            if (!current || row.id < current.existingId) {
+              normToExisting.set(norm, { existingId: row.id, existingOwner: owner })
+            }
+          }
+
+          for (const [norm, indices] of normToIndices) {
+            const existing = normToExisting.get(norm)
+            if (!existing) continue
+            for (const idx of indices) {
+              duplicateWarnings.push({
+                index: idx,
+                phone: norm,
+                reason: 'Already exists in database',
+                existingId: existing.existingId,
+                existingOwner: existing.existingOwner,
+              })
+            }
+          }
         }
 
         // Proceed with ALL leads (don't filter any out)
@@ -577,7 +651,7 @@ export async function POST(request: NextRequest) {
         } else {
           console.log(`[api/leads] Bulk create: ${leads.length} requested, ${allCreated.length} created`)
         }
-        return success({ data: allCreated.map(leadFromDb) })
+        return success({ data: allCreated.map(leadFromDb), duplicateWarnings })
       }
 
       case 'update': {

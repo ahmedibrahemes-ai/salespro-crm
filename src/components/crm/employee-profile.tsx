@@ -3,7 +3,7 @@
 import { useMemo, useCallback, useState, useEffect, useRef } from 'react'
 import { useCrmStore, STATUSES, SALES_STATUSES, ATTENDANCE_STATUSES, CONTACT_RESULTS, formatDate, formatRelativeTime } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
-import { apiUpdateLead } from '@/lib/supabase'
+import { apiUpdateLead, handleServerError } from '@/lib/supabase'
 import { isCallContactResult, isClosedWon } from '@/lib/crm-utils'
 import {
   Phone, Briefcase, Calendar, CalendarCheck, Trophy, Users, TrendingUp,
@@ -143,6 +143,7 @@ export function EmployeeProfile() {
   const setCurrentView = useCrmStore((s) => s.setCurrentView)
   const addToast = useCrmStore((s) => s.addToast)
   const updateLeadInCache = useCrmStore((s) => s.updateLeadInCache)
+  const revertLeadInCache = useCrmStore((s) => s.revertLeadInCache)
   const userId = useCrmStore((s) => s.userId)
 
   /* ─── Mount animation trigger ─── */
@@ -495,19 +496,29 @@ export function EmployeeProfile() {
   /* ─── Attendance marking handler for sales ─── */
   const handleMarkAttendance = useCallback(async (leadId: string, status: 'attended' | 'no-show') => {
     if (!currentUser) return
+    // Bug fix: this handler and my-meetings.tsx's handleMarkAttendance
+    // implement the identical feature (mark attendance) but only
+    // my-meetings.tsx rolled back the optimistic update on failure. A
+    // failed save here left the UI showing an attendance result that was
+    // never actually persisted. Now matches my-meetings.tsx's pattern.
+    const oldLead = leads.find((l) => l.id === leadId)
+    if (!oldLead) return
+    const updates: Partial<Lead> = {
+      attended: status,
+      attendanceMarkedAt: Date.now(),
+      attendanceMarkedBy: currentUser,
+    }
+    updateLeadInCache(leadId, updates)
     try {
-      const updates: Partial<Lead> = {
-        attended: status,
-        attendanceMarkedAt: Date.now(),
-        attendanceMarkedBy: currentUser,
-      }
-      updateLeadInCache(leadId, updates)
       await apiUpdateLead(leadId, updates)
       addToast('success', status === 'attended' ? 'تم تسجيل الحضور ✓' : 'تم تسجيل عدم الحضور')
-    } catch {
-      addToast('error', 'فشل في تسجيل الحضور')
+    } catch (err) {
+      if (!handleServerError(err, { id: leadId, oldLead })) {
+        revertLeadInCache(leadId, oldLead)
+        addToast('error', 'فشل في تسجيل الحضور')
+      }
     }
-  }, [currentUser, updateLeadInCache, addToast])
+  }, [currentUser, leads, updateLeadInCache, revertLeadInCache, addToast])
 
   if (!currentUser) return null
 

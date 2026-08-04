@@ -85,9 +85,21 @@ export async function POST(request: NextRequest) {
         .eq('id', user.id)
 
       // Issue a signed session token
+      // IMPORTANT: uname must be the account's display_name, not its login
+      // username. Every ownership check in the app (checkLeadOwnership,
+      // the client-side "my leads" filters in tele-sheet/sales-sheet/
+      // customers-status, transfers, notifications) compares this value
+      // against leads.tele_name/sales_name, which are themselves populated
+      // from team_members.name — and team_members.name is always the
+      // display_name (see admin-panel.tsx UsersTab.handleCreateUser and
+      // the name-linking flow). Using the login username here caused
+      // newly created/imported leads to be written with an identity that
+      // the client's own "my leads" filters never match, making the lead
+      // invisible to the very user who just created it whenever
+      // username !== display_name for that account.
       const token = await createSessionToken({
         uid: user.id,
-        uname: user.username,
+        uname: user.display_name,
         role: user.role,
       })
 

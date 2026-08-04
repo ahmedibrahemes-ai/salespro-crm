@@ -751,11 +751,14 @@ function QuickPasteDialog({ open, onClose, leads, teleName, onSaved, addToast }:
         contactResult: '',
       }))
 
-      const created = await apiBulkCreateLeads(leadsToCreate)
+      const { data: created, duplicateWarnings } = await apiBulkCreateLeads(leadsToCreate)
       if (Array.isArray(created) && created.length > 0) {
         onSaved(created)
       }
       addToast('success', `تم إضافة ${selectedValidRows.length} عميل بنجاح 🎉`)
+      if (duplicateWarnings.length > 0) {
+        addToast('warning', `تنبيه: ${duplicateWarnings.length} رقم مكرر بين المضاف والموجود مسبقاً`)
+      }
       setRows([])
       onClose()
     } catch (err: unknown) {
@@ -1276,7 +1279,7 @@ export function TeleSheet() {
       const teleName = selectedTele === 'all'
         ? (currentUser || '')
         : selectedTele
-      const created = await apiCreateLead({
+      const { data: created, duplicateWarning } = await apiCreateLead({
         customerName: newLead.customerName,
         phone: newLead.phone,
         storeUrl: newLead.storeUrl,
@@ -1300,6 +1303,12 @@ export function TeleSheet() {
         }
       }
       addToast('success', `تم إضافة ${newLead.customerName} بنجاح`)
+      // Bug fix: the server already checks for an existing lead with this
+      // phone number and returns a warning — it was previously discarded
+      // by the client. Surface it so the user knows a duplicate exists.
+      if (duplicateWarning) {
+        addToast('warning', `تنبيه: هذا الرقم موجود بالفعل لدى ${duplicateWarning.existingOwner || '—'}`)
+      }
       setNewLead({ customerName: '', phone: '', storeUrl: '', brief: '' })
       setShowAddRow(false)
     } catch (err: unknown) {
@@ -1427,12 +1436,26 @@ export function TeleSheet() {
     }
 
     setTransferSaving(true)
+    // Bug fix: this used to also set salesStatus: 'new' unconditionally.
+    // salesStatus is dual-purposed as the sales rep's free-text follow-up
+    // notes field (see NotesCell in sales-sheet.tsx/follow-up-section.tsx).
+    // Nothing in the app reads salesStatus === 'new' as a signal, so the
+    // write served no functional purpose — it only overwrote (destroyed)
+    // any note already on the lead every time it was transferred.
+    //
+    // Bug fix: this handler had no rollback on failure — a failed transfer
+    // left the lead showing as transferred (sales/meeting fields set) in
+    // the UI even though the server never applied it.
+    const oldLead = leads.find((l) => l.id === transferLeadId)
+    if (!oldLead) {
+      setTransferSaving(false)
+      return
+    }
     const updates: Partial<Lead> = {
       sales: formData.sales,
       meetingDate: formData.meetingDate || '',
       meetingTime: formData.meetingTime || '',
       assignedAt: Date.now(),
-      salesStatus: 'new',
       brief: formData.brief,
       customerName: formData.customerName,
       phone: formData.phone,
@@ -1468,12 +1491,15 @@ export function TeleSheet() {
       // handles all realtime updates). Removed to avoid dead-code confusion
       // (audit §3 row 9). The UPDATE we just did to the leads table will fire
       // a postgres_changes UPDATE event that syncs all clients automatically.
-    } catch {
-      addToast('error', 'فشل التحويل')
+    } catch (err) {
+      if (!handleServerError(err, { id: transferLeadId, oldLead })) {
+        revertLeadInCache(transferLeadId, oldLead)
+        addToast('error', 'فشل التحويل')
+      }
     }
     setTransferSaving(false)
     closeTransferModal()
-  }, [transferLeadId, updateLeadInCache, addToast, closeTransferModal, currentUser, currentRole])
+  }, [transferLeadId, leads, updateLeadInCache, revertLeadInCache, addToast, closeTransferModal, currentUser, currentRole])
 
   /* ─── Display label maps for LazySelect ─── */
   const contactResultLabels = useMemo(() => {
@@ -1495,22 +1521,35 @@ export function TeleSheet() {
 
   /* ─── Cancel transfer ─── */
   const handleCancelTransfer = useCallback(async (leadId: string) => {
+    // Bug fix: this used to also set salesStatus: null unconditionally.
+    // salesStatus holds the sales rep's free-text follow-up notes (see
+    // NotesCell in sales-sheet.tsx/follow-up-section.tsx) — nothing reads
+    // salesStatus === null as a "not transferred" signal, so clearing it
+    // here only destroyed any note already written on the lead.
+    //
+    // Bug fix: this handler had no rollback on failure, unlike
+    // handleUpdateField above — a failed cancel left the lead showing as
+    // un-transferred in the UI even though the server never applied it.
+    const oldLead = leads.find((l) => l.id === leadId)
+    if (!oldLead) return
     const updates: Partial<Lead> = {
       sales: '',
       assignedAt: null as unknown as number,
       meetingDate: '',
       meetingTime: '',
       meetingType: '',
-      salesStatus: null as unknown as string,
     }
     updateLeadInCache(leadId, updates)
     try {
       await apiUpdateLead(leadId, updates)
       addToast('success', 'تم إلغاء التحويل')
-    } catch {
-      addToast('error', 'فشل إلغاء التحويل')
+    } catch (err) {
+      if (!handleServerError(err, { id: leadId, oldLead })) {
+        revertLeadInCache(leadId, oldLead)
+        addToast('error', 'فشل إلغاء التحويل')
+      }
     }
-  }, [updateLeadInCache, addToast])
+  }, [leads, updateLeadInCache, revertLeadInCache, addToast])
 
   /* ─── Change sales person (reopen modal) ─── */
   const handleChangeSales = useCallback((leadId: string) => {

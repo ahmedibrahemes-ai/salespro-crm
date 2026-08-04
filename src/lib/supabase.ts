@@ -430,18 +430,100 @@ export async function apiGetArchivedLeads(): Promise<Lead[]> {
   return json.data as Lead[]
 }
 
-export async function apiCreateLead(lead: Partial<Lead>): Promise<Lead | null> {
+export interface DuplicateWarning {
+  existingId: number
+  existingOwner: string
+  normalizedPhone: string
+}
+
+export interface CreateLeadResult {
+  data: Lead | null
+  duplicateWarning: DuplicateWarning | null
+}
+
+export async function apiCreateLead(lead: Partial<Lead>): Promise<CreateLeadResult> {
   // No direct-Supabase fallback — the server API uses the service role key
   // (bypasses RLS) and our in-memory cache. Falling back to the client-side
   // anon client would bypass the cache AND fail under RLS. Surface the error.
-  // Returns null if the lead was inserted but .select() returned null (RLS).
-  return serverOp<Lead | null>('create', lead)
+  // data is null if the lead was inserted but .select() returned null (RLS).
+  //
+  // Bug fix: this used to go through serverOp(), which returns only the
+  // `data` field of the JSON response — silently discarding the server's
+  // `duplicateWarning` (computed at route.ts's 'create' case, which already
+  // checks for an existing lead with the same phone). The warning was
+  // therefore always computed and always thrown away, so a duplicate
+  // import never told the user anything was wrong. This function is
+  // implemented directly (not via serverOp) specifically to preserve and
+  // return that field.
+  const res = await fetch('/api/leads', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ operation: 'create', data: lead }),
+  })
+  const json = await res.json()
+  if (!res.ok || json.error) {
+    if (res.status === 401) {
+      const err = new Error('SESSION_EXPIRED') as Error & { status: number }
+      err.status = 401
+      throw err
+    }
+    throw new Error(json.error || `Server operation "create" failed (${res.status})`)
+  }
+  return {
+    data: (json.data as Lead | null) ?? null,
+    duplicateWarning: (json.duplicateWarning as DuplicateWarning | null) ?? null,
+  }
 }
 
-export async function apiBulkCreateLeads(leadsArr: Partial<Lead>[]): Promise<Lead[]> {
-  if (!Array.isArray(leadsArr) || leadsArr.length === 0) return []
-  const data = await serverOp<Lead[]>('bulkCreate', leadsArr)
-  return Array.isArray(data) ? data : []
+export interface BulkDuplicateWarning {
+  index: number
+  phone: string
+  reason: string
+  existingId?: number
+  existingOwner?: string
+}
+
+export interface BulkCreateResult {
+  data: Lead[]
+  duplicateWarnings: BulkDuplicateWarning[]
+}
+
+export async function apiBulkCreateLeads(leadsArr: Partial<Lead>[]): Promise<BulkCreateResult> {
+  if (!Array.isArray(leadsArr) || leadsArr.length === 0) return { data: [], duplicateWarnings: [] }
+  // Implemented directly (not via serverOp) for the same reason as
+  // apiCreateLead: serverOp() returns only the `data` field of the JSON
+  // response, which would silently discard `duplicateWarnings`.
+  const res = await fetch('/api/leads', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ operation: 'bulkCreate', data: leadsArr }),
+  })
+  const json = await res.json()
+  if (!res.ok || json.error) {
+    if (res.status === 401) {
+      const err = new Error('SESSION_EXPIRED') as Error & { status: number }
+      err.status = 401
+      throw err
+    }
+    throw new Error(json.error || `Server operation "bulkCreate" failed (${res.status})`)
+  }
+  return {
+    data: Array.isArray(json.data) ? (json.data as Lead[]) : [],
+    duplicateWarnings: Array.isArray(json.duplicateWarnings) ? (json.duplicateWarnings as BulkDuplicateWarning[]) : [],
+  }
+}
+
+/**
+ * Ask the server whether any of the given phone numbers already exist on a
+ * non-archived lead. This is the authoritative, DB-backed duplicate check —
+ * unlike a client-side check over the Zustand `leads` array, it is correct
+ * even if the client hasn't finished loading every lead yet (see
+ * apiGetRemainingLeads's background loading).
+ */
+export async function apiCheckDuplicatePhones(phones: string[]): Promise<Record<string, DuplicateWarning>> {
+  if (!Array.isArray(phones) || phones.length === 0) return {}
+  const result = await serverOp<{ duplicates: Record<string, DuplicateWarning> } | null>('checkDuplicatePhones', phones)
+  return result?.duplicates || {}
 }
 
 export async function apiUpdateLead(id: string, updates: Partial<Lead>): Promise<Lead | null> {

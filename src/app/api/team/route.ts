@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, isAdminAvailable, createAuthenticatedClient, createAnonClient } from '@/lib/supabase-admin'
 import { requireAuth, requireAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
+import { invalidateAllCaches } from '@/lib/api-cache'
 
 /**
  * GET /api/team
@@ -136,6 +137,7 @@ export async function POST(request: NextRequest) {
             console.error('[api/team] Add (reactivate) error:', error, '(mode:', mode, ')')
             return NextResponse.json({ error: error.message }, { status: 400 })
           }
+          invalidateAllCaches()
           return NextResponse.json({ data: member })
         }
 
@@ -148,6 +150,7 @@ export async function POST(request: NextRequest) {
           console.error('[api/team] Add error:', error, '(mode:', mode, ')')
           return NextResponse.json({ error: error.message }, { status: 400 })
         }
+        invalidateAllCaches()
         return NextResponse.json({ data: member })
       }
 
@@ -156,25 +159,33 @@ export async function POST(request: NextRequest) {
         if (!name) {
           return NextResponse.json({ error: 'Name is required' }, { status: 400 })
         }
-        // Solution A: clear sales_name AND tele_name on orphaned leads so a
-        // future reactivated user (same name) does NOT inherit them. removeTeamMember
-        // is a soft-delete (is_active=false), so without this, leads keep their
-        // sales_name/tele_name = <removed user> and reappear when an admin re-adds
-        // a user with the same displayName. We null BOTH fields since the removed
-        // member could be in either role.
-        const { error: clearTeleErr } = await client
+        // Bug fix: this used to NULL tele_name/sales_name on every matching
+        // lead (including already-archived ones), permanently destroying
+        // ownership — the exact data-loss bug that /api/leads's
+        // removeTeamMember case (the one actually used by the UI) was
+        // rewritten to avoid. This route was never updated to match, even
+        // though it implements the same "remove a team member" operation.
+        // Now: archive the leads instead (is_archived=true), preserving
+        // ownership for historical reference in the admin archive panel,
+        // scoped to non-archived rows only — identical behavior to
+        // /api/leads's removeTeamMember (route.ts case 'removeTeamMember').
+        const archivedAt = new Date().toISOString()
+        const archivedBy = `removed:${name}`
+        const { error: archiveTeleErr } = await client
           .from('leads')
-          .update({ tele_name: null })
+          .update({ is_archived: true, archived_at: archivedAt, archived_by: archivedBy })
           .eq('tele_name', name)
-        if (clearTeleErr) {
-          console.error('[api/team] Remove — clear tele_name error:', clearTeleErr, '(mode:', mode, ')')
+          .eq('is_archived', false)
+        if (archiveTeleErr) {
+          console.error('[api/team] Remove — archive tele leads error:', archiveTeleErr, '(mode:', mode, ')')
         }
-        const { error: clearSalesErr } = await client
+        const { error: archiveSalesErr } = await client
           .from('leads')
-          .update({ sales_name: null })
+          .update({ is_archived: true, archived_at: archivedAt, archived_by: archivedBy })
           .eq('sales_name', name)
-        if (clearSalesErr) {
-          console.error('[api/team] Remove — clear sales_name error:', clearSalesErr, '(mode:', mode, ')')
+          .eq('is_archived', false)
+        if (archiveSalesErr) {
+          console.error('[api/team] Remove — archive sales leads error:', archiveSalesErr, '(mode:', mode, ')')
         }
         const { error } = await client
           .from('team_members')
@@ -184,6 +195,7 @@ export async function POST(request: NextRequest) {
           console.error('[api/team] Remove error:', error, '(mode:', mode, ')')
           return NextResponse.json({ error: error.message }, { status: 400 })
         }
+        invalidateAllCaches()
         return NextResponse.json({ success: true })
       }
 
@@ -218,6 +230,7 @@ export async function POST(request: NextRequest) {
         await client.from('leads').update({ tele_name: newName }).eq('tele_name', oldName)
         await client.from('leads').update({ sales_name: newName }).eq('sales_name', oldName)
 
+        invalidateAllCaches()
         return NextResponse.json({ success: true, teleCount: teleCount || 0, salesCount: salesCount || 0 })
       }
 

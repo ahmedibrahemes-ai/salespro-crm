@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, createAnonClient } from '@/lib/supabase-admin'
 import { requireAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
+import { invalidateAllCaches } from '@/lib/api-cache'
 
 /**
  * Diagnostic endpoint: checks the created_at values on leads for a specific
@@ -136,6 +137,10 @@ export async function POST(request: NextRequest) {
     if (updateErr) {
       return NextResponse.json({ error: updateErr.message }, { status: 500 })
     }
+
+    // Bug fix: this route updates leads directly but never invalidated the
+    // in-memory GET /api/leads / GET /api/stats cache (api-cache.ts).
+    invalidateAllCaches()
 
     return NextResponse.json({
       success: true,

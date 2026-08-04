@@ -510,11 +510,14 @@ function QuickPasteDialog({ open, onClose, leads, salesName, onSaved, addToast }
         status: null,
         contactResult: '',
       }))
-      const created = await apiBulkCreateLeads(leadsToCreate)
+      const { data: created, duplicateWarnings } = await apiBulkCreateLeads(leadsToCreate)
       if (Array.isArray(created) && created.length > 0) {
         onSaved(created)
       }
       addToast('success', `تم إضافة ${selectedValidRows.length} عميل بنجاح 🎉`)
+      if (duplicateWarnings.length > 0) {
+        addToast('warning', `تنبيه: ${duplicateWarnings.length} رقم مكرر بين المضاف والموجود مسبقاً`)
+      }
       setRows([])
       onClose()
     } catch (err: unknown) {
@@ -847,7 +850,14 @@ export function SalesSheet() {
           updates.assignedAt = Date.now()
         }
       } else if (value === CLOSED_WON_KEY) {
-        updates.salesStatus = CLOSED_WON_KEY
+        // Bug fix: this used to also set updates.salesStatus = CLOSED_WON_KEY.
+        // salesStatus doubles as the sales rep's free-text follow-up notes
+        // (see NotesCell below), so that write silently overwrote (destroyed)
+        // any note already on the lead every time a deal was marked closed-won.
+        // It was also redundant: isClosedWon() (crm-utils.ts) already returns
+        // true from status === 'closed-won' alone (status is set above, via
+        // updates[field] = value), so no reader needed salesStatus to also
+        // carry the sentinel.
       } else {
         // Bug fix: REMOVED the cascade that wiped meetingDate/Time/Type/Link when
         // changing away from 'meeting'. This was destructive — if a user accidentally
@@ -906,7 +916,7 @@ export function SalesSheet() {
     setSaving(true)
     try {
       const salesName = selectedSales === 'all' ? (currentUser || '') : selectedSales
-      const created = await apiCreateLead({
+      const { data: created, duplicateWarning } = await apiCreateLead({
         customerName: newLead.customerName,
         phone: newLead.phone,
         storeUrl: newLead.storeUrl,
@@ -930,6 +940,12 @@ export function SalesSheet() {
         }
       }
       addToast('success', `تم إضافة ${newLead.customerName} بنجاح`)
+      // Bug fix: the server already checks for an existing lead with this
+      // phone number and returns a warning — it was previously discarded
+      // by the client. Surface it so the user knows a duplicate exists.
+      if (duplicateWarning) {
+        addToast('warning', `تنبيه: هذا الرقم موجود بالفعل لدى ${duplicateWarning.existingOwner || '—'}`)
+      }
       setNewLead({ customerName: '', phone: '', storeUrl: '', brief: '' })
       setShowAddRow(false)
     } catch (err: unknown) {

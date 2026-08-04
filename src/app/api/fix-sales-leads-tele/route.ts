@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, createAnonClient } from '@/lib/supabase-admin'
 import { requireAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
+import { invalidateAllCaches } from '@/lib/api-cache'
 
 /**
  * One-time cleanup endpoint: fix leads where tele_name was wrongly set to a
@@ -97,6 +98,10 @@ export async function POST(request: NextRequest) {
         fixedPerUser[salesName] = count
       }
     }
+
+    // Bug fix: this route updates leads directly but never invalidated the
+    // in-memory GET /api/leads / GET /api/stats cache (api-cache.ts).
+    if (fixedCount > 0) invalidateAllCaches()
 
     return NextResponse.json({
       success: true,

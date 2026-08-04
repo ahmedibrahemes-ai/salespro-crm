@@ -513,7 +513,16 @@ export default function Home() {
             if (has('status')) { const v = val('status') ?? ''; if (v || !existing?.status) updates.status = v || null }
             if (has('sales_status')) { const v = val('sales_status'); if (v || !existing?.salesStatus) updates.salesStatus = v ?? null }
             if (has('attended')) { const v = val('attended'); if (v || !existing?.attended) updates.attended = v ?? null }
-            if (has('sales_name')) { const v = val('sales_name'); updates.sales = v ? String(v).trim() : null }
+            // Bug fix: this field previously applied unconditionally (no null
+            // guard), unlike every other field in this handler. A stale/
+            // out-of-order realtime event carrying an empty sales_name could
+            // silently un-assign a lead from a sales rep in every other
+            // connected tab. Now consistent with the same guard already used
+            // for meetingDate/meetingTime/assignedAt (also cleared together
+            // with sales_name by tele-sheet.tsx's handleCancelTransfer) —
+            // only apply an incoming falsy value if the cached value is
+            // already falsy too.
+            if (has('sales_name')) { const v = val('sales_name'); const next = v ? String(v).trim() : null; if (next || !existing?.sales) updates.sales = next }
             if (has('meeting_date')) { const v = val('meeting_date') ?? ''; if (v || !existing?.meetingDate) updates.meetingDate = v }
             if (has('meeting_time')) { const v = val('meeting_time') ?? ''; if (v || !existing?.meetingTime) updates.meetingTime = v }
             if (has('meeting_type')) { const v = val('meeting_type') ?? ''; if (v || !existing?.meetingType) updates.meetingType = v }

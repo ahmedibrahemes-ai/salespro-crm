@@ -273,7 +273,14 @@ export function FollowUpSection() {
           updates.assignedAt = Date.now()
         }
       } else if (value === CLOSED_WON_KEY) {
-        updates.salesStatus = CLOSED_WON_KEY
+        // Bug fix: this used to also set updates.salesStatus = CLOSED_WON_KEY.
+        // salesStatus doubles as the sales rep's free-text follow-up notes
+        // (see NotesCell below), so that write silently overwrote (destroyed)
+        // any note already on the lead every time a deal was marked closed-won.
+        // It was also redundant: isClosedWon() (crm-utils.ts) already returns
+        // true from status === 'closed-won' alone (status is set above, via
+        // updates[field] = value), so no reader needed salesStatus to also
+        // carry the sentinel.
       } else {
         if (oldLead.salesStatus === CLOSED_WON_KEY) {
           updates.salesStatus = null

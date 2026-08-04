@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useCallback, useMemo, useRef } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useCrmStore, STATUSES } from '@/lib/store'
 import type { Lead } from '@/lib/supabase'
-import { apiBulkCreateLeads } from '@/lib/supabase'
+import { apiBulkCreateLeads, apiCheckDuplicatePhones } from '@/lib/supabase'
 import { normalizePhone } from '@/lib/crm-utils'
 import {
   Plus, Trash2, Upload, Loader2, Check, FileSpreadsheet, ClipboardPaste,
@@ -445,7 +445,11 @@ export function BulkAdd() {
     return errors
   }
 
-  /* ─── Build set of existing normalized phone numbers ─── */
+  /* ─── Build set of existing normalized phone numbers ───
+     This is only an INSTANT, client-side signal built from whatever leads
+     are already loaded into the store — it can be incomplete (background
+     loading, or another team member's leads the sheet hasn't fetched yet).
+     It is not the source of truth; see serverDuplicatePhones below. */
   const existingPhoneSet = useMemo(() => {
     const s = new Set<string>()
     for (const l of leads) {
@@ -456,6 +460,37 @@ export function BulkAdd() {
     }
     return s
   }, [leads])
+
+  /* ─── Server-authoritative duplicate check ───
+     Bug fix: the "Duplicate" flag used to rely solely on existingPhoneSet
+     (the client's already-loaded `leads` array), which can miss a real
+     duplicate whenever the client hasn't loaded every lead yet. Query the
+     server directly (the same DB-backed check used by 'create') so the
+     duplicate flag is always correct regardless of what's currently loaded
+     client-side. Debounced so it doesn't fire on every keystroke; results
+     are unioned with existingPhoneSet so a slow/failed request never makes
+     the flag less accurate than before, only potentially briefly behind. */
+  const [serverDuplicatePhones, setServerDuplicatePhones] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    const phones = rows.map((r) => r.phone).filter((p) => p && p.trim())
+    if (phones.length === 0) {
+      setServerDuplicatePhones(new Set())
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      try {
+        const duplicates = await apiCheckDuplicatePhones(phones)
+        if (!cancelled) setServerDuplicatePhones(new Set(Object.keys(duplicates)))
+      } catch (err) {
+        console.error('[bulk-add] Server duplicate check failed:', err)
+      }
+    }, 400)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [rows])
 
   /* ─── Compute rows with duplicate status ─── */
   const rowsWithDuplicates = useMemo(() => {
@@ -474,12 +509,12 @@ export function BulkAdd() {
       if (!row.phone) return { ...row, isDuplicate: false }
       const norm = normalizePhone(row.phone)
       if (!norm) return { ...row, isDuplicate: false }
-      const isExisting = existingPhoneSet.has(norm)
+      const isExisting = existingPhoneSet.has(norm) || serverDuplicatePhones.has(norm)
       const idsWithSameNorm = normToIds.get(norm) || []
       const isIntraDupe = idsWithSameNorm.length > 1
       return { ...row, isDuplicate: isExisting || isIntraDupe }
     })
-  }, [rows, existingPhoneSet])
+  }, [rows, existingPhoneSet, serverDuplicatePhones])
 
   /* ─── Selected valid rows (included + has data) ─── */
   const selectedValidRows = useMemo(
@@ -747,7 +782,7 @@ export function BulkAdd() {
         contactResult: '',
       }))
 
-      const created = await apiBulkCreateLeads(leadsToCreate)
+      const { data: created, duplicateWarnings } = await apiBulkCreateLeads(leadsToCreate)
       if (Array.isArray(created) && created.length > 0) {
         batchAddLeadsToCache(created)
       } else {
@@ -767,6 +802,9 @@ export function BulkAdd() {
 
       setSubmittedCount(validatedRows.length)
       addToast('success', `تم إضافة ${validatedRows.length} عميل بنجاح 🎉`)
+      if (duplicateWarnings.length > 0) {
+        addToast('warning', `تنبيه: ${duplicateWarnings.length} رقم مكرر بين المضاف والموجود مسبقاً`)
+      }
       setRows([])
       setFocusedCell(null)
     } catch (err: unknown) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, createAnonClient } from '@/lib/supabase-admin'
 import { normalizePhone, generatePhoneVariants } from '@/lib/crm-utils'
 import { requireAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
+import { invalidateAllCaches } from '@/lib/api-cache'
 
 /* ═══════════════════════════════════════════════════════
    Google Sheets Sync API
@@ -236,6 +237,11 @@ export async function POST(request: NextRequest) {
           }
         }
       }
+      // Bug fix: this route creates leads directly but never invalidated the
+      // in-memory GET /api/leads / GET /api/stats cache — webhook-created
+      // leads could be missing from those responses for up to the cache's
+      // TTL even though they were successfully inserted.
+      if (created.length > 0) invalidateAllCaches()
     }
 
     // Record sync history

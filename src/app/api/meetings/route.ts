@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, createAnonClient } from '@/lib/supabase-admin'
 import { requireAuth, unauthorizedResponse, forbiddenResponse } from '@/lib/auth-guard'
 import { sanitizeForFilter } from '@/lib/crm-utils'
+import { invalidateAllCaches } from '@/lib/api-cache'
 
 /**
  * /api/meetings
@@ -195,6 +196,11 @@ export async function PATCH(request: NextRequest) {
       console.error('[api/meetings] PATCH error:', error.message)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+
+    // Bug fix: this route writes directly to `leads` but never invalidated
+    // the in-memory GET /api/leads / GET /api/stats cache (api-cache.ts),
+    // unlike every leads-write in /api/leads/route.ts.
+    invalidateAllCaches()
 
     return NextResponse.json({
       data: {

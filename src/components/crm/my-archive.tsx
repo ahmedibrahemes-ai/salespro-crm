@@ -35,7 +35,7 @@ const itemVariants = {
    My Archive Component
    ═══════════════════════════════════════════════════════ */
 export function MyArchive() {
-  const { archivedLeads, currentUser, currentRole, addToast, unarchiveLeadsInCache } = useCrmStore()
+  const { archivedLeads, currentUser, currentRole, addToast, unarchiveLeadsInCache, archiveLeadsInCache } = useCrmStore()
 
   const [searchQuery, setSearchQuery] = useState('')
   const [filterRole, setFilterRole] = useState<'all' | 'tele' | 'sales'>('all')
@@ -90,14 +90,25 @@ export function MyArchive() {
 
   /* ─── Unarchive ─── */
   const handleUnarchive = useCallback(async (id: string) => {
+    // Bug fix: this had no rollback on failure — a failed unarchive left
+    // the lead showing as active (removed from the archive list) even
+    // though the server never applied it. There's no single-lead "undo
+    // unarchive" store action, so archiveLeadsInCache (already used
+    // elsewhere for real archiving) is reused to move it back — this
+    // stamps a fresh archivedAt/archivedBy rather than restoring the
+    // original values, which is an acceptable approximation for an
+    // error-recovery path (the lead visibly returns to the archive list,
+    // which is what matters here).
+    const oldLead = archivedLeads.find((l) => l.id === id)
     unarchiveLeadsInCache([id])
     try {
       await apiUnarchiveLeads([id])
       addToast('success', 'تم استرجاع العميل من الأرشيف')
     } catch {
+      archiveLeadsInCache([id], oldLead?.archivedBy || currentUser || 'unknown')
       addToast('error', 'فشل استرجاع العميل')
     }
-  }, [unarchiveLeadsInCache, addToast])
+  }, [archivedLeads, currentUser, unarchiveLeadsInCache, archiveLeadsInCache, addToast])
 
   /* ─── Bulk unarchive selected ─── */
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -114,15 +125,17 @@ export function MyArchive() {
   const handleBulkUnarchive = useCallback(async () => {
     const ids = Array.from(selectedIds)
     if (ids.length === 0) return
+    // Bug fix: same rollback gap as handleUnarchive above, for the bulk path.
     unarchiveLeadsInCache(ids)
     try {
       await apiUnarchiveLeads(ids)
       addToast('success', `تم استرجاع ${ids.length} عميل`)
     } catch {
+      archiveLeadsInCache(ids, currentUser || 'unknown')
       addToast('error', 'فشل الاسترجاع')
     }
     setSelectedIds(new Set())
-  }, [selectedIds, unarchiveLeadsInCache, addToast])
+  }, [selectedIds, currentUser, unarchiveLeadsInCache, archiveLeadsInCache, addToast])
 
   /* ═══════════════ RENDER ═══════════════ */
   return (

@@ -473,8 +473,18 @@ export const useCrmStore = create<CrmStore>()(
         newLeadsById[lead.id] = lead
       }
       if (leadsToAdd.length === 0) return state
-      // Prepend new leads (they're newest) — preserve their original order
-      const updatedLeads = [...leadsToAdd, ...state.leads]
+      // Merge by createdAt DESC instead of blindly prepending. leadsToAdd is not
+      // always "newest" — the background page-2+ loader calls this with OLDER
+      // leads, and a blind prepend put them ahead of the newer leads already
+      // in state.leads, pushing recently-created leads past the pagination
+      // window. A stable sort preserves the createdAt-DESC invariant the rest
+      // of the app relies on regardless of which batch (newer or older) is
+      // being merged in, while ties keep their relative input order (existing
+      // leads before newly-added ones, matching the previous prepend-for-new
+      // behavior when leadsToAdd is genuinely newest).
+      const updatedLeads = [...state.leads, ...leadsToAdd].sort(
+        (a, b) => (b.createdAt || 0) - (a.createdAt || 0)
+      )
       return { leads: updatedLeads, leadsById: newLeadsById, leadsVersion: state.leadsVersion + 1 }
     })
   },
